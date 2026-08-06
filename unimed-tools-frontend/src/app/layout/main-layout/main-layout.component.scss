@@ -1,0 +1,13 @@
+/* Estilos de layout principal e a área ocupada pelas páginas; seletores ficam limitados ao contexto indicado pelo arquivo. */
+.layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--content-bg);
+}
+
+.main-area {
+  flex: 1;
+  overflow-y: auto;
+  transition: margin-left 0.25s ease;
+}

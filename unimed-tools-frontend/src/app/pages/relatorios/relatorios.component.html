@@ -1,0 +1,1581 @@
+<!-- Apresentação de execução manual e administração da Central de Relatórios; regras de negócio permanecem no componente ou serviço correspondente. -->
+<app-relatorios-inicio
+  *ngIf="modoPagina === 'selecao'"
+  [quantidadeRelatorios]="relatorios.length"
+  [quantidadeGrupos]="quantidadeGruposAutomaticos"
+  (escolherManual)="selecionarModoPagina('manual')"
+  (escolherAutomatico)="selecionarModoPagina('automatico')"
+></app-relatorios-inicio>
+
+<app-relatorios-automaticos
+  *ngIf="modoPagina === 'automatico'"
+  [relatorios]="relatorios"
+  (voltar)="voltarSelecaoModo()"
+></app-relatorios-automaticos>
+
+<ng-container *ngIf="modoPagina === 'manual'">
+  <section class="tool-page relatorios-page">
+    <header class="tool-page-header page-header-row">
+      <div>
+        <span class="badge badge-ans">Relatórios</span>
+        <h1>Central de relatórios</h1>
+        <p>
+          Consulte as APIs cadastradas no SGU, visualize os dados e exporte o relatório completo.
+        </p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn btn-secondary" type="button" (click)="voltarSelecaoModo()">
+          <span aria-hidden="true">←</span> Trocar modo
+        </button>
+        <button class="btn btn-secondary" type="button" (click)="abrirNovoTemplate()">
+          <span aria-hidden="true">▦</span> Novo template
+        </button>
+        <button class="btn btn-primary" type="button" (click)="abrirNovo()">
+          <span aria-hidden="true">＋</span> Novo relatório
+        </button>
+      </div>
+    </header>
+
+    <div class="alert alert-error" *ngIf="erro" role="alert">
+      <span>{{ erro }}</span>
+      <button type="button" (click)="erro = ''" aria-label="Fechar">×</button>
+    </div>
+
+    <div class="alert alert-success" *ngIf="sucesso" role="status">
+      <span>{{ sucesso }}</span>
+      <button type="button" (click)="sucesso = ''" aria-label="Fechar">×</button>
+    </div>
+
+    <div class="reports-shell">
+      <aside class="catalog card">
+        <div class="catalog-header">
+          <div>
+            <h2>Relatórios disponíveis</h2>
+            <span>{{ relatorios.length }} cadastrado(s)</span>
+          </div>
+        </div>
+
+        <label class="search-box">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.3" />
+            <path
+              d="M10.5 10.5L14 14"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+            />
+          </svg>
+          <input
+            type="search"
+            [(ngModel)]="pesquisa"
+            (ngModelChange)="aplicarPesquisa()"
+            placeholder="Pesquisar relatório"
+          />
+        </label>
+
+        <div class="catalog-list" *ngIf="relatoriosFiltrados.length; else catalogoVazio">
+          <button
+            class="report-card"
+            type="button"
+            *ngFor="let relatorio of relatoriosFiltrados; trackBy: trackByRelatorioId"
+            [class.active]="selecionado?.id === relatorio.id && !templateAtivo"
+            (click)="selecionar(relatorio)"
+          >
+            <span class="report-icon">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <path
+                  d="M4 2.5h7l3 3v10H4v-13Z"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M11 2.5V6h3M6.5 9h5M6.5 12h5"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </span>
+            <span class="report-copy">
+              <strong>{{ relatorio.nomeExibicao }}</strong>
+              <small>{{ relatorio.apiNome }}</small>
+            </span>
+            <span class="report-card-actions">
+              <span
+                class="edit-report"
+                role="button"
+                tabindex="0"
+                title="Editar API e relatório"
+                (click)="abrirEdicao(relatorio, $event)"
+                (keydown.enter)="abrirEdicao(relatorio, $event)"
+                >✎</span
+              >
+              <span
+                class="delete-report"
+                role="button"
+                tabindex="0"
+                title="Excluir relatório"
+                (click)="abrirExclusao(relatorio, $event)"
+                (keydown.enter)="abrirExclusao(relatorio, $event)"
+                >×</span
+              >
+            </span>
+          </button>
+        </div>
+
+        <ng-template #catalogoVazio>
+          <div class="empty-catalog">
+            <strong>Nenhum relatório cadastrado</strong>
+            <p>Adicione uma API existente ou cadastre uma nova consulta no SGU.</p>
+            <button class="btn btn-secondary btn-sm" type="button" (click)="abrirNovo()">
+              Adicionar relatório
+            </button>
+          </div>
+        </ng-template>
+
+        <div class="catalog-divider"></div>
+
+        <div class="template-catalog-header">
+          <div>
+            <h2>Templates</h2>
+            <span>{{ templates.length }} salvo(s)</span>
+          </div>
+          <button
+            type="button"
+            class="template-add-button"
+            title="Criar template"
+            (click)="abrirNovoTemplate()"
+          >
+            ＋
+          </button>
+        </div>
+
+        <div class="template-list" *ngIf="templates.length; else templatesVazios">
+          <button
+            class="template-card"
+            type="button"
+            *ngFor="let template of templates; trackBy: trackByTemplateId"
+            [class.active]="templateAtivo?.id === template.id"
+            (click)="usarTemplate(template)"
+          >
+            <span class="template-icon" aria-hidden="true">▦</span>
+            <span class="template-copy">
+              <strong>{{ template.nome }}</strong>
+              <small>{{ resumoTemplate(template) }}</small>
+            </span>
+            <span
+              class="delete-template"
+              role="button"
+              tabindex="0"
+              title="Excluir template"
+              (click)="excluirTemplate(template, $event)"
+              (keydown.enter)="excluirTemplate(template, $event)"
+              >×</span
+            >
+          </button>
+        </div>
+
+        <ng-template #templatesVazios>
+          <div class="empty-templates">
+            <p>Agrupe vários relatórios para abri-los juntos.</p>
+            <button class="btn btn-secondary btn-sm" type="button" (click)="abrirNovoTemplate()">
+              Criar template
+            </button>
+          </div>
+        </ng-template>
+      </aside>
+
+      <main class="workspace">
+        <ng-container *ngIf="selecionado; else nenhumSelecionado">
+          <section class="card template-session" *ngIf="templateAtivo">
+            <div class="template-session-heading">
+              <div>
+                <span>Template ativo</span>
+                <strong>{{ templateAtivo.nome }}</strong>
+                <small *ngIf="templateAtivo.descricao">{{ templateAtivo.descricao }}</small>
+              </div>
+              <button
+                class="btn btn-secondary btn-sm"
+                type="button"
+                (click)="fecharTemplateAtivo()"
+              >
+                Fechar template
+              </button>
+            </div>
+
+            <div class="template-tabs" role="tablist" aria-label="Relatórios do template">
+              <button
+                type="button"
+                role="tab"
+                *ngFor="let relatorio of relatoriosAbertos; trackBy: trackByRelatorioId"
+                [class.active]="selecionado.id === relatorio.id"
+                [attr.aria-selected]="selecionado.id === relatorio.id"
+                (click)="selecionarRelatorioTemplate(relatorio)"
+              >
+                <strong>{{ relatorio.nomeExibicao }}</strong>
+                <small>{{ relatorio.apiNome }}</small>
+              </button>
+            </div>
+          </section>
+
+          <section class="card report-config">
+            <div class="report-heading">
+              <div>
+                <span class="api-label">{{ selecionado.apiNome }}</span>
+                <h2>{{ selecionado.nomeExibicao }}</h2>
+                <p>
+                  {{
+                    selecionado.descricao || 'Preencha os filtros abaixo para gerar o relatório.'
+                  }}
+                </p>
+              </div>
+              <div class="report-heading-actions">
+                <button
+                  class="btn btn-secondary btn-sm"
+                  type="button"
+                  (click)="abrirEdicao(selecionado)"
+                >
+                  Editar API
+                </button>
+                <button
+                  class="btn btn-secondary btn-sm"
+                  type="button"
+                  (click)="abrirExclusao(selecionado)"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+
+            <div class="filter-grid" *ngIf="selecionado.filtros.length; else semFiltros">
+              <div
+                class="field"
+                *ngFor="let filtro of selecionado.filtros; trackBy: trackByFiltroNome"
+              >
+                <label [for]="'filtro-' + filtro.nomeFiltro">
+                  {{ rotuloFiltro(filtro) }}
+                  <span class="required" *ngIf="filtro.obrigatorioFiltro === 'S'">*</span>
+                </label>
+                <input
+                  [id]="'filtro-' + filtro.nomeFiltro"
+                  [name]="filtro.nomeFiltro"
+                  [type]="tipoInput(filtro)"
+                  [placeholder]="placeholderFiltro(filtro)"
+                  [(ngModel)]="valoresFiltro[filtro.nomeFiltro]"
+                  [required]="filtro.obrigatorioFiltro === 'S'"
+                />
+                <small>
+                  {{ filtro.tipoDadoFiltro }}
+                  <span *ngIf="filtro.mascaraFiltro"> · {{ filtro.mascaraFiltro }}</span>
+                </small>
+              </div>
+            </div>
+
+            <ng-template #semFiltros>
+              <div class="no-filters">Esta API não possui filtros cadastrados.</div>
+            </ng-template>
+
+            <div class="report-actions">
+              <div class="page-size">
+                <label for="pageSize">Linhas por página</label>
+                <select
+                  id="pageSize"
+                  [(ngModel)]="tamanhoPagina"
+                  name="pageSize"
+                  [disabled]="carregando"
+                >
+                  <option [ngValue]="25">25</option>
+                  <option [ngValue]="50">50</option>
+                  <option [ngValue]="100">100</option>
+                </select>
+              </div>
+              <button
+                class="btn btn-primary btn-lg"
+                type="button"
+                [disabled]="carregando"
+                (click)="gerar(1)"
+              >
+                <span class="spinner" *ngIf="carregando"></span>
+                {{ carregando ? 'Gerando… ' + segundosGeracao + 's' : 'Gerar relatório' }}
+              </button>
+            </div>
+
+            <div class="generation-status" *ngIf="carregando" aria-live="polite" aria-busy="true">
+              <div class="generation-status-copy">
+                <span class="generation-pulse" aria-hidden="true"></span>
+                <div>
+                  <strong>{{ mensagemGeracao }}</strong>
+                  <small
+                    >Tempo decorrido: {{ segundosGeracao }} segundo(s). Limite de espera: 120
+                    segundos.</small
+                  >
+                </div>
+              </div>
+              <div class="generation-progress" aria-hidden="true">
+                <span></span>
+              </div>
+            </div>
+          </section>
+
+          <section class="card results-card" *ngIf="registros.length || (!carregando && sucesso)">
+            <div class="results-header">
+              <div>
+                <h2>Resultado</h2>
+                <p>
+                  Página {{ pagina }} · {{ registros.length }} registro(s)
+                  <span *ngIf="totalRegistros !== null"> · {{ totalRegistros }} no total</span>
+                  <span *ngIf="duracaoUltimaConsultaMs !== null">
+                    · {{ formatarDuracao(duracaoUltimaConsultaMs) }}</span
+                  >
+                </p>
+              </div>
+
+              <div class="download-panel">
+                <div class="download-format-group">
+                  <span class="download-label">Formato</span>
+                  <div class="format-selector" role="radiogroup" aria-label="Formato do arquivo">
+                    <button
+                      class="format-option"
+                      type="button"
+                      role="radio"
+                      [attr.aria-checked]="formatoSelecionado === 'csv'"
+                      [class.active]="formatoSelecionado === 'csv'"
+                      [disabled]="!!exportando"
+                      (click)="selecionarFormato('csv')"
+                    >
+                      CSV
+                    </button>
+                    <button
+                      class="format-option"
+                      type="button"
+                      role="radio"
+                      [attr.aria-checked]="formatoSelecionado === 'txt'"
+                      [class.active]="formatoSelecionado === 'txt'"
+                      [disabled]="!!exportando"
+                      (click)="selecionarFormato('txt')"
+                    >
+                      TXT
+                    </button>
+                    <button
+                      class="format-option"
+                      type="button"
+                      role="radio"
+                      [attr.aria-checked]="formatoSelecionado === 'xlsx'"
+                      [class.active]="formatoSelecionado === 'xlsx'"
+                      [disabled]="!!exportando"
+                      (click)="selecionarFormato('xlsx')"
+                    >
+                      XLSX
+                    </button>
+                  </div>
+                </div>
+
+                <label class="download-name-field" for="nomeArquivoDownload">
+                  <span class="download-label">Nome do arquivo</span>
+                  <span class="file-name-control">
+                    <input
+                      id="nomeArquivoDownload"
+                      name="nomeArquivoDownload"
+                      type="text"
+                      [(ngModel)]="nomeArquivoDownload"
+                      [disabled]="!!exportando"
+                      placeholder="Digite o nome do arquivo"
+                    />
+                    <b>.{{ formatoSelecionado }}</b>
+                  </span>
+                </label>
+
+                <button
+                  class="btn btn-primary download-button"
+                  type="button"
+                  [disabled]="!!exportando"
+                  (click)="baixar()"
+                >
+                  <span class="spinner" *ngIf="exportando"></span>
+                  {{ exportando ? 'Preparando…' : 'Baixar relatório' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="table-wrap" *ngIf="registros.length; else resultadoVazio">
+              <table class="data-table report-table">
+                <thead>
+                  <tr>
+                    <th *ngFor="let coluna of colunas; trackBy: trackByColuna">{{ coluna }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let registro of registros; trackBy: trackByRegistro">
+                    <td
+                      *ngFor="let coluna of colunas; trackBy: trackByColuna"
+                      [title]="formatarValor(registro[coluna])"
+                    >
+                      {{ formatarValor(registro[coluna]) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <ng-template #resultadoVazio>
+              <div class="empty-result">Nenhum registro foi encontrado.</div>
+            </ng-template>
+
+            <div class="pagination" *ngIf="registros.length">
+              <button
+                class="btn btn-secondary btn-sm"
+                type="button"
+                [disabled]="pagina <= 1 || carregando"
+                (click)="paginaAnterior()"
+              >
+                ← Anterior
+              </button>
+              <span>Página {{ pagina }}</span>
+              <button
+                class="btn btn-secondary btn-sm"
+                type="button"
+                [disabled]="ultimaPagina || carregando"
+                (click)="proximaPagina()"
+              >
+                Próxima →
+              </button>
+            </div>
+          </section>
+        </ng-container>
+
+        <ng-template #nenhumSelecionado>
+          <section class="card welcome-card">
+            <div class="welcome-icon">▤</div>
+            <h2>Selecione ou adicione um relatório</h2>
+            <p>Os filtros serão montados automaticamente com base na configuração da API do SGU.</p>
+            <div class="welcome-actions">
+              <button class="btn btn-primary" type="button" (click)="abrirNovo()">
+                Novo relatório
+              </button>
+              <button class="btn btn-secondary" type="button" (click)="abrirNovoTemplate()">
+                Novo template
+              </button>
+            </div>
+          </section>
+        </ng-template>
+      </main>
+    </div>
+  </section>
+
+  <!-- Modal de relatório -->
+  <div class="modal-backdrop" *ngIf="modalNovoAberto" (click)="fecharNovo()">
+    <section
+      class="modal-card modal-large"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="novo-relatorio-titulo"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="modal-header">
+        <div>
+          <span class="modal-kicker">Configuração</span>
+          <h2 id="novo-relatorio-titulo">Novo relatório</h2>
+        </div>
+        <button type="button" class="modal-close" (click)="fecharNovo()" aria-label="Fechar">
+          ×
+        </button>
+      </header>
+
+      <div class="mode-tabs">
+        <button
+          type="button"
+          [class.active]="modoCadastro === 'existente'"
+          (click)="mudarModo('existente')"
+        >
+          Buscar pelo nome
+        </button>
+        <button
+          type="button"
+          [class.active]="modoCadastro === 'lista'"
+          (click)="mudarModo('lista')"
+        >
+          Escolher na lista
+        </button>
+        <button type="button" [class.active]="modoCadastro === 'nova'" (click)="mudarModo('nova')">
+          Cadastrar nova API
+        </button>
+        <button
+          type="button"
+          [class.active]="modoCadastro === 'arquivos'"
+          (click)="mudarModo('arquivos')"
+        >
+          Importar arquivos SQL
+        </button>
+      </div>
+
+      <div class="modal-alert" *ngIf="erro">{{ erro }}</div>
+
+      <div class="modal-body" *ngIf="modoCadastro === 'existente'">
+        <div class="field full-field">
+          <label for="apiExistenteNome">Nome da API no SGU</label>
+          <div class="inline-input">
+            <input
+              id="apiExistenteNome"
+              name="apiExistenteNome"
+              [(ngModel)]="novoApiNome"
+              placeholder="0090-despesa"
+              (keyup.enter)="buscarApiExistente()"
+            />
+            <button
+              class="btn btn-secondary"
+              type="button"
+              [disabled]="buscandoApi"
+              (click)="buscarApiExistente()"
+            >
+              {{ buscandoApi ? 'Buscando…' : 'Buscar API' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="api-preview" *ngIf="apiEncontrada">
+          <div class="api-preview-header">
+            <div>
+              <span>API encontrada</span>
+              <strong>{{ apiEncontrada.nome }}</strong>
+            </div>
+            <small>{{ apiEncontrada.filtros.length }} filtro(s)</small>
+          </div>
+          <div class="filter-chips" *ngIf="apiEncontrada.filtros.length">
+            <span *ngFor="let filtro of apiEncontrada.filtros; trackBy: trackByFiltroNome">
+              {{ filtro.nomeFiltro }} · {{ filtro.tipoDadoFiltro }}
+              <b *ngIf="filtro.obrigatorioFiltro === 'S'">obrigatório</b>
+            </span>
+          </div>
+        </div>
+
+        <div class="two-cols" *ngIf="apiEncontrada">
+          <div class="field">
+            <label for="nomeExibicaoExistente">Nome para exibição</label>
+            <input
+              id="nomeExibicaoExistente"
+              name="nomeExibicaoExistente"
+              [(ngModel)]="novoNomeExibicao"
+              placeholder="Relatório de despesas"
+            />
+          </div>
+          <div class="field">
+            <label for="descricaoExistente">Descrição</label>
+            <input
+              id="descricaoExistente"
+              name="descricaoExistente"
+              [(ngModel)]="novaDescricao"
+              placeholder="Despesas por competência"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-body api-list-body" *ngIf="modoCadastro === 'lista'">
+        <div class="api-list-toolbar">
+          <label class="search-box api-list-search">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.3" />
+              <path
+                d="M10.5 10.5L14 14"
+                stroke="currentColor"
+                stroke-width="1.3"
+                stroke-linecap="round"
+              />
+            </svg>
+            <input
+              type="search"
+              name="pesquisaApis"
+              [(ngModel)]="pesquisaApis"
+              (ngModelChange)="aplicarPesquisaApis()"
+              placeholder="Pesquisar pelo nome da API"
+            />
+          </label>
+          <button
+            class="btn btn-secondary"
+            type="button"
+            [disabled]="carregandoListaApis"
+            (click)="carregarApisCadastradas(true)"
+          >
+            {{ carregandoListaApis ? 'Atualizando…' : 'Atualizar lista' }}
+          </button>
+        </div>
+
+        <div class="api-list-summary" *ngIf="listaApisCarregada && !carregandoListaApis">
+          <span>{{ apisDisponiveisFiltradas.length }} API(s) exibida(s)</span>
+          <strong *ngIf="quantidadeApisSelecionadas"
+            >{{ quantidadeApisSelecionadas }} selecionada(s)</strong
+          >
+        </div>
+
+        <div class="api-list-loading" *ngIf="carregandoListaApis">
+          <span class="spinner spinner-green"></span>
+          Buscando as APIs cadastradas no SGU…
+        </div>
+
+        <div
+          class="api-selection-list"
+          *ngIf="!carregandoListaApis && apisDisponiveisFiltradas.length"
+        >
+          <label
+            class="api-selection-card"
+            *ngFor="let api of apisDisponiveisFiltradas; let i = index; trackBy: trackByApiNome"
+            [class.selected]="apisSelecionadas[api.nome]"
+            [class.already-added]="apiJaAdicionada(api.nome)"
+          >
+            <input
+              type="checkbox"
+              [name]="'apiSelecionada-' + i"
+              [(ngModel)]="apisSelecionadas[api.nome]"
+              [disabled]="apiJaAdicionada(api.nome)"
+            />
+            <span class="api-selection-copy">
+              <span class="api-selection-title">
+                <strong>{{ api.nome }}</strong>
+                <small *ngIf="apiJaAdicionada(api.nome)">Já adicionado</small>
+              </span>
+              <span class="api-selection-meta">
+                {{ api.filtros.length }} filtro(s)
+                <span *ngIf="api.ordenacao"> · Ordenação: {{ api.ordenacao }}</span>
+              </span>
+              <span class="filter-chips compact" *ngIf="api.filtros.length">
+                <span *ngFor="let filtro of api.filtros; trackBy: trackByFiltroNome"
+                  >{{ filtro.nomeFiltro }} · {{ filtro.tipoDadoFiltro }}</span
+                >
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <div
+          class="api-list-empty"
+          *ngIf="!carregandoListaApis && listaApisCarregada && !apisDisponiveisFiltradas.length"
+        >
+          <strong>Nenhuma API encontrada</strong>
+          <p>Altere a pesquisa ou atualize a lista.</p>
+        </div>
+      </div>
+
+      <div class="modal-body sql-import-body" *ngIf="modoCadastro === 'arquivos'">
+        <div
+          class="sql-upload-zone"
+          [class.dragging]="arrastandoArquivosSql"
+          [class.disabled]="criandoApisEmLote"
+          (dragover)="aoArrastarArquivosSql($event)"
+          (dragleave)="aoSairDaAreaArquivosSql($event)"
+          (drop)="soltarArquivosSql($event)"
+        >
+          <input
+            #arquivosSqlInput
+            type="file"
+            accept=".sql,.txt,text/plain,application/sql"
+            multiple
+            hidden
+            (change)="selecionarArquivosSql($event)"
+          />
+
+          <div class="sql-upload-icon" aria-hidden="true">SQL</div>
+          <div class="sql-upload-copy">
+            <strong>Arraste um ou mais códigos SQL</strong>
+            <p>
+              Também é possível selecionar vários arquivos <code>.sql</code> ou <code>.txt</code> de
+              uma só vez.
+            </p>
+          </div>
+          <button
+            class="btn btn-secondary"
+            type="button"
+            [disabled]="carregandoArquivosSql || criandoApisEmLote"
+            (click)="arquivosSqlInput.click()"
+          >
+            {{ carregandoArquivosSql ? 'Lendo arquivos…' : 'Selecionar arquivos' }}
+          </button>
+        </div>
+
+        <div class="sql-import-help">
+          <strong>Como funciona</strong>
+          <p>
+            O nome da API e o nome de exibição são preenchidos a partir do nome do arquivo.
+            Variáveis como <code>:competencia</code> são detectadas automaticamente. Competências
+            fixas em CTEs <code>PARAM</code> ou <code>PARAMETROS</code> também são convertidas para
+            filtro. A aplicação também inclui <code>WHERE 1 = 1</code> e
+            <code>/*FILTROS*/</code> quando necessário.
+          </p>
+        </div>
+
+        <div class="batch-progress" *ngIf="criandoApisEmLote" aria-live="polite">
+          <div>
+            <strong>Cadastrando APIs no SGU…</strong>
+            <span>{{ progressoCriacaoLote }} de {{ totalCriacaoLote }}</span>
+          </div>
+          <progress [value]="progressoCriacaoLote" [max]="totalCriacaoLote || 1"></progress>
+        </div>
+
+        <div class="sql-files-summary" *ngIf="arquivosSqlImportados.length">
+          <span>{{ arquivosSqlImportados.length }} arquivo(s) carregado(s)</span>
+          <strong>{{ quantidadeArquivosProntos }} pronto(s) para cadastrar</strong>
+        </div>
+
+        <div class="sql-file-list" *ngIf="arquivosSqlImportados.length; else nenhumArquivoSql">
+          <article
+            class="sql-file-card"
+            *ngFor="
+              let arquivo of arquivosSqlImportados;
+              let arquivoIndex = index;
+              trackBy: trackByArquivoSqlId
+            "
+            [class.has-error]="!!erroArquivoSql(arquivo) || arquivo.status === 'erro'"
+            [class.is-success]="arquivo.status === 'sucesso'"
+            [class.is-loading]="arquivo.status === 'criando'"
+          >
+            <header class="sql-file-header">
+              <div class="sql-file-identity">
+                <span class="sql-file-number">{{ arquivoIndex + 1 }}</span>
+                <div>
+                  <strong>{{ arquivo.arquivoNome }}</strong>
+                  <small>
+                    {{ formatarTamanhoArquivo(arquivo.tamanhoBytes) }}
+                    <span *ngIf="arquivo.filtros.length">
+                      · {{ arquivo.filtros.length }} filtro(s) detectado(s)</span
+                    >
+                    <span *ngIf="arquivo.ajustesAplicados.length">
+                      · {{ arquivo.ajustesAplicados.length }} ajuste(s) automático(s)</span
+                    >
+                  </small>
+                </div>
+              </div>
+
+              <div class="sql-file-header-actions">
+                <span class="sql-status status-loading" *ngIf="arquivo.status === 'criando'"
+                  >Cadastrando…</span
+                >
+                <span class="sql-status status-success" *ngIf="arquivo.status === 'sucesso'"
+                  >Criada</span
+                >
+                <span class="sql-status status-error" *ngIf="arquivo.status === 'erro'"
+                  >Revisar</span
+                >
+                <button
+                  class="link-danger"
+                  type="button"
+                  [disabled]="criandoApisEmLote"
+                  (click)="removerArquivoSql(arquivo.id)"
+                >
+                  Remover
+                </button>
+              </div>
+            </header>
+
+            <div class="two-cols sql-file-main-fields">
+              <div class="field">
+                <label [for]="'arquivo-api-nome-' + arquivo.id">Nome da API *</label>
+                <input
+                  [id]="'arquivo-api-nome-' + arquivo.id"
+                  [name]="'arquivo-api-nome-' + arquivo.id"
+                  [(ngModel)]="arquivo.apiNome"
+                  [disabled]="criandoApisEmLote"
+                  placeholder="0090-nome-da-api"
+                />
+              </div>
+
+              <div class="field">
+                <label [for]="'arquivo-exibicao-' + arquivo.id">Nome para exibição *</label>
+                <input
+                  [id]="'arquivo-exibicao-' + arquivo.id"
+                  [name]="'arquivo-exibicao-' + arquivo.id"
+                  [(ngModel)]="arquivo.nomeExibicao"
+                  [disabled]="criandoApisEmLote"
+                  placeholder="Nome do relatório"
+                />
+              </div>
+            </div>
+
+            <div class="sql-file-error" *ngIf="arquivo.erro || erroArquivoSql(arquivo) as erroSql">
+              {{ erroSql }}
+            </div>
+
+            <div class="sql-import-help" *ngIf="arquivo.ajustesAplicados.length">
+              <strong>Ajustes automáticos aplicados</strong>
+              <p *ngFor="let ajuste of arquivo.ajustesAplicados">• {{ ajuste }}</p>
+            </div>
+
+            <button
+              class="sql-details-toggle"
+              type="button"
+              [disabled]="criandoApisEmLote"
+              (click)="alternarDetalhesArquivoSql(arquivo)"
+            >
+              {{
+                arquivo.detalhesAbertos
+                  ? 'Ocultar configurações'
+                  : 'Revisar SQL, ordenação e filtros'
+              }}
+              <span aria-hidden="true">{{ arquivo.detalhesAbertos ? '⌃' : '⌄' }}</span>
+            </button>
+
+            <div class="sql-file-details" *ngIf="arquivo.detalhesAbertos">
+              <div class="two-cols">
+                <div class="field">
+                  <label [for]="'arquivo-descricao-' + arquivo.id">Descrição</label>
+                  <input
+                    [id]="'arquivo-descricao-' + arquivo.id"
+                    [name]="'arquivo-descricao-' + arquivo.id"
+                    [(ngModel)]="arquivo.descricao"
+                    [disabled]="criandoApisEmLote"
+                    placeholder="Descrição opcional"
+                  />
+                </div>
+
+                <div class="field">
+                  <label [for]="'arquivo-ordenacao-' + arquivo.id">Ordenação padrão</label>
+                  <input
+                    [id]="'arquivo-ordenacao-' + arquivo.id"
+                    [name]="'arquivo-ordenacao-' + arquivo.id"
+                    [(ngModel)]="arquivo.ordenacao"
+                    [disabled]="criandoApisEmLote"
+                    placeholder="NOME, CODIGO"
+                  />
+                </div>
+              </div>
+
+              <div class="field full-field">
+                <label [for]="'arquivo-sql-' + arquivo.id">Consulta SQL *</label>
+                <textarea
+                  [id]="'arquivo-sql-' + arquivo.id"
+                  [name]="'arquivo-sql-' + arquivo.id"
+                  [(ngModel)]="arquivo.consultaSQL"
+                  [disabled]="criandoApisEmLote"
+                  (blur)="ajustarArquivoSql(arquivo)"
+                  rows="10"
+                  spellcheck="false"
+                ></textarea>
+                <small>
+                  A aplicação ajusta automaticamente o <code>WHERE 1 = 1</code> e o marcador
+                  <code>/*FILTROS*/</code>. Ainda assim, revise o ponto em que os filtros foram
+                  inseridos.
+                </small>
+              </div>
+
+              <div class="filter-builder batch-filter-builder">
+                <div class="builder-title">
+                  <div>
+                    <h3>Filtros da API</h3>
+                    <p>Revise principalmente o tipo e a condição SQL dos filtros detectados.</p>
+                  </div>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    type="button"
+                    [disabled]="criandoApisEmLote"
+                    (click)="adicionarFiltroArquivoSql(arquivo)"
+                  >
+                    ＋ Adicionar filtro
+                  </button>
+                </div>
+
+                <div class="no-filters batch-no-filters" *ngIf="!arquivo.filtros.length">
+                  Nenhum filtro de negócio foi detectado. Para atender à exigência do SGU, a
+                  aplicação enviará um filtro técnico opcional e invisível no relatório.
+                </div>
+
+                <article
+                  class="filter-row"
+                  *ngFor="let filtro of arquivo.filtros; let filtroIndex = index"
+                >
+                  <div class="filter-row-header">
+                    <strong>Filtro {{ filtroIndex + 1 }}</strong>
+                    <button
+                      type="button"
+                      class="link-danger"
+                      [disabled]="criandoApisEmLote"
+                      (click)="removerFiltroArquivoSql(arquivo, filtroIndex)"
+                    >
+                      Remover
+                    </button>
+                  </div>
+
+                  <div class="filter-fields">
+                    <div class="field">
+                      <label [for]="'arquivo-filtro-nome-' + arquivo.id + '-' + filtroIndex"
+                        >Nome *</label
+                      >
+                      <input
+                        [id]="'arquivo-filtro-nome-' + arquivo.id + '-' + filtroIndex"
+                        [name]="'arquivo-filtro-nome-' + arquivo.id + '-' + filtroIndex"
+                        [(ngModel)]="filtro.nomeFiltro"
+                        [disabled]="criandoApisEmLote"
+                        [class.input-invalid]="!!erroVariavelFiltro(filtro)"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label [for]="'arquivo-filtro-tipo-' + arquivo.id + '-' + filtroIndex"
+                        >Tipo *</label
+                      >
+                      <input
+                        [id]="'arquivo-filtro-tipo-' + arquivo.id + '-' + filtroIndex"
+                        [name]="'arquivo-filtro-tipo-' + arquivo.id + '-' + filtroIndex"
+                        [(ngModel)]="filtro.tipoDadoFiltro"
+                        [disabled]="criandoApisEmLote"
+                        list="tipos-filtro-arquivo"
+                      />
+                    </div>
+
+                    <div class="field field-wide">
+                      <label [for]="'arquivo-filtro-conteudo-' + arquivo.id + '-' + filtroIndex"
+                        >Conteúdo SQL *</label
+                      >
+                      <input
+                        [id]="'arquivo-filtro-conteudo-' + arquivo.id + '-' + filtroIndex"
+                        [name]="'arquivo-filtro-conteudo-' + arquivo.id + '-' + filtroIndex"
+                        [(ngModel)]="filtro.conteudoFiltro"
+                        [disabled]="criandoApisEmLote"
+                        [class.input-invalid]="!!erroVariavelFiltro(filtro)"
+                      />
+                      <small
+                        class="field-error"
+                        *ngIf="erroVariavelFiltro(filtro) as erroBindArquivo"
+                        >{{ erroBindArquivo }}</small
+                      >
+                      <small
+                        *ngIf="descricaoFiltroAutomatico(arquivo, filtro) as descricaoAutomatica"
+                      >
+                        {{ descricaoAutomatica }}
+                      </small>
+                    </div>
+
+                    <div class="field">
+                      <label [for]="'arquivo-filtro-mascara-' + arquivo.id + '-' + filtroIndex"
+                        >Máscara</label
+                      >
+                      <input
+                        [id]="'arquivo-filtro-mascara-' + arquivo.id + '-' + filtroIndex"
+                        [name]="'arquivo-filtro-mascara-' + arquivo.id + '-' + filtroIndex"
+                        [(ngModel)]="filtro.mascaraFiltro"
+                        [disabled]="criandoApisEmLote"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label [for]="'arquivo-filtro-obrigatorio-' + arquivo.id + '-' + filtroIndex"
+                        >Obrigatório</label
+                      >
+                      <select
+                        [id]="'arquivo-filtro-obrigatorio-' + arquivo.id + '-' + filtroIndex"
+                        [name]="'arquivo-filtro-obrigatorio-' + arquivo.id + '-' + filtroIndex"
+                        [(ngModel)]="filtro.obrigatorioFiltro"
+                        [disabled]="criandoApisEmLote"
+                      >
+                        <option value="N">Não</option>
+                        <option value="S">Sim</option>
+                      </select>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <datalist id="tipos-filtro-arquivo">
+          <option value="NUMBER"></option>
+          <option value="DATE"></option>
+          <option value="VARCHAR(120)"></option>
+          <option value="VARCHAR(1000)"></option>
+          <option value="VARCHAR(4000)"></option>
+        </datalist>
+
+        <ng-template #nenhumArquivoSql>
+          <div class="api-list-empty sql-list-empty">
+            <strong>Nenhum código SQL selecionado</strong>
+            <p>Selecione um ou vários arquivos para preparar o cadastro em lote.</p>
+          </div>
+        </ng-template>
+      </div>
+
+      <div class="modal-body" *ngIf="modoCadastro === 'nova'">
+        <div class="two-cols">
+          <div class="field">
+            <label for="novaApiNome">Nome da API *</label>
+            <input
+              id="novaApiNome"
+              name="novaApiNome"
+              [(ngModel)]="novoApiNome"
+              placeholder="0090-nome-relatorio"
+            />
+          </div>
+          <div class="field">
+            <label for="novoNomeExibicao">Nome para exibição *</label>
+            <input
+              id="novoNomeExibicao"
+              name="novoNomeExibicao"
+              [(ngModel)]="novoNomeExibicao"
+              placeholder="Nome do relatório"
+            />
+          </div>
+        </div>
+
+        <div class="field full-field">
+          <label for="novaDescricao">Descrição</label>
+          <input
+            id="novaDescricao"
+            name="novaDescricao"
+            [(ngModel)]="novaDescricao"
+            placeholder="Explique o conteúdo deste relatório"
+          />
+        </div>
+
+        <div class="field full-field">
+          <label for="consultaSql">Consulta SQL *</label>
+          <textarea
+            id="consultaSql"
+            name="consultaSql"
+            rows="9"
+            [(ngModel)]="novaConsultaSql"
+            placeholder="SELECT ... FROM ... WHERE 1 = 1 /*FILTROS*/"
+          ></textarea>
+          <small>Use WHERE 1 = 1 e /*FILTROS*/ no ponto onde os filtros devem entrar.</small>
+        </div>
+
+        <div class="field full-field">
+          <label for="novaOrdenacao">Ordenação padrão</label>
+          <input
+            id="novaOrdenacao"
+            name="novaOrdenacao"
+            [(ngModel)]="novaOrdenacao"
+            placeholder="Opcional"
+          />
+        </div>
+
+        <div class="filter-builder">
+          <div class="builder-title">
+            <div>
+              <h3>Filtros</h3>
+              <p>
+                O conteúdo deve começar com <code>and </code> e a variável deve ter exatamente o
+                mesmo nome do filtro.
+              </p>
+            </div>
+            <button class="btn btn-secondary btn-sm" type="button" (click)="adicionarFiltro()">
+              ＋ Adicionar filtro
+            </button>
+          </div>
+
+          <article class="filter-row" *ngFor="let filtro of novosFiltros; let i = index">
+            <div class="filter-row-header">
+              <strong>Filtro {{ i + 1 }}</strong>
+              <button
+                type="button"
+                class="link-danger"
+                [disabled]="novosFiltros.length === 1"
+                (click)="removerFiltro(i)"
+              >
+                Remover
+              </button>
+            </div>
+
+            <div class="filter-fields">
+              <div class="field">
+                <label [for]="'nomeFiltro-' + i">Nome *</label>
+                <input
+                  [id]="'nomeFiltro-' + i"
+                  [name]="'nomeFiltro-' + i"
+                  [(ngModel)]="novosFiltros[i].nomeFiltro"
+                  [class.input-invalid]="!!erroVariavelFiltro(novosFiltros[i])"
+                  placeholder="competencia"
+                />
+              </div>
+
+              <div class="field">
+                <label [for]="'tipoFiltro-' + i">Tipo *</label>
+                <input
+                  [id]="'tipoFiltro-' + i"
+                  [name]="'tipoFiltro-' + i"
+                  [(ngModel)]="novosFiltros[i].tipoDadoFiltro"
+                  list="tipos-filtro"
+                  placeholder="NUMBER"
+                />
+              </div>
+
+              <div class="field field-wide">
+                <label [for]="'conteudoFiltro-' + i">Conteúdo SQL *</label>
+                <input
+                  [id]="'conteudoFiltro-' + i"
+                  [name]="'conteudoFiltro-' + i"
+                  [(ngModel)]="novosFiltros[i].conteudoFiltro"
+                  [class.input-invalid]="!!erroVariavelFiltro(novosFiltros[i])"
+                  placeholder="and G.GUIA_NRO_COMPET = :competencia"
+                />
+                <small
+                  class="field-error"
+                  *ngIf="erroVariavelFiltro(novosFiltros[i]) as erroBind"
+                  >{{ erroBind }}</small
+                >
+              </div>
+
+              <div class="field">
+                <label [for]="'mascaraFiltro-' + i">Máscara</label>
+                <input
+                  [id]="'mascaraFiltro-' + i"
+                  [name]="'mascaraFiltro-' + i"
+                  [(ngModel)]="novosFiltros[i].mascaraFiltro"
+                  placeholder="DD/MM/YYYY"
+                />
+              </div>
+
+              <div class="field">
+                <label [for]="'obrigatorioFiltro-' + i">Obrigatório</label>
+                <select
+                  [id]="'obrigatorioFiltro-' + i"
+                  [name]="'obrigatorioFiltro-' + i"
+                  [(ngModel)]="novosFiltros[i].obrigatorioFiltro"
+                >
+                  <option value="N">Não</option>
+                  <option value="S">Sim</option>
+                </select>
+              </div>
+            </div>
+          </article>
+
+          <datalist id="tipos-filtro">
+            <option value="NUMBER"></option>
+            <option value="DATE"></option>
+            <option value="VARCHAR(120)"></option>
+          </datalist>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button class="btn btn-secondary" type="button" (click)="fecharNovo()">Cancelar</button>
+        <button
+          *ngIf="modoCadastro === 'existente'"
+          class="btn btn-primary"
+          type="button"
+          [disabled]="!apiEncontrada"
+          (click)="salvarApiExistente()"
+        >
+          Adicionar relatório
+        </button>
+        <button
+          *ngIf="modoCadastro === 'lista'"
+          class="btn btn-primary"
+          type="button"
+          [disabled]="carregandoListaApis || quantidadeApisSelecionadas === 0"
+          (click)="adicionarApisSelecionadas()"
+        >
+          {{
+            quantidadeApisSelecionadas === 0
+              ? 'Selecione as APIs'
+              : 'Adicionar ' +
+                quantidadeApisSelecionadas +
+                (quantidadeApisSelecionadas === 1 ? ' relatório' : ' relatórios')
+          }}
+        </button>
+        <button
+          *ngIf="modoCadastro === 'nova'"
+          class="btn btn-primary"
+          type="button"
+          [disabled]="salvandoApi"
+          (click)="criarNovaApi()"
+        >
+          {{ salvandoApi ? 'Cadastrando…' : 'Cadastrar API e adicionar' }}
+        </button>
+        <button
+          *ngIf="modoCadastro === 'arquivos'"
+          class="btn btn-primary"
+          type="button"
+          [disabled]="
+            criandoApisEmLote ||
+            carregandoArquivosSql ||
+            !arquivosSqlImportados.length ||
+            quantidadeArquivosProntos === 0
+          "
+          (click)="criarApisDosArquivos()"
+        >
+          {{
+            criandoApisEmLote
+              ? 'Cadastrando ' + progressoCriacaoLote + ' de ' + totalCriacaoLote + '…'
+              : quantidadeArquivosProntos === 1
+                ? 'Cadastrar 1 API'
+                : 'Cadastrar ' + quantidadeArquivosProntos + ' APIs'
+          }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <!-- Modal de edição de API -->
+  <div class="modal-backdrop" *ngIf="modalEditarAberto" (click)="fecharEdicao()">
+    <section
+      class="modal-card modal-large"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="editar-api-titulo"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="modal-header">
+        <div>
+          <span class="modal-kicker">Substituição de API</span>
+          <h2 id="editar-api-titulo">Editar API do relatório</h2>
+        </div>
+        <button
+          type="button"
+          class="modal-close"
+          [disabled]="carregandoEdicao || salvandoEdicao"
+          (click)="fecharEdicao()"
+          aria-label="Fechar"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="modal-alert" *ngIf="erro">{{ erro }}</div>
+
+      <div class="modal-body api-edit-loading" *ngIf="carregandoEdicao">
+        <span class="spinner spinner-green"></span>
+        <div>
+          <strong>Carregando a definição atual da API…</strong>
+          <p>Os campos serão liberados assim que o SGU responder.</p>
+        </div>
+      </div>
+
+      <div class="modal-body" *ngIf="!carregandoEdicao && apiOriginalEdicao">
+        <div class="edit-api-warning">
+          <strong>Atenção ao salvar</strong>
+          <p>
+            Como o SGU não possui um endpoint específico de edição, a API
+            <code>{{ relatorioEmEdicao?.apiNome }}</code> será apagada e criada novamente. Se a
+            criação falhar, a aplicação tentará restaurar automaticamente a definição anterior.
+          </p>
+        </div>
+
+        <div class="two-cols">
+          <div class="field">
+            <label for="editarApiNome">Nome da API *</label>
+            <input
+              id="editarApiNome"
+              name="editarApiNome"
+              [(ngModel)]="editarApiNome"
+              placeholder="0090-nome-relatorio"
+            />
+            <small>O nome também pode ser alterado.</small>
+          </div>
+
+          <div class="field">
+            <label for="editarNomeExibicao">Nome para exibição *</label>
+            <input
+              id="editarNomeExibicao"
+              name="editarNomeExibicao"
+              [(ngModel)]="editarNomeExibicao"
+              placeholder="Nome do relatório"
+            />
+          </div>
+        </div>
+
+        <div class="field full-field">
+          <label for="editarDescricao">Descrição</label>
+          <input
+            id="editarDescricao"
+            name="editarDescricao"
+            [(ngModel)]="editarDescricao"
+            placeholder="Explique o conteúdo deste relatório"
+          />
+        </div>
+
+        <div class="field full-field">
+          <label for="editarConsultaSql">Consulta SQL *</label>
+          <textarea
+            id="editarConsultaSql"
+            name="editarConsultaSql"
+            rows="11"
+            [(ngModel)]="editarConsultaSql"
+            placeholder="SELECT ... FROM ... WHERE 1 = 1 /*FILTROS*/"
+          ></textarea>
+          <small>O marcador /*FILTROS*/ deve continuar presente na consulta.</small>
+        </div>
+
+        <div class="field full-field">
+          <label for="editarOrdenacao">Ordenação padrão</label>
+          <input
+            id="editarOrdenacao"
+            name="editarOrdenacao"
+            [(ngModel)]="editarOrdenacao"
+            placeholder="Opcional"
+          />
+        </div>
+
+        <div class="filter-builder">
+          <div class="builder-title">
+            <div>
+              <h3>Filtros</h3>
+              <p>
+                O conteúdo deve começar com <code>and </code> e a variável deve ter exatamente o
+                mesmo nome do filtro.
+              </p>
+            </div>
+            <button
+              class="btn btn-secondary btn-sm"
+              type="button"
+              (click)="adicionarFiltroEdicao()"
+            >
+              ＋ Adicionar filtro
+            </button>
+          </div>
+
+          <article class="filter-row" *ngFor="let filtro of filtrosEdicao; let i = index">
+            <div class="filter-row-header">
+              <strong>Filtro {{ i + 1 }}</strong>
+              <button
+                type="button"
+                class="link-danger"
+                [disabled]="salvandoEdicao"
+                (click)="removerFiltroEdicao(i)"
+              >
+                Remover
+              </button>
+            </div>
+
+            <div class="filter-fields">
+              <div class="field">
+                <label [for]="'editarNomeFiltro-' + i">Nome *</label>
+                <input
+                  [id]="'editarNomeFiltro-' + i"
+                  [name]="'editarNomeFiltro-' + i"
+                  [(ngModel)]="filtrosEdicao[i].nomeFiltro"
+                  [class.input-invalid]="!!erroVariavelFiltro(filtrosEdicao[i])"
+                  placeholder="competencia"
+                />
+              </div>
+
+              <div class="field">
+                <label [for]="'editarTipoFiltro-' + i">Tipo *</label>
+                <input
+                  [id]="'editarTipoFiltro-' + i"
+                  [name]="'editarTipoFiltro-' + i"
+                  [(ngModel)]="filtrosEdicao[i].tipoDadoFiltro"
+                  list="tipos-filtro-edicao"
+                  placeholder="NUMBER"
+                />
+              </div>
+
+              <div class="field field-wide">
+                <label [for]="'editarConteudoFiltro-' + i">Conteúdo SQL *</label>
+                <input
+                  [id]="'editarConteudoFiltro-' + i"
+                  [name]="'editarConteudoFiltro-' + i"
+                  [(ngModel)]="filtrosEdicao[i].conteudoFiltro"
+                  [class.input-invalid]="!!erroVariavelFiltro(filtrosEdicao[i])"
+                  placeholder="and G.GUIA_NRO_COMPET = :competencia"
+                />
+                <small
+                  class="field-error"
+                  *ngIf="erroVariavelFiltro(filtrosEdicao[i]) as erroBind"
+                  >{{ erroBind }}</small
+                >
+              </div>
+
+              <div class="field">
+                <label [for]="'editarMascaraFiltro-' + i">Máscara</label>
+                <input
+                  [id]="'editarMascaraFiltro-' + i"
+                  [name]="'editarMascaraFiltro-' + i"
+                  [(ngModel)]="filtrosEdicao[i].mascaraFiltro"
+                  placeholder="DD/MM/YYYY"
+                />
+              </div>
+
+              <div class="field">
+                <label [for]="'editarObrigatorioFiltro-' + i">Obrigatório</label>
+                <select
+                  [id]="'editarObrigatorioFiltro-' + i"
+                  [name]="'editarObrigatorioFiltro-' + i"
+                  [(ngModel)]="filtrosEdicao[i].obrigatorioFiltro"
+                >
+                  <option value="N">Não</option>
+                  <option value="S">Sim</option>
+                </select>
+              </div>
+            </div>
+          </article>
+
+          <datalist id="tipos-filtro-edicao">
+            <option value="NUMBER"></option>
+            <option value="DATE"></option>
+            <option value="VARCHAR(120)"></option>
+          </datalist>
+        </div>
+
+        <div class="template-replacement-note">
+          <strong>Templates atualizados automaticamente</strong>
+          <p>
+            O relatório mantém o mesmo identificador interno. Por isso, todos os templates que já
+            contêm este relatório passarão a usar a nova API sem precisar ser recriados.
+          </p>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button
+          class="btn btn-secondary"
+          type="button"
+          [disabled]="carregandoEdicao || salvandoEdicao"
+          (click)="fecharEdicao()"
+        >
+          Cancelar
+        </button>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="carregandoEdicao || salvandoEdicao || !apiOriginalEdicao"
+          (click)="salvarEdicaoApi()"
+        >
+          <span class="spinner" *ngIf="salvandoEdicao"></span>
+          {{ salvandoEdicao ? 'Substituindo API…' : 'Salvar e substituir API' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <!-- Modal de template -->
+  <div class="modal-backdrop" *ngIf="modalTemplateAberto" (click)="fecharNovoTemplate()">
+    <section
+      class="modal-card template-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="novo-template-titulo"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="modal-header">
+        <div>
+          <span class="modal-kicker">Organização</span>
+          <h2 id="novo-template-titulo">Novo template de relatórios</h2>
+        </div>
+        <button
+          type="button"
+          class="modal-close"
+          (click)="fecharNovoTemplate()"
+          aria-label="Fechar"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="two-cols">
+          <div class="field">
+            <label for="novoTemplateNome">Nome do template *</label>
+            <input
+              id="novoTemplateNome"
+              name="novoTemplateNome"
+              [(ngModel)]="novoTemplateNome"
+              placeholder="Fechamento mensal"
+            />
+          </div>
+          <div class="field">
+            <label for="novoTemplateDescricao">Descrição</label>
+            <input
+              id="novoTemplateDescricao"
+              name="novoTemplateDescricao"
+              [(ngModel)]="novoTemplateDescricao"
+              placeholder="Relatórios usados no fechamento"
+            />
+          </div>
+        </div>
+
+        <div class="template-builder-heading">
+          <div>
+            <h3>Selecione os relatórios</h3>
+            <p>Ao usar o template, os relatórios selecionados serão abertos em abas.</p>
+          </div>
+          <strong>{{ quantidadeRelatoriosTemplateSelecionados }} selecionado(s)</strong>
+        </div>
+
+        <div class="template-report-selection">
+          <label
+            class="template-report-option"
+            *ngFor="let relatorio of relatorios; let i = index; trackBy: trackByRelatorioId"
+            [class.selected]="relatoriosTemplateSelecionados[relatorio.id]"
+          >
+            <input
+              type="checkbox"
+              [name]="'template-relatorio-' + i"
+              [(ngModel)]="relatoriosTemplateSelecionados[relatorio.id]"
+            />
+            <span>
+              <strong>{{ relatorio.nomeExibicao }}</strong>
+              <small>{{ relatorio.apiNome }}</small>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button class="btn btn-secondary" type="button" (click)="fecharNovoTemplate()">
+          Cancelar
+        </button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="quantidadeRelatoriosTemplateSelecionados === 0"
+          (click)="salvarTemplate()"
+        >
+          Criar template
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <!-- Modal de exclusão de relatório -->
+  <div class="modal-backdrop" *ngIf="modalExcluirAberto" (click)="fecharExclusao()">
+    <section
+      class="modal-card delete-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="excluir-relatorio-titulo"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="modal-header">
+        <div>
+          <span class="modal-kicker danger">Exclusão</span>
+          <h2 id="excluir-relatorio-titulo">Excluir relatório</h2>
+        </div>
+        <button type="button" class="modal-close" (click)="fecharExclusao()" aria-label="Fechar">
+          ×
+        </button>
+      </header>
+
+      <div class="modal-body" *ngIf="relatorioParaExcluir">
+        <p>
+          O relatório <strong>{{ relatorioParaExcluir.nomeExibicao }}</strong> será removido desta
+          página.
+        </p>
+        <label class="danger-option">
+          <input type="checkbox" name="apagarSgu" [(ngModel)]="apagarTambemNoSgu" />
+          <span>
+            <strong>Apagar também a API no SGU</strong>
+            <small
+              >Esta opção chama o endpoint apaga_query_api para
+              {{ relatorioParaExcluir.apiNome }}.</small
+            >
+          </span>
+        </label>
+        <div class="destructive-warning" *ngIf="apagarTambemNoSgu">
+          Atenção: a consulta deixará de existir no SGU e não poderá mais ser executada por outros
+          sistemas.
+        </div>
+      </div>
+
+      <footer class="modal-footer">
+        <button class="btn btn-secondary" type="button" (click)="fecharExclusao()">Cancelar</button>
+        <button
+          class="btn btn-danger"
+          type="button"
+          [disabled]="excluindo"
+          (click)="confirmarExclusao()"
+        >
+          {{ excluindo ? 'Excluindo…' : 'Confirmar exclusão' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+</ng-container>

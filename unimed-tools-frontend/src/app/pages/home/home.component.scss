@@ -1,0 +1,171 @@
+/* Estilos de página inicial e o catálogo de ferramentas; seletores ficam limitados ao contexto indicado pelo arquivo. */
+.home-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: var(--content-bg);
+}
+
+/* ── Header ── */
+.home-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 48px;
+  text-align: left;
+}
+
+.home-logo {
+  width: 52px;
+  height: 52px;
+  background: var(--brand-green);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  span {
+    color: #fff;
+    font-size: 24px;
+    font-weight: 800;
+    font-family: var(--font-sans);
+  }
+}
+
+.home-header-text {
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 4px;
+  }
+  p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0;
+  }
+}
+
+/* ── Grid de categorias ── */
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+  max-width: 760px;
+
+  @media (max-width: 580px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Card ── */
+.cat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  background: var(--surface);
+  border: 1.5px solid var(--surface-border);
+  border-radius: var(--radius-lg, 12px);
+  cursor: pointer;
+  transition:
+    border-color 0.18s,
+    transform 0.15s,
+    box-shadow 0.18s;
+
+  &:hover:not(.cat-disabled) {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+
+    .cat-arrow {
+      transform: translateX(3px);
+    }
+  }
+
+  &.cat-disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+}
+
+.cat-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cat-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.cat-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.badge-coming {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--surface-secondary);
+  color: var(--text-muted);
+  border: 1px solid var(--surface-border);
+}
+
+.cat-card-body {
+  flex: 1;
+}
+
+.cat-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.cat-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.cat-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.cat-accepts {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--surface-secondary);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.cat-arrow {
+  color: var(--accent);
+  display: flex;
+  transition: transform 0.18s;
+}
+
+/* ── Footer ── */
+.home-footer {
+  margin-top: 40px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

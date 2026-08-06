@@ -860,7 +860,7 @@ corretor-de-arquivos/
 │
 ├── .gitignore
 ├── AGENTS.md                           # Orientações para agentes de IA
-├── SEGURANCA_PARA_IAS.md               # Política de desenvolvimento seguro e privacidade
+├── SEGURANCA.md               # Política de desenvolvimento seguro e privacidade
 ├── PADRAO_DE_COMMITS.md                # Conventional Commits do projeto
 ├── render.yaml
 └── README.md
@@ -1332,7 +1332,7 @@ Verifique:
 
 ## Segurança
 
-As regras completas e obrigatórias para desenvolvimento seguro, uso de IA, autenticação, variáveis de ambiente, LGPD e referências internacionais estão em [`SEGURANCA_PARA_IAS.md`](SEGURANCA_PARA_IAS.md).
+As regras completas e obrigatórias para desenvolvimento seguro, uso de IA, autenticação, variáveis de ambiente, LGPD e referências internacionais estão em [`SEGURANCA.md`](SEGURANCA.md).
 
 - Não envie a API key do SGU para o Angular.
 - O frontend deve chamar somente o backend.
@@ -1353,7 +1353,7 @@ As regras completas e obrigatórias para desenvolvimento seguro, uso de IA, aute
 Antes de modificar o projeto, consulte:
 
 - [`AGENTS.md`](AGENTS.md): ordem de leitura, limites arquiteturais, segurança e critérios para alterações realizadas com auxílio de IA;
-- [`SEGURANCA_PARA_IAS.md`](SEGURANCA_PARA_IAS.md): controles de segurança, privacidade, LGPD, autenticação, segredos, APIs, SaaS e cadeia de entrega;
+- [`SEGURANCA.md`](SEGURANCA.md): controles de segurança, privacidade, LGPD, autenticação, segredos, APIs, SaaS e cadeia de entrega;
 - [`PADRAO_DE_COMMITS.md`](PADRAO_DE_COMMITS.md): padrão Conventional Commits adotado no histórico;
 - [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md): responsabilidades do frontend, backend e integrações;
 - este `README.md`: instalação, módulos, contratos, deploy e diagnóstico.

@@ -24,7 +24,7 @@ Antes de alterar qualquer arquivo, a IA deve seguir esta ordem:
 
 1. Ler este `AGENTS.md` por completo.
 2. Ler o `README.md` da raiz.
-3. Ler `SEGURANCA_PARA_IAS.md` por completo.
+3. Ler `SEGURANCA.md` por completo.
 4. Ler `PADRAO_DE_COMMITS.md`, quando o arquivo estiver disponível.
 5. Verificar a pasta `docs/` e ler os documentos relacionados à tarefa.
 6. Identificar o módulo, a rota, o componente ou o endpoint afetado.
@@ -60,7 +60,7 @@ corretor-de-arquivos/
 ├── unimed-tools-backend/    # Backend Spring Boot
 ├── docs/                    # Documentação de engenharia de software
 ├── README.md
-├── SEGURANCA_PARA_IAS.md
+├── SEGURANCA.md
 ├── PADRAO_DE_COMMITS.md
 ├── AGENTS.md
 └── render.yaml
@@ -259,7 +259,7 @@ Regras adicionais:
 
 ## 10. Arquivos, dados e segurança
 
-- Aplicar integralmente a política definida em `SEGURANCA_PARA_IAS.md`.
+- Aplicar integralmente a política definida em `SEGURANCA.md`.
 - Nunca sobrescrever o arquivo original enviado pelo usuário.
 - Gerar saída com nome diferente e claramente identificável.
 - Preservar codificação, delimitadores, posições e estrutura quando fizerem parte do contrato.

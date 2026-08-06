@@ -125,8 +125,7 @@ public class RelatorioPersonalizadoService {
     try {
       publicarApi(normalizada);
 
-      Map<String, Object> parametros = new LinkedHashMap<>(
-          normalizada.filtros());
+      Map<String, Object> parametros = parametrosSgu(normalizada.filtros());
       parametros.put("page", normalizada.pagina());
       parametros.put("size", normalizada.tamanhoPagina());
 
@@ -155,7 +154,9 @@ public class RelatorioPersonalizadoService {
        * O lock permanece durante todas as páginas. Sem isso, outra consulta
        * poderia substituir a definição no meio da exportação.
        */
-      List<LinkedHashMap<String, Object>> registros = exportacao.carregarRegistros(API_NOME, normalizada.filtros());
+      List<LinkedHashMap<String, Object>> registros = exportacao.carregarRegistros(
+          API_NOME,
+          parametrosSgu(normalizada.filtros()));
       List<LinkedHashMap<String, Object>> projetados = projetarRegistros(
           registros,
           normalizada.colunas());
@@ -230,16 +231,23 @@ public class RelatorioPersonalizadoService {
   private Map<String, Object> normalizarFiltros(Map<String, Object> recebidos) {
     Map<String, Object> filtros = new LinkedHashMap<>();
     Map<String, Object> origem = recebidos == null ? Map.of() : recebidos;
+    Map<String, Object> origemNormalizada = new LinkedHashMap<>();
 
-    for (String informado : origem.keySet()) {
-      if (sqlBuilder.filtro(informado) == null) {
+    for (Map.Entry<String, Object> informado : origem.entrySet()) {
+      RelatorioPersonalizadoSqlBuilder.Filtro filtro = sqlBuilder.filtro(informado.getKey());
+      if (filtro == null) {
         throw new IllegalArgumentException(
-            "Filtro não permitido: " + informado + ".");
+            "Filtro não permitido: " + informado.getKey() + ".");
       }
+      if (origemNormalizada.containsKey(filtro.id())) {
+        throw new IllegalArgumentException(
+            "O filtro “" + filtro.rotulo() + "” foi informado mais de uma vez.");
+      }
+      origemNormalizada.put(filtro.id(), informado.getValue());
     }
 
     for (RelatorioPersonalizadoSqlBuilder.Filtro filtro : sqlBuilder.filtros()) {
-      Object bruto = origem.get(filtro.id());
+      Object bruto = origemNormalizada.get(filtro.id());
       String texto = bruto == null ? "" : String.valueOf(bruto).trim();
       if (texto.isBlank()) {
         if (filtro.obrigatorio()) {
@@ -330,8 +338,8 @@ public class RelatorioPersonalizadoService {
   }
 
   private void validarIntervaloCompetencias(Map<String, Object> filtros) {
-    int inicio = (Integer) filtros.get("competencia-inicio");
-    int fim = (Integer) filtros.get("competencia-fim");
+    int inicio = (Integer) filtros.get("competencia_inicio");
+    int fim = (Integer) filtros.get("competencia_fim");
     int indiceInicio = (inicio / 100) * 12 + (inicio % 100);
     int indiceFim = (fim / 100) * 12 + (fim % 100);
     if (indiceFim < indiceInicio) {
@@ -345,12 +353,12 @@ public class RelatorioPersonalizadoService {
   }
 
   private void validarIntervaloDatas(Map<String, Object> filtros) {
-    if (filtros.containsKey("data-guia-inicio") &&
-        filtros.containsKey("data-guia-fim")) {
+    if (filtros.containsKey("data_guia_inicio") &&
+        filtros.containsKey("data_guia_fim")) {
       LocalDate inicio = LocalDate.parse(
-          String.valueOf(filtros.get("data-guia-inicio")));
+          String.valueOf(filtros.get("data_guia_inicio")));
       LocalDate fim = LocalDate.parse(
-          String.valueOf(filtros.get("data-guia-fim")));
+          String.valueOf(filtros.get("data_guia_fim")));
       if (fim.isBefore(inicio)) {
         throw new IllegalArgumentException(
             "A data final da guia não pode ser anterior à inicial.");
@@ -359,10 +367,10 @@ public class RelatorioPersonalizadoService {
   }
 
   private void validarIntervaloValores(Map<String, Object> filtros) {
-    if (filtros.containsKey("valor-minimo") &&
-        filtros.containsKey("valor-maximo")) {
-      BigDecimal minimo = (BigDecimal) filtros.get("valor-minimo");
-      BigDecimal maximo = (BigDecimal) filtros.get("valor-maximo");
+    if (filtros.containsKey("valor_minimo") &&
+        filtros.containsKey("valor_maximo")) {
+      BigDecimal minimo = (BigDecimal) filtros.get("valor_minimo");
+      BigDecimal maximo = (BigDecimal) filtros.get("valor_maximo");
       if (maximo.compareTo(minimo) < 0) {
         throw new IllegalArgumentException(
             "O valor máximo não pode ser menor que o mínimo.");
@@ -387,6 +395,16 @@ public class RelatorioPersonalizadoService {
       projetados.add(normalizado);
     }
     return projetados;
+  }
+
+  /**
+   * O SGU rejeita nomes de filtros com underscore. A conversão fica restrita
+   * à borda da integração para não alterar o contrato interno do frontend.
+   */
+  private Map<String, Object> parametrosSgu(Map<String, Object> filtros) {
+    Map<String, Object> parametros = new LinkedHashMap<>();
+    filtros.forEach((id, valor) -> parametros.put(sqlBuilder.nomeFiltroSgu(id), valor));
+    return parametros;
   }
 
   private int limitar(

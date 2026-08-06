@@ -459,6 +459,24 @@ arquivo_PREENCHIDO.xlsx
 
 A Central de Relatórios permite cadastrar, localizar, executar, visualizar e exportar consultas publicadas como APIs no SGU.
 
+### Relatório personalizado
+
+**Status:** Atual.
+
+O modo de relatório personalizado utiliza exclusivamente a API reservada:
+
+```text
+0090-relatorio-personalizado
+```
+
+A cada execução, o backend monta a consulta somente com colunas e filtros do
+catálogo aprovado, atualiza essa API no SGU e então realiza a consulta. Os
+identificadores usados entre Angular e Spring Boot permanecem com underscore,
+como `competencia_inicio`. Na fronteira com o SGU, o backend converte nomes e
+parâmetros para hífen, como `competencia-inicio`, conforme a validação exigida
+pelo serviço externo. O backend aceita os dois formatos na requisição para
+preservar compatibilidade, mas nunca monta fragmentos SQL enviados pelo usuário.
+
 ### Dependências
 
 Para funcionar, são necessários:

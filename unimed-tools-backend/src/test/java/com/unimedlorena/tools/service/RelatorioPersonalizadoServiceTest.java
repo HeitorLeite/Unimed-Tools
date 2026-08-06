@@ -1,0 +1,75 @@
+/*
+ * Responsabilidade: Verifica a normalização dos filtros antes da integração com o SGU.
+ */
+package com.unimedlorena.tools.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.unimedlorena.tools.dto.RelatorioPersonalizadoRequest;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+class RelatorioPersonalizadoServiceTest {
+
+  @Test
+  void deveReceberUnderscoreEEnviarHifenAoSgu() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(sgu.executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(Map.of("content", List.of(), "last", true));
+
+    service.executar(requisicao(Map.of(
+        "competencia_inicio", "202601",
+        "competencia_fim", "202601")));
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> parametros = ArgumentCaptor.forClass(Map.class);
+    verify(sgu).executar(eq(RelatorioPersonalizadoService.API_NOME), parametros.capture());
+    assertThat(parametros.getValue())
+        .containsEntry("competencia-inicio", 202601)
+        .containsEntry("competencia-fim", 202601)
+        .doesNotContainKeys("competencia_inicio", "competencia_fim");
+  }
+
+  @Test
+  void deveManterCompatibilidadeComRequisicaoQueUsaHifen() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(sgu.executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(Map.of("content", List.of(), "last", true));
+
+    service.executar(requisicao(Map.of(
+        "competencia-inicio", "202601",
+        "competencia-fim", "202601")));
+
+    verify(sgu).executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap());
+  }
+
+  private RelatorioPersonalizadoRequest requisicao(Map<String, Object> filtros) {
+    return new RelatorioPersonalizadoRequest(
+        List.of("COD_BENEFICIARIO"),
+        filtros,
+        1,
+        50,
+        "relatorio_personalizado");
+  }
+}

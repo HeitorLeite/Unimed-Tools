@@ -11,7 +11,6 @@ interface Category {
   tag: string;
   desc: string;
   route: string;
-  badgeClass: string;
   accepts: string;
   icon: string;
   ready: boolean;
@@ -30,55 +29,50 @@ export class HomeComponent {
   categories: Category[] = [
     {
       id: 'xml',
-      label: 'XML',
-      tag: 'TISS',
+      label: 'XML TISS',
+      tag: 'Correção e validação',
       desc: 'Corrige prefixos incorretos e remove blocos com valorTotal zerado em arquivos XML TISS. Suporta processamento em lote com detecção de guias duplicadas.',
       route: '/xml/ferramentas',
-      badgeClass: 'badge-xml',
       accepts: '.xml',
       ready: true,
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M10 8L5 14l5 6M18 8l5 6-5 6M15 5l-3 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     },
     {
       id: 'bi',
-      label: 'BI',
-      tag: 'Business Intelligence',
+      label: 'Business Intelligence',
+      tag: 'Especialidade médica',
       desc: 'Preenche automaticamente a coluna de especialidade médica em planilhas de despesas usando planilha de médicos como referência e mapa TUSS.',
       route: '/bi/especialidade-medica',
-      badgeClass: 'badge-bi',
-      accepts: '.xlsx / .csv',
+      accepts: '.xlsx recomendado',
       ready: true,
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M8 18v-4M13 18v-8M18 18v-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
     {
       id: 'relatorios',
-      label: 'Relatórios',
-      tag: 'Consultas SGU',
+      label: 'Consultas SGU',
+      tag: 'Central de relatórios',
       desc: 'Executa relatórios cadastrados no SGU, monta os filtros automaticamente, exibe os resultados e exporta em CSV, TXT ou XLSX.',
       route: '/relatorios',
-      badgeClass: 'badge-ans',
-      accepts: 'API → CSV / TXT / XLSX',
+      accepts: 'CSV · TXT · XLSX',
       ready: true,
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 4h12l4 4v16H6V4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18 4v5h5M10 14h8M10 18h8M10 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
     {
       id: 'fechamento',
-      label: 'Fechamento',
-      tag: 'Produção',
+      label: 'Produção',
+      tag: 'Fechamento',
       desc: 'Converte a planilha de Eventos para Fechamento da Produção dos Prestadores para o formato CSV esperado pelo sistema.',
       route: '/fechamento/corretor',
-      badgeClass: 'badge-fech',
       accepts: '.xlsx → .csv',
       ready: false,
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M5 5h12l6 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17 5v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 16h12M8 20h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
     {
       id: 'ans',
-      label: 'ANS',
-      tag: 'Agência Nac. Saúde',
+      label: 'Agência Nacional de Saúde',
+      tag: 'Corretor de rede RPS',
       desc: 'Filtra arquivos TXT posicionais com base em erros de CNES, CNPJ, Município, Prestador ou Aviso a partir de planilha de referência.',
       route: '/ans/corretor-rede',
-      badgeClass: 'badge-ans',
       accepts: '.txt + .xlsx',
       ready: true,
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M7 10h14M7 14h9M7 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
@@ -87,5 +81,9 @@ export class HomeComponent {
 
   navigate(cat: Category) {
     if (cat.ready) this.router.navigate([cat.route]);
+  }
+
+  get availableCategories() {
+    return this.categories.filter((category) => category.ready).length;
   }
 }

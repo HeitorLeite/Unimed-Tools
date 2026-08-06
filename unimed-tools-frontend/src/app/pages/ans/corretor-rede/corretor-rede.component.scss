@@ -342,3 +342,153 @@
 .log-info {
   color: var(--text-secondary);
 }
+
+/* Adaptação do módulo ao sistema institucional contemporâneo. */
+.mode-options {
+  flex-direction: column;
+  gap: 9px;
+}
+
+.mode-btn {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-areas:
+    'icon label'
+    'icon description';
+  gap: 3px 13px;
+  min-width: 0;
+  padding: 13px 15px;
+  border-width: 1px;
+  background: var(--surface);
+
+  &:hover {
+    border-color: var(--surface-border-strong);
+  }
+
+  &.active {
+    border-color: var(--brand-green);
+    background: var(--brand-green-soft);
+  }
+}
+
+.mode-icon {
+  grid-area: icon;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: #e5eee7;
+  color: var(--brand-green);
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.mode-label {
+  grid-area: label;
+  align-self: end;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mode-desc {
+  grid-area: description;
+  align-self: start;
+  color: var(--text-secondary);
+}
+
+.drop-zone {
+  padding: 29px 16px;
+  border-width: 1px;
+  border-color: var(--surface-border-strong);
+  background: #fafbf9;
+
+  &:hover,
+  &.drag-over {
+    background: var(--brand-green-soft);
+  }
+}
+
+.file-selected,
+.csv-slot {
+  background: #fafbf9;
+}
+
+.csv-slot,
+.stat-box {
+  border-width: 1px;
+}
+
+.chave-item {
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+}
+
+.action-card {
+  align-items: center;
+  justify-content: flex-end;
+  background: #eceae2;
+}
+
+.stat-box {
+  align-items: flex-start;
+}
+
+.log-header {
+  background: #eceae2;
+}
+
+/* A filtragem passa a ser lida como sequência, sem alterar os contratos posicionais. */
+.workflow-step-card {
+  padding: 0;
+}
+
+.workflow-action-card {
+  justify-content: flex-start;
+  padding: 18px 20px;
+
+  .action-copy {
+    min-width: 220px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    span {
+      color: var(--brand-green);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    strong {
+      font-size: 13px;
+      font-weight: 650;
+    }
+  }
+}
+
+.csv-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 700px) {
+  .csv-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .workflow-action-card {
+    align-items: stretch;
+    flex-direction: column;
+
+    .btn {
+      width: 100%;
+    }
+  }
+}

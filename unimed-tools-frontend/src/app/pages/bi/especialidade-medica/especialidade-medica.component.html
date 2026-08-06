@@ -1,186 +1,286 @@
 <!-- Apresentação de fluxo de Especialidade Médica; regras de negócio permanecem no componente ou serviço correspondente. -->
 <div class="tool-page">
-  <div class="tool-page-header">
-    <span class="badge badge-bi">BI</span>
-    <h1>Especialidade Médica</h1>
-    <p>
-      Preenche automaticamente a coluna de especialidade nas planilhas de despesa, usando a planilha
-      de médicos como referência.
-    </p>
-  </div>
+  <header class="tool-page-header">
+    <div class="tool-header-copy">
+      <span class="badge badge-bi">BI · Especialidade</span>
+      <h1>Conecte as duas planilhas e complete as especialidades.</h1>
+      <p>
+        A rotina cruza a planilha de despesas com a base de médicos, preservando as linhas que já
+        possuem especialidade.
+      </p>
+    </div>
+    <div class="tool-header-meta" aria-label="Características da ferramenta">
+      <span><small>Referência</small><strong>Médicos</strong></span>
+      <span><small>Saída</small><strong>XLSX</strong></span>
+    </div>
+  </header>
 
   <div class="tool-page-body">
-    <!-- ── UPLOADS ── -->
-    <div class="uploads-grid">
-      <!-- Despesas -->
-      <div class="card upload-card">
-        <div class="upload-card-header">
-          <span class="upload-icon">📋</span>
-          <div>
-            <p class="upload-title">Planilha de Despesas</p>
-            <p class="upload-hint">XLSX ou CSV — aba "despesa" detectada automaticamente</p>
-          </div>
-        </div>
-
-        <ng-container *ngIf="!arquivoDespesas">
-          <div
-            class="drop-zone"
-            [class.drag-over]="dragOverDespesas"
-            (dragover)="onDragOverD($event)"
-            (dragleave)="onDragLeaveD()"
-            (drop)="onDropD($event)"
-            (click)="inputDespesas.click()"
-          >
-            <input
-              #inputDespesas
-              type="file"
-              accept=".xlsx,.csv"
-              style="display: none"
-              (change)="onFileDespesas($event)"
-            />
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <path
-                d="M24 17v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5M19 9l-5-5-5 5M14 4v14"
-                stroke="currentColor"
-                stroke-width="1.4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <span>Arraste ou clique para selecionar</span>
-            <span class="drop-ext">.xlsx · .csv</span>
-          </div>
-        </ng-container>
-
-        <div class="file-selected" *ngIf="arquivoDespesas">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V7L9 1z"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path d="M9 1v6h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-          </svg>
-          <div class="file-info">
-            <span class="file-name">{{ arquivoDespesas.name }}</span>
-            <span class="file-size">{{ formatSize(arquivoDespesas.size) }}</span>
-          </div>
-          <button class="remove-btn" (click)="removerDespesas()" title="Remover">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M9 3L3 9M3 3l6 6"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-        </div>
+    <div class="workflow-progress" style="--steps: 3" aria-label="Etapas do preenchimento">
+      <div class="workflow-progress-item" [class.active]="arquivoDespesas">
+        <span>1</span>
+        <div><strong>Despesas</strong><small>Planilha principal</small></div>
       </div>
-
-      <!-- Médicos -->
-      <div class="card upload-card">
-        <div class="upload-card-header">
-          <span class="upload-icon">👨‍⚕️</span>
-          <div>
-            <p class="upload-title">Planilha de Médicos</p>
-            <p class="upload-hint">XLSX — colunas: PES_NOM_COMP e ESPMD_DES</p>
-          </div>
-        </div>
-
-        <ng-container *ngIf="!arquivoMedicos">
-          <div
-            class="drop-zone"
-            [class.drag-over]="dragOverMedicos"
-            (dragover)="onDragOverM($event)"
-            (dragleave)="onDragLeaveM()"
-            (drop)="onDropM($event)"
-            (click)="inputMedicos.click()"
-          >
-            <input
-              #inputMedicos
-              type="file"
-              accept=".xlsx"
-              style="display: none"
-              (change)="onFileMedicos($event)"
-            />
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <path
-                d="M24 17v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5M19 9l-5-5-5 5M14 4v14"
-                stroke="currentColor"
-                stroke-width="1.4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <span>Arraste ou clique para selecionar</span>
-            <span class="drop-ext">.xlsx</span>
-          </div>
-        </ng-container>
-
-        <div class="file-selected" *ngIf="arquivoMedicos">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V7L9 1z"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path d="M9 1v6h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-          </svg>
-          <div class="file-info">
-            <span class="file-name">{{ arquivoMedicos.name }}</span>
-            <span class="file-size">{{ formatSize(arquivoMedicos.size) }}</span>
-          </div>
-          <button class="remove-btn" (click)="removerMedicos()" title="Remover">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M9 3L3 9M3 3l6 6"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-        </div>
+      <div class="workflow-progress-item" [class.active]="arquivoMedicos">
+        <span>2</span>
+        <div><strong>Médicos</strong><small>Base de referência</small></div>
+      </div>
+      <div class="workflow-progress-item" [class.active]="estado() === 'sucesso'">
+        <span>3</span>
+        <div><strong>Processar</strong><small>Revisão e download</small></div>
       </div>
     </div>
 
-    <!-- ── AÇÃO ── -->
-    <div class="card action-card" *ngIf="pronto || estado() === 'sucesso'">
-      <button
-        class="btn btn-primary btn-lg"
-        [disabled]="!pronto || estado() === 'processando'"
-        (click)="processar()"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          *ngIf="estado() !== 'processando'"
-        >
-          <polygon points="4,2 14,8 4,14" fill="currentColor" />
-        </svg>
-        <span *ngIf="estado() !== 'processando'">Processar Especialidades</span>
-        <span *ngIf="estado() === 'processando'">⏳ Processando…</span>
-      </button>
+    <div class="workflow-layout">
+      <div class="workflow-main">
+        <!-- ── UPLOADS ── -->
+        <div class="uploads-grid">
+          <!-- Despesas -->
+          <div class="card upload-card workflow-step-card">
+            <div class="workflow-step-index"><span>1</span></div>
+            <div class="workflow-step-content">
+              <div class="upload-card-header">
+                <span class="upload-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M7 4h10v17H7V4Z"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M9 4V2h6v2M10 9h4M10 13h4M10 17h3"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+                <div>
+                  <p class="upload-title">Planilha de Despesas</p>
+            <p class="upload-hint">XLSX recomendado — aba "despesa" detectada automaticamente</p>
+                </div>
+              </div>
 
-      <button class="btn btn-success btn-lg" *ngIf="estado() === 'sucesso'" (click)="baixar()">
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-          <path
-            d="M7.5 2v8M4 7l3.5 3.5L11 7M2 13h11"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        Baixar arquivo preenchido
-      </button>
+              <ng-container *ngIf="!arquivoDespesas">
+                <div
+                  class="drop-zone"
+                  [class.drag-over]="dragOverDespesas"
+                  (dragover)="onDragOverD($event)"
+                  (dragleave)="onDragLeaveD()"
+                  (drop)="onDropD($event)"
+                  (click)="inputDespesas.click()"
+                >
+                  <input
+                    #inputDespesas
+                    type="file"
+                    accept=".xlsx,.csv"
+                    style="display: none"
+                    (change)="onFileDespesas($event)"
+                  />
+                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <path
+                      d="M24 17v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5M19 9l-5-5-5 5M14 4v14"
+                      stroke="currentColor"
+                      stroke-width="1.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span>Arraste ou clique para selecionar</span>
+                  <span class="drop-ext">.xlsx · .csv</span>
+                </div>
+              </ng-container>
+
+              <div class="file-selected" *ngIf="arquivoDespesas">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V7L9 1z"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M9 1v6h6"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <div class="file-info">
+                  <span class="file-name">{{ arquivoDespesas.name }}</span>
+                  <span class="file-size">{{ formatSize(arquivoDespesas.size) }}</span>
+                </div>
+                <button class="remove-btn" (click)="removerDespesas()" title="Remover">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M9 3L3 9M3 3l6 6"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Médicos -->
+          <div class="card upload-card workflow-step-card">
+            <div class="workflow-step-index"><span>2</span></div>
+            <div class="workflow-step-content">
+              <div class="upload-card-header">
+                <span class="upload-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.5" />
+                    <path
+                      d="M3.5 19c.7-3.5 2.6-5.5 5.5-5.5 2.1 0 3.7 1 4.6 2.8M17.5 11v7M14 14.5h7"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+                <div>
+                  <p class="upload-title">Planilha de Médicos</p>
+                  <p class="upload-hint">XLSX — colunas: PES_NOM_COMP e ESPMD_DES</p>
+                </div>
+              </div>
+
+              <ng-container *ngIf="!arquivoMedicos">
+                <div
+                  class="drop-zone"
+                  [class.drag-over]="dragOverMedicos"
+                  (dragover)="onDragOverM($event)"
+                  (dragleave)="onDragLeaveM()"
+                  (drop)="onDropM($event)"
+                  (click)="inputMedicos.click()"
+                >
+                  <input
+                    #inputMedicos
+                    type="file"
+                    accept=".xlsx"
+                    style="display: none"
+                    (change)="onFileMedicos($event)"
+                  />
+                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <path
+                      d="M24 17v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5M19 9l-5-5-5 5M14 4v14"
+                      stroke="currentColor"
+                      stroke-width="1.4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  <span>Arraste ou clique para selecionar</span>
+                  <span class="drop-ext">.xlsx</span>
+                </div>
+              </ng-container>
+
+              <div class="file-selected" *ngIf="arquivoMedicos">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M9 1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V7L9 1z"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M9 1v6h6"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <div class="file-info">
+                  <span class="file-name">{{ arquivoMedicos.name }}</span>
+                  <span class="file-size">{{ formatSize(arquivoMedicos.size) }}</span>
+                </div>
+                <button class="remove-btn" (click)="removerMedicos()" title="Remover">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M9 3L3 9M3 3l6 6"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── AÇÃO ── -->
+        <div class="card action-card workflow-action-card" *ngIf="pronto || estado() === 'sucesso'">
+          <div class="action-copy">
+            <span>Arquivos prontos</span>
+            <strong>Execute o cruzamento das especialidades</strong>
+          </div>
+          <button
+            class="btn btn-primary btn-lg"
+            [disabled]="!pronto || estado() === 'processando'"
+            (click)="processar()"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              *ngIf="estado() !== 'processando'"
+            >
+              <polygon points="4,2 14,8 4,14" fill="currentColor" />
+            </svg>
+            <span *ngIf="estado() !== 'processando'">Processar Especialidades</span>
+            <span *ngIf="estado() === 'processando'">Processando…</span>
+          </button>
+
+          <button class="btn btn-success btn-lg" *ngIf="estado() === 'sucesso'" (click)="baixar()">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <path
+                d="M7.5 2v8M4 7l3.5 3.5L11 7M2 13h11"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            Baixar arquivo preenchido
+          </button>
+        </div>
+      </div>
+
+      <aside class="context-rail">
+        <section class="context-card context-card-strong">
+          <span>Como a rotina funciona</span>
+          <h2>Duas fontes, uma planilha final.</h2>
+          <p>Os nomes dos solicitantes são usados para localizar a especialidade de referência.</p>
+          <ul class="context-list">
+            <li>Linhas já preenchidas continuam preservadas.</li>
+            <li>Solicitantes sem correspondência ficam identificados no log.</li>
+            <li>A planilha original não é sobrescrita.</li>
+          </ul>
+        </section>
+
+        <section class="context-card">
+          <span>Compatibilidade atual</span>
+          <h3>Use XLSX nas duas etapas</h3>
+          <p>
+            A interface reconhece CSV na seleção de despesas, mas o processamento confirmado no
+            backend utiliza planilhas XLSX.
+          </p>
+          <div class="context-summary">
+            <div>
+              <span>Despesas</span><strong>{{ arquivoDespesas ? 'Pronto' : 'Pendente' }}</strong>
+            </div>
+            <div>
+              <span>Médicos</span><strong>{{ arquivoMedicos ? 'Pronto' : 'Pendente' }}</strong>
+            </div>
+          </div>
+        </section>
+      </aside>
     </div>
 
     <!-- ── STATS ── -->

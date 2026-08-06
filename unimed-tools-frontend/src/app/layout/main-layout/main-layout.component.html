@@ -1,7 +1,53 @@
-<!-- Apresentação de layout principal e a área ocupada pelas páginas; regras de negócio permanecem no componente ou serviço correspondente. -->
-<div class="layout" [class.sidebar-collapsed]="!sidebarOpen()" [class.no-sidebar]="isHome()">
-  <app-sidebar *ngIf="!isHome()" [open]="sidebarOpen()" (toggleSidebar)="toggleSidebar()" />
-  <div class="main-area">
-    <router-outlet />
+<!-- Shell compartilhado: navegação, contexto da rota e área de trabalho permanecem separados das regras de negócio. -->
+<div class="layout" [class.sidebar-collapsed]="!sidebarOpen()">
+  <app-sidebar [open]="sidebarOpen()" (toggleSidebar)="toggleSidebar()" />
+
+  <button
+    *ngIf="isMobile() && sidebarOpen()"
+    class="sidebar-backdrop"
+    type="button"
+    aria-label="Fechar navegação"
+    (click)="toggleSidebar()"
+  ></button>
+
+  <div class="app-frame">
+    <header class="workspace-bar">
+      <div class="workspace-bar-start">
+        <button
+          class="mobile-nav-trigger"
+          type="button"
+          [attr.aria-label]="sidebarOpen() ? 'Fechar navegação' : 'Abrir navegação'"
+          (click)="toggleSidebar()"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path
+              d="M3 5.5h14M3 10h14M3 14.5h14"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+
+        <a class="mobile-brand" routerLink="/" aria-label="Ir para o início">
+          <span>U</span>
+          <strong>Unimed Tools</strong>
+        </a>
+
+        <div class="route-context">
+          <span>{{ pageContext() }}</span>
+          <strong>{{ pageTitle() }}</strong>
+        </div>
+      </div>
+
+      <div class="workspace-bar-end">
+        <span class="environment-pill"><i></i> Ambiente interno</span>
+        <span class="workspace-date">Operações · 2026</span>
+      </div>
+    </header>
+
+    <main class="main-area" id="main-content">
+      <router-outlet />
+    </main>
   </div>
 </div>

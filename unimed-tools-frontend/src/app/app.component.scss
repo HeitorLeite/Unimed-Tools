@@ -1,1 +1,4 @@
-/* Estilos de estrutura raiz e a saída das rotas; seletores ficam limitados ao contexto indicado pelo arquivo. */
+:host {
+  display: block;
+  min-height: 100vh;
+}

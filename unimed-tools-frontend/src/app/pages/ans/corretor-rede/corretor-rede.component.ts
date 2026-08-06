@@ -70,8 +70,13 @@ export class CorretorRedeComponent {
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   get pronto(): boolean {
-    const temErro = this.modo === 'xlsx' ? !!this.arquivoXlsx : this.csvSlots.some((s) => s.file);
+    const temErro = this.modo === 'xlsx' ? !!this.arquivoXlsx : this.temCsv;
     return temErro && !!this.arquivoTxt;
+  }
+
+  /** Expõe ao layout se ao menos uma categoria CSV foi informada, sem alterar a regra do fluxo. */
+  get temCsv(): boolean {
+    return this.csvSlots.some((slot) => !!slot.file);
   }
 
   setModo(m: Modo) {

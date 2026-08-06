@@ -530,6 +530,7 @@
     flex-direction: column;
   }
 }
+
 /* ==========================================================================
    Ajustes: listagem de APIs e fluxo de download
    ========================================================================== */
@@ -1520,5 +1521,151 @@
   .sql-upload-zone {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+/* Ajustes finais mantidos no fim para abranger também os fluxos avançados e SQL. */
+.relatorios-page {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 36px 32px 56px;
+}
+
+.reports-shell {
+  grid-template-columns: 272px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.catalog {
+  top: 16px;
+  padding: 14px;
+  box-shadow: none;
+}
+
+.page-header-actions,
+.workspace {
+  gap: 16px;
+}
+
+.search-box {
+  border-radius: var(--radius-md);
+  background: #fafbf9;
+}
+
+.report-icon,
+.template-icon {
+  border-radius: var(--radius-sm);
+  background: #e5eee7;
+  color: var(--brand-green);
+}
+
+.report-config,
+.results-card,
+.template-session {
+  box-shadow: none;
+}
+
+.no-filters,
+.template-session,
+.generation-status {
+  border-radius: var(--radius-md);
+  background: #f4f5f1;
+}
+
+.report-card,
+.template-card,
+.format-selector,
+.format-option,
+.api-selection-card,
+.template-report-option,
+.filter-row,
+.sql-upload-zone,
+.sql-import-help,
+.batch-progress,
+.sql-file-card {
+  border-radius: var(--radius-md);
+}
+
+.report-card.active,
+.template-card.active,
+.format-option.active,
+.api-selection-card.selected,
+.template-report-option.selected {
+  border-color: #bad6c1;
+  background: var(--brand-green-soft);
+}
+
+.api-label {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--brand-green);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field select,
+.field textarea,
+.inline-input,
+.download-name-field input {
+  border-radius: var(--radius-md);
+  background: #fafbf9;
+}
+
+.modal-backdrop {
+  background: rgba(20, 43, 29, 0.62);
+  backdrop-filter: blur(2px);
+}
+
+.modal-card {
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 70px rgba(20, 43, 29, 0.24);
+}
+
+.sql-upload-zone {
+  border-width: 1px;
+  background: #fafbf9;
+}
+
+.sql-upload-icon {
+  border-radius: var(--radius-md);
+  background: var(--brand-green-dark);
+}
+
+@media (max-width: 1000px) {
+  .reports-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog {
+    position: static;
+  }
+}
+
+@media (max-width: 900px) {
+  .relatorios-page {
+    padding: 88px 22px 48px;
+  }
+}
+
+@media (max-width: 620px) {
+  .relatorios-page {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .page-header-row,
+  .page-header-actions,
+  .report-heading,
+  .results-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-header-actions .btn {
+    width: 100%;
   }
 }

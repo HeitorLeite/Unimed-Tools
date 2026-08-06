@@ -1,49 +1,124 @@
-/* Estilos de fluxo ainda planejado de Fechamento; seletores ficam limitados ao contexto indicado pelo arquivo. */
-.card-actions {
-  margin-top: 16px;
+.development-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 18px 21px;
+  border: 1px solid #dfc986;
+  border-radius: var(--radius-lg);
+  background: #fbf5e4;
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  strong {
+    color: #5f4a16;
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  p {
+    color: #826a2c;
+    font-size: 11px;
+  }
+}
+
+.development-mark {
+  padding: 6px 9px;
+  border-radius: 4px;
+  background: #8a6a21;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.closing-upload-card {
+  padding: 0;
+}
+
+.closing-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--surface-border);
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    span {
+      color: var(--text-muted);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+
+    strong {
+      font-size: 12px;
+      font-weight: 650;
+    }
+  }
 }
 
 .progress-bar {
-  margin-top: 12px;
   height: 4px;
-  background: var(--surface-border);
-  border-radius: 2px;
+  margin-top: 16px;
   overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-border);
 }
+
 .progress-fill {
   height: 100%;
-  background: var(--brand-green);
   border-radius: 2px;
-  transition: width 0.3s ease;
+  background: var(--brand-green);
+  transition: width 250ms ease;
+}
+
+.closing-log {
+  padding: 22px;
 }
 
 .download-row {
-  margin-top: 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.download-name {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-muted);
+  gap: 15px;
+  margin-top: 16px;
 }
 
-.backend-notice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--info);
-  background: var(--info-bg);
-  padding: 10px 14px;
-  border-radius: var(--radius-md);
-  code {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    background: rgba(37, 99, 235, 0.12);
-    padding: 1px 5px;
-    border-radius: 3px;
+.download-name {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.closing-status-card {
+  background: #594715;
+  border-color: #594715;
+}
+
+@media (max-width: 600px) {
+  .development-banner {
+    grid-template-columns: 1fr;
+  }
+
+  .development-mark {
+    width: fit-content;
+  }
+
+  .closing-action,
+  .download-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

@@ -1,129 +1,267 @@
 <!-- Apresentação de seleção, resultados e downloads das ferramentas XML; regras de negócio permanecem no componente ou serviço correspondente. -->
 <div class="tool-page">
-  <div class="tool-page-header">
-    <span class="badge badge-xml">XML</span>
-    <h1>Ferramentas XML TISS</h1>
-    <p>
-      Processamento em lote — corrija prefixos, remova blocos zerados ou vazios e normalize guias
-      duplicadas entre arquivos.
-    </p>
-  </div>
+  <header class="tool-page-header">
+    <div class="tool-header-copy">
+      <span class="badge badge-xml">XML · TISS</span>
+      <h1>Corrija um lote sem tirar os arquivos do navegador.</h1>
+      <p>
+        Escolha a operação, adicione um ou vários XMLs e revise cada alteração antes de baixar a
+        nova versão.
+      </p>
+    </div>
+    <div class="tool-header-meta" aria-label="Características da ferramenta">
+      <span><small>Execução</small><strong>Local</strong></span>
+      <span><small>Entrada</small><strong>XML em lote</strong></span>
+    </div>
+  </header>
 
   <div class="tool-page-body">
-    <!-- ── CONFIGURAÇÃO ── -->
-    <div class="card">
-      <p class="section-title">O que deseja fazer?</p>
-      <div class="op-options">
-        <label class="op-card" [class.selected]="operacao === 'ambos'">
-          <input type="radio" name="op" value="ambos" [(ngModel)]="operacao" />
-          <span class="op-icon">⚡</span>
-          <span class="op-label">Todas as correções</span>
-          <span class="op-desc">Prefixos + blocos zerados/vazios + guias duplicadas</span>
-        </label>
-        <label class="op-card" [class.selected]="operacao === 'corretor'">
-          <input type="radio" name="op" value="corretor" [(ngModel)]="operacao" />
-          <span class="op-icon">🔧</span>
-          <span class="op-label">Corretor de Prefixo</span>
-          <span class="op-desc">Remove prefixos 18/19/20 indevidos</span>
-        </label>
-        <label class="op-card" [class.selected]="operacao === 'removedor'">
-          <input type="radio" name="op" value="removedor" [(ngModel)]="operacao" />
-          <span class="op-icon">🗑️</span>
-          <span class="op-label">Removedor de Blocos</span>
-          <span class="op-desc">Remove despesas zeradas e outrasDespesas vazias</span>
-        </label>
+    <div class="workflow-progress" style="--steps: 3" aria-label="Etapas da correção">
+      <div class="workflow-progress-item active">
+        <span>1</span>
+        <div><strong>Configurar</strong><small>Tipo de correção</small></div>
+      </div>
+      <div class="workflow-progress-item" [class.active]="arquivos.length > 0">
+        <span>2</span>
+        <div><strong>Selecionar</strong><small>Arquivos XML</small></div>
+      </div>
+      <div class="workflow-progress-item" [class.active]="temResultado">
+        <span>3</span>
+        <div><strong>Revisar</strong><small>Resultado e download</small></div>
       </div>
     </div>
 
-    <!-- ── UPLOAD ── -->
-    <div class="card">
-      <p class="section-title">Arquivos XML</p>
-
-      <!-- Drop zone -->
-      <div
-        class="drop-zone"
-        [class.drag-over]="dragOver"
-        [class.has-files]="arquivos.length"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave()"
-        (drop)="onDrop($event)"
-        (click)="fileInput.click()"
-      >
-        <input
-          #fileInput
-          type="file"
-          accept=".xml"
-          multiple
-          style="display: none"
-          (change)="onFileInput($event)"
-        />
-        <svg class="drop-icon" width="32" height="32" viewBox="0 0 32 32" fill="none">
-          <path
-            d="M28 20v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6M22 10l-6-6-6 6M16 4v16"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <span class="drop-label">Arraste arquivos XML aqui ou clique para selecionar</span>
-        <span class="drop-hint">Múltiplos arquivos suportados</span>
-      </div>
-
-      <!-- Lista de arquivos -->
-      <div class="file-list" *ngIf="arquivos.length">
-        <div class="file-list-header">
-          <span>{{ arquivos.length }} arquivo(s) selecionado(s)</span>
-          <button class="btn-link danger" (click)="limpar()">Limpar tudo</button>
+    <div class="workflow-layout">
+      <div class="workflow-main">
+        <!-- ── CONFIGURAÇÃO ── -->
+        <div class="card workflow-step-card">
+          <div class="workflow-step-index"><span>1</span></div>
+          <div class="workflow-step-content">
+            <div class="workflow-step-heading">
+              <span>Operação</span>
+              <h2>O que precisa ser corrigido?</h2>
+              <p>A opção completa reúne as três rotinas atuais em uma única análise.</p>
+            </div>
+            <div class="op-options">
+              <label class="op-card" [class.selected]="operacao === 'ambos'">
+                <input type="radio" name="op" value="ambos" [(ngModel)]="operacao" />
+                <span class="op-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="m13 2-7 12h6l-1 8 7-12h-6l1-8Z"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span class="op-label">Todas as correções</span>
+                <span class="op-desc">Prefixos + blocos zerados/vazios + guias duplicadas</span>
+              </label>
+              <label class="op-card" [class.selected]="operacao === 'corretor'">
+                <input type="radio" name="op" value="corretor" [(ngModel)]="operacao" />
+                <span class="op-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M14.5 6.5a5 5 0 0 0-6.3 6.3L3 18l3 3 5.2-5.2a5 5 0 0 0 6.3-6.3l-3 3-3-3 3-3Z"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span class="op-label">Corretor de Prefixo</span>
+                <span class="op-desc">Remove prefixos 18/19/20 indevidos</span>
+              </label>
+              <label class="op-card" [class.selected]="operacao === 'removedor'">
+                <input type="radio" name="op" value="removedor" [(ngModel)]="operacao" />
+                <span class="op-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <rect
+                      x="4"
+                      y="5"
+                      width="7"
+                      height="7"
+                      rx="1"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    />
+                    <rect
+                      x="13"
+                      y="5"
+                      width="7"
+                      height="7"
+                      rx="1"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    />
+                    <rect
+                      x="4"
+                      y="14"
+                      width="7"
+                      height="7"
+                      rx="1"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    />
+                    <path
+                      d="M16.5 15v5M14 17.5h5"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+                <span class="op-label">Removedor de Blocos</span>
+                <span class="op-desc">Remove despesas zeradas e outrasDespesas vazias</span>
+              </label>
+            </div>
+          </div>
         </div>
-        <div class="file-item" *ngFor="let f of arquivos">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path d="M8 1v5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
-          </svg>
-          <span class="file-name">{{ f.name }}</span>
-          <span class="file-size">{{ formatSize(f.size) }}</span>
-          <button class="remove-btn" (click)="removerArquivo(f.name)" title="Remover">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path
-                d="M9 3L3 9M3 3l6 6"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
+
+        <!-- ── UPLOAD ── -->
+        <div class="card workflow-step-card">
+          <div class="workflow-step-index"><span>2</span></div>
+          <div class="workflow-step-content">
+            <div class="workflow-step-heading">
+              <span>Arquivos</span>
+              <h2>Adicione o lote XML</h2>
+              <p>Arquivos repetidos pelo nome são ignorados para evitar processamento duplicado.</p>
+            </div>
+
+            <!-- Drop zone -->
+            <div
+              class="drop-zone"
+              [class.drag-over]="dragOver"
+              [class.has-files]="arquivos.length"
+              (dragover)="onDragOver($event)"
+              (dragleave)="onDragLeave()"
+              (drop)="onDrop($event)"
+              (click)="fileInput.click()"
+            >
+              <input
+                #fileInput
+                type="file"
+                accept=".xml"
+                multiple
+                style="display: none"
+                (change)="onFileInput($event)"
               />
-            </svg>
-          </button>
+              <svg class="drop-icon" width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <path
+                  d="M28 20v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6M22 10l-6-6-6 6M16 4v16"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span class="drop-label">Arraste arquivos XML aqui ou clique para selecionar</span>
+              <span class="drop-hint">Múltiplos arquivos suportados</span>
+            </div>
+
+            <!-- Lista de arquivos -->
+            <div class="file-list" *ngIf="arquivos.length">
+              <div class="file-list-header">
+                <span>{{ arquivos.length }} arquivo(s) selecionado(s)</span>
+                <button class="btn-link danger" (click)="limpar()">Limpar tudo</button>
+              </div>
+              <div class="file-item" *ngFor="let f of arquivos">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path
+                    d="M8 1H3a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V6L8 1z"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="M8 1v5h5"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <span class="file-name">{{ f.name }}</span>
+                <span class="file-size">{{ formatSize(f.size) }}</span>
+                <button class="remove-btn" (click)="removerArquivo(f.name)" title="Remover">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M9 3L3 9M3 3l6 6"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="card-actions" *ngIf="arquivos.length">
+              <button
+                class="btn btn-primary btn-lg"
+                [disabled]="estado() === 'analisando'"
+                (click)="analisar()"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  *ngIf="estado() !== 'analisando'"
+                >
+                  <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.4" />
+                  <path
+                    d="M11 11l3 3"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <span *ngIf="estado() !== 'analisando'"
+                  >Analisar {{ arquivos.length > 1 ? 'Lote' : 'XML' }}</span
+                >
+                <span *ngIf="estado() === 'analisando'">Analisando…</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="card-actions" *ngIf="arquivos.length">
-        <button
-          class="btn btn-primary btn-lg"
-          [disabled]="estado() === 'analisando'"
-          (click)="analisar()"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            *ngIf="estado() !== 'analisando'"
-          >
-            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.4" />
-            <path d="M11 11l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-          </svg>
-          <span *ngIf="estado() !== 'analisando'"
-            >Analisar {{ arquivos.length > 1 ? 'Lote' : 'XML' }}</span
-          >
-          <span *ngIf="estado() === 'analisando'">⏳ Analisando…</span>
-        </button>
-      </div>
+      <aside class="context-rail">
+        <section class="context-card context-card-strong">
+          <span>Processamento protegido</span>
+          <h2>O XML permanece neste dispositivo.</h2>
+          <p>
+            A análise principal deste módulo acontece no navegador e sempre gera uma nova saída.
+          </p>
+          <ul class="context-list">
+            <li>O arquivo original não é sobrescrito.</li>
+            <li>O lote pode ser revisado arquivo por arquivo.</li>
+            <li>Os downloads corrigidos podem ser reunidos em ZIP.</li>
+          </ul>
+        </section>
+
+        <section class="context-card">
+          <span>Resumo atual</span>
+          <h3>Preparação do lote</h3>
+          <div class="context-summary">
+            <div>
+              <span>Operação</span>
+              <strong>{{
+                operacao === 'ambos' ? 'Todas' : operacao === 'corretor' ? 'Prefixos' : 'Blocos'
+              }}</strong>
+            </div>
+            <div>
+              <span>Arquivos</span><strong>{{ arquivos.length }}</strong>
+            </div>
+            <div>
+              <span>Resultado</span><strong>{{ temResultado ? 'Disponível' : 'Pendente' }}</strong>
+            </div>
+          </div>
+        </section>
+      </aside>
     </div>
 
     <!-- ── RESUMO DO LOTE ── -->

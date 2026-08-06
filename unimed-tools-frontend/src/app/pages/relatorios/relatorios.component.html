@@ -14,19 +14,19 @@
 ></app-relatorios-automaticos>
 
 <ng-container *ngIf="modoPagina === 'manual'">
-  <section class="tool-page relatorios-page">
-    <header class="tool-page-header page-header-row">
-      <div>
-        <span class="badge badge-ans">Relatórios</span>
-        <h1>Central de relatórios</h1>
-        <p>
-          Consulte as APIs cadastradas no SGU, visualize os dados e exporte o relatório completo.
-        </p>
+  <section class="reports-manual-page">
+    <header class="reports-commandbar">
+      <button class="mode-back-button" type="button" (click)="voltarSelecaoModo()">
+        <span aria-hidden="true">←</span>
+        <span><small>Central de relatórios</small><strong>Trocar modo</strong></span>
+      </button>
+
+      <div class="commandbar-title">
+        <span>Execução individual</span>
+        <h1>Modo manual</h1>
       </div>
+
       <div class="page-header-actions">
-        <button class="btn btn-secondary" type="button" (click)="voltarSelecaoModo()">
-          <span aria-hidden="true">←</span> Trocar modo
-        </button>
         <button class="btn btn-secondary" type="button" (click)="abrirNovoTemplate()">
           <span aria-hidden="true">▦</span> Novo template
         </button>
@@ -35,6 +35,13 @@
         </button>
       </div>
     </header>
+
+    <div class="manual-context-strip">
+      <div><span>01</span><strong>Selecione no catálogo</strong></div>
+      <div><span>02</span><strong>Preencha os filtros</strong></div>
+      <div><span>03</span><strong>Revise e exporte</strong></div>
+      <p>Catálogo e templates salvos neste navegador.</p>
+    </div>
 
     <div class="alert alert-error" *ngIf="erro" role="alert">
       <span>{{ erro }}</span>

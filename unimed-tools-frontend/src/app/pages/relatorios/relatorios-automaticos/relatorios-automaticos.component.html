@@ -1,17 +1,25 @@
 <!-- Apresentação de configuração e execução de grupos automáticos; regras de negócio permanecem no componente ou serviço correspondente. -->
-<section class="tool-page automatic-reports-page">
-  <header class="automatic-header">
-    <div>
-      <button class="back-link" type="button" (click)="voltar.emit()">← Escolher outro modo</button>
-      <span class="badge badge-ans">Automação</span>
-      <h1>Grupos automáticos de relatórios</h1>
-      <p>
-        Gere vários relatórios para várias empresas e competências. Cada arquivo é nomeado
-        automaticamente e entregue dentro de um único ZIP.
-      </p>
+<section class="automatic-reports-page">
+  <header class="automatic-commandbar">
+    <button class="mode-back-button" type="button" (click)="voltar.emit()">
+      <span aria-hidden="true">←</span>
+      <span><small>Central de relatórios</small><strong>Trocar modo</strong></span>
+    </button>
+
+    <div class="commandbar-title">
+      <span>Execução em lote</span>
+      <h1>Modo automático</h1>
     </div>
+
     <button class="btn btn-primary" type="button" (click)="abrirNovoGrupo()">＋ Novo grupo</button>
   </header>
+
+  <div class="automatic-context-strip">
+    <div><span>01</span><strong>Escolha o grupo</strong></div>
+    <div><span>02</span><strong>Informe empresas e filtros</strong></div>
+    <div><span>03</span><strong>Gere o arquivo ZIP</strong></div>
+    <p>Grupos salvos somente neste navegador.</p>
+  </div>
 
   <div class="alert alert-error" *ngIf="erro" role="alert">
     <span>{{ erro }}</span>
@@ -41,7 +49,16 @@
           [class.active]="grupoSelecionado?.id === grupo.id"
           (click)="selecionarGrupo(grupo)"
         >
-          <span class="group-card-icon" aria-hidden="true">⚙</span>
+          <span class="group-card-icon" aria-hidden="true"
+            ><svg viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5" />
+              <path
+                d="M19 13.5v-3l-2-.7a6 6 0 0 0-.7-1.6l.9-1.9-2.1-2.1-1.9.9a6 6 0 0 0-1.7-.7l-.6-2h-3l-.7 2a6 6 0 0 0-1.6.7l-1.9-.9-2.1 2.1.9 1.9a6 6 0 0 0-.7 1.6l-2 .7v3l2 .7a6 6 0 0 0 .7 1.6l-.9 1.9 2.1 2.1 1.9-.9a6 6 0 0 0 1.6.7l.7 2h3l.6-2a6 6 0 0 0 1.7-.7l1.9.9 2.1-2.1-.9-1.9a6 6 0 0 0 .7-1.6l2-.7Z"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linejoin="round"
+              /></svg
+          ></span>
           <span class="group-card-copy">
             <strong>{{ grupo.nome }}</strong>
             <small>{{ resumoGrupo(grupo) }}</small>
@@ -308,7 +325,16 @@
 
   <ng-template #nenhumGrupo>
     <section class="empty-groups card">
-      <span class="empty-icon" aria-hidden="true">⚙</span>
+      <span class="empty-icon" aria-hidden="true"
+        ><svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5" />
+          <path
+            d="M19 13.5v-3l-2-.7a6 6 0 0 0-.7-1.6l.9-1.9-2.1-2.1-1.9.9a6 6 0 0 0-1.7-.7l-.6-2h-3l-.7 2a6 6 0 0 0-1.6.7l-1.9-.9-2.1 2.1.9 1.9a6 6 0 0 0-.7 1.6l-2 .7v3l2 .7a6 6 0 0 0 .7 1.6l-.9 1.9 2.1 2.1 1.9-.9a6 6 0 0 0 1.6.7l.7 2h3l.6-2a6 6 0 0 0 1.7-.7l1.9.9 2.1-2.1-.9-1.9a6 6 0 0 0 .7-1.6l2-.7Z"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linejoin="round"
+          /></svg
+      ></span>
       <h2>Nenhum grupo automático criado</h2>
       <p>
         Crie um grupo, selecione Despesas, Beneficiários, Receita ou quaisquer outros relatórios e

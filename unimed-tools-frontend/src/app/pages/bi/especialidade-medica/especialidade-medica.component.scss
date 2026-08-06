@@ -260,3 +260,135 @@
 .log-info {
   color: var(--text-secondary);
 }
+
+/* Adaptação do módulo ao sistema institucional contemporâneo. */
+.uploads-grid {
+  gap: 14px;
+}
+
+.upload-card {
+  gap: 16px;
+  padding: 22px;
+}
+
+.upload-card-header {
+  gap: 13px;
+}
+
+.upload-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  margin-top: 0;
+  border-radius: var(--radius-md);
+  background: var(--brand-green-soft);
+  color: var(--brand-green);
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.upload-title {
+  font-weight: 650;
+}
+
+.drop-zone {
+  padding: 29px 16px;
+  border-width: 1px;
+  border-color: var(--surface-border-strong);
+  background: #fafbf9;
+
+  &:hover,
+  &.drag-over {
+    background: var(--brand-green-soft);
+  }
+}
+
+.file-selected {
+  border-width: 1px;
+  background: #fafbf9;
+}
+
+.action-card {
+  align-items: center;
+  justify-content: flex-end;
+  background: #eceae2;
+}
+
+.stat-box {
+  align-items: flex-start;
+  border-width: 1px;
+}
+
+.stat-label {
+  text-align: left;
+}
+
+.log-header {
+  background: #eceae2;
+}
+
+/* Composição de fluxo: cada fonte ocupa uma etapa vertical na área principal. */
+.uploads-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.upload-card.workflow-step-card {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+
+.upload-card .workflow-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.workflow-action-card {
+  justify-content: flex-start;
+  padding: 18px 20px;
+
+  .action-copy {
+    min-width: 220px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    span {
+      color: var(--brand-green);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    strong {
+      font-size: 13px;
+      font-weight: 650;
+    }
+  }
+}
+
+@media (max-width: 560px) {
+  .upload-card.workflow-step-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .workflow-action-card {
+    align-items: stretch;
+    flex-direction: column;
+
+    .btn {
+      width: 100%;
+    }
+  }
+}

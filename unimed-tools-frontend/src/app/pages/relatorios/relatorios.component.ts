@@ -18,9 +18,10 @@ import {
 import { RelatorioService } from '../../shared/services/relatorio.service';
 import { RelatoriosAutomaticosComponent } from './relatorios-automaticos/relatorios-automaticos.component';
 import { RelatoriosInicioComponent } from './relatorios-inicio/relatorios-inicio.component';
+import { RelatoriosPersonalizadosComponent } from './relatorios-personalizados/relatorios-personalizados.component';
 
 type ModoCadastro = 'existente' | 'lista' | 'nova' | 'arquivos';
-type ModoPaginaRelatorios = 'selecao' | 'manual' | 'automatico';
+type ModoPaginaRelatorios = 'selecao' | 'manual' | 'automatico' | 'personalizado';
 
 type StatusArquivoSql = 'pendente' | 'criando' | 'sucesso' | 'erro';
 
@@ -67,7 +68,13 @@ interface EstruturaConsultaPrincipal {
 @Component({
   selector: 'app-relatorios',
   standalone: true,
-  imports: [CommonModule, FormsModule, RelatoriosInicioComponent, RelatoriosAutomaticosComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RelatoriosInicioComponent,
+    RelatoriosAutomaticosComponent,
+    RelatoriosPersonalizadosComponent,
+  ],
   templateUrl: './relatorios.component.html',
   styleUrls: ['./relatorios.component.scss'],
 })

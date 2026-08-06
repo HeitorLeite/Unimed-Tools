@@ -5,6 +5,7 @@
   [quantidadeGrupos]="quantidadeGruposAutomaticos"
   (escolherManual)="selecionarModoPagina('manual')"
   (escolherAutomatico)="selecionarModoPagina('automatico')"
+  (escolherPersonalizado)="selecionarModoPagina('personalizado')"
 ></app-relatorios-inicio>
 
 <app-relatorios-automaticos
@@ -12,6 +13,11 @@
   [relatorios]="relatorios"
   (voltar)="voltarSelecaoModo()"
 ></app-relatorios-automaticos>
+
+<app-relatorios-personalizados
+  *ngIf="modoPagina === 'personalizado'"
+  (voltar)="voltarSelecaoModo()"
+></app-relatorios-personalizados>
 
 <ng-container *ngIf="modoPagina === 'manual'">
   <section class="reports-manual-page">

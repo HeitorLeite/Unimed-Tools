@@ -80,9 +80,18 @@
 
 .mode-board {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-top: 24px;
+}
+
+.personalized-route {
+  border-color: #aad8c0;
+  background: linear-gradient(145deg, #f6fbf8, #eaf6ef);
+
+  .route-icon {
+    background: #fff;
+  }
 }
 
 .mode-route {
@@ -259,6 +268,14 @@
   .entry-numbers {
     width: fit-content;
   }
+
+  .mode-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .personalized-route {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 680px) {
@@ -269,6 +286,10 @@
 
   .mode-board {
     grid-template-columns: 1fr;
+  }
+
+  .personalized-route {
+    grid-column: auto;
   }
 
   .mode-route {

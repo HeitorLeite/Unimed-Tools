@@ -12,6 +12,8 @@ import {
   RelatorioCatalogo,
   RelatorioGrupoAutomatico,
   RelatorioLoteRequest,
+  RelatorioPersonalizadoConfiguracao,
+  RelatorioPersonalizadoRequest,
   RelatorioTemplate,
   SguApiDefinicao,
   SguListaResponse,
@@ -184,6 +186,25 @@ export class RelatorioService {
       `${this.baseUrl}/sgu/executar/${encodeURIComponent(nome)}`,
       parametros,
     );
+  }
+
+  configuracaoPersonalizada(): Observable<RelatorioPersonalizadoConfiguracao> {
+    return this.http.get<RelatorioPersonalizadoConfiguracao>(
+      `${this.baseUrl}/personalizado/configuracao`,
+    );
+  }
+
+  executarPersonalizado(request: RelatorioPersonalizadoRequest): Observable<SguResultado> {
+    return this.http.post<SguResultado>(`${this.baseUrl}/personalizado/executar`, request);
+  }
+
+  exportarPersonalizado(
+    formato: FormatoExportacao,
+    request: RelatorioPersonalizadoRequest,
+  ): Observable<Blob> {
+    return this.http.post(`${this.baseUrl}/personalizado/exportar?formato=${formato}`, request, {
+      responseType: 'blob',
+    });
   }
 
   // ── Execução e exportação ──────────────────────────────────────────────────

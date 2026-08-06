@@ -1,0 +1,208 @@
+<section class="custom-report-page">
+  <header class="custom-commandbar">
+    <button class="back-button" type="button" (click)="voltar.emit()">
+      <span aria-hidden="true">←</span>
+      <span><small>Central de relatórios</small><strong>Trocar modo</strong></span>
+    </button>
+    <div class="commandbar-title">
+      <span>Construtor guiado</span>
+      <h1>Relatório personalizado</h1>
+    </div>
+    <div class="privacy-note">
+      <span aria-hidden="true">◉</span> Filtros mantidos apenas nesta sessão
+    </div>
+  </header>
+
+  <div class="custom-intro">
+    <div>
+      <span class="eyebrow">{{ configuracao?.fonte || 'Consulta assistida' }} · SGU</span>
+      <h2>Encontre o recorte certo e leve somente as colunas necessárias.</h2>
+      <p>
+        Defina o período, refine beneficiário, contrato, guia ou procedimento e monte a estrutura
+        final do arquivo. Cada execução gera um novo SQL e substitui a API
+        0090-relatorio-personalizado. A consulta e a chave não são enviadas ao navegador.
+      </p>
+    </div>
+    <ol aria-label="Etapas do relatório">
+      <li><span>01</span>Filtrar</li>
+      <li><span>02</span>Escolher colunas</li>
+      <li><span>03</span>Revisar e exportar</li>
+    </ol>
+  </div>
+
+  <div class="alert error" *ngIf="erro" role="alert">
+    <span>{{ erro }}</span
+    ><button type="button" (click)="erro = ''" aria-label="Fechar">×</button>
+  </div>
+  <div class="alert success" *ngIf="sucesso" role="status">
+    <span>{{ sucesso }}</span
+    ><button type="button" (click)="sucesso = ''" aria-label="Fechar">×</button>
+  </div>
+
+  <div class="loading-panel" *ngIf="carregandoConfiguracao">
+    <span class="spinner"></span>
+    <strong>Carregando campos autorizados…</strong>
+  </div>
+
+  <ng-container *ngIf="configuracao && !carregandoConfiguracao">
+    <div class="builder-grid">
+      <section class="panel filters-panel">
+        <div class="panel-heading">
+          <div>
+            <span>Etapa 01</span>
+            <h2>Filtros da consulta</h2>
+          </div>
+          <button type="button" class="text-button" (click)="limparFiltros()">Limpar</button>
+        </div>
+        <p class="panel-help">
+          As competências são obrigatórias e aceitam no máximo
+          {{ configuracao.limites.maximoMeses }} meses por consulta.
+        </p>
+
+        <div class="filter-group" *ngFor="let grupo of gruposFiltros; trackBy: trackByGrupo">
+          <h3>{{ grupo.nome }}</h3>
+          <div class="fields-grid">
+            <label class="field" *ngFor="let filtro of grupo.itens; trackBy: trackById">
+              <span>{{ filtro.rotulo }} <b *ngIf="filtro.obrigatorio">obrigatório</b></span>
+              <select
+                *ngIf="filtro.tipo === 'select'; else entrada"
+                [(ngModel)]="valoresFiltro[filtro.id]"
+              >
+                <option value="">Todos</option>
+                <option *ngFor="let opcao of filtro.opcoes" [value]="opcao.valor">
+                  {{ opcao.rotulo }}
+                </option>
+              </select>
+              <ng-template #entrada>
+                <input
+                  [type]="
+                    filtro.tipo === 'date'
+                      ? 'date'
+                      : filtro.tipo === 'competencia'
+                        ? 'month'
+                        : 'text'
+                  "
+                  [inputMode]="
+                    filtro.tipo === 'number' || filtro.tipo === 'decimal' ? 'numeric' : 'text'
+                  "
+                  [placeholder]="filtro.placeholder"
+                  [(ngModel)]="valoresFiltro[filtro.id]"
+                  [required]="filtro.obrigatorio"
+                  autocomplete="off"
+                />
+              </ng-template>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel columns-panel">
+        <div class="panel-heading">
+          <div>
+            <span>Etapa 02</span>
+            <h2>Colunas do arquivo</h2>
+          </div>
+          <strong class="selection-count"
+            >{{ colunasSelecionadas.size }}/{{ configuracao.limites.maximoColunas }}</strong
+          >
+        </div>
+        <p class="panel-help">A ordem marcada será preservada na prévia e na exportação.</p>
+
+        <div class="column-groups">
+          <div class="column-group" *ngFor="let grupo of gruposColunas; trackBy: trackByGrupo">
+            <div class="column-group-heading">
+              <h3>{{ grupo.nome }}</h3>
+              <button type="button" (click)="alternarGrupo(grupo)">
+                {{ grupoSelecionado(grupo) ? 'Remover grupo' : 'Selecionar grupo' }}
+              </button>
+            </div>
+            <label class="column-option" *ngFor="let coluna of grupo.itens; trackBy: trackById">
+              <input
+                type="checkbox"
+                [checked]="colunasSelecionadas.has(coluna.id)"
+                (change)="alternarColuna(coluna)"
+              />
+              <span
+                ><strong>{{ coluna.rotulo }}</strong
+                ><small *ngIf="coluna.sensivel">dado sensível</small></span
+              >
+            </label>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel result-panel">
+      <div class="result-toolbar">
+        <div>
+          <span>Etapa 03</span>
+          <h2>Prévia e exportação</h2>
+          <p *ngIf="totalRegistros !== null">{{ totalRegistros }} registro(s) encontrado(s)</p>
+        </div>
+        <div class="export-controls">
+          <label>
+            <span>Nome do arquivo</span>
+            <input type="text" [(ngModel)]="nomeArquivo" maxlength="100" />
+          </label>
+          <label>
+            <span>Formato</span>
+            <select [(ngModel)]="formatoSelecionado">
+              <option value="xlsx">XLSX</option>
+              <option value="csv">CSV</option>
+              <option value="txt">TXT</option>
+            </select>
+          </label>
+          <button
+            class="secondary-button"
+            type="button"
+            [disabled]="exportando || gerando"
+            (click)="exportar()"
+          >
+            {{ exportando ? 'Exportando…' : 'Exportar arquivo' }}
+          </button>
+          <button
+            class="primary-button"
+            type="button"
+            [disabled]="gerando || exportando"
+            (click)="gerar(1)"
+          >
+            {{ gerando ? 'Consultando…' : 'Gerar prévia' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="empty-result" *ngIf="!registros.length && !gerando">
+        <span aria-hidden="true">⌁</span>
+        <strong>A prévia aparecerá aqui</strong>
+        <p>Revise filtros e colunas antes de executar. Nenhum dado é carregado automaticamente.</p>
+      </div>
+
+      <div class="table-scroll" *ngIf="registros.length">
+        <table>
+          <thead>
+            <tr>
+              <th *ngFor="let coluna of colunasResultado">{{ rotuloColuna(coluna) }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let registro of registros">
+              <td *ngFor="let coluna of colunasResultado">{{ valorCelula(registro[coluna]) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination" *ngIf="registros.length">
+        <button type="button" [disabled]="pagina <= 1 || gerando" (click)="gerar(pagina - 1)">
+          ← Anterior
+        </button>
+        <span
+          >Página <strong>{{ pagina }}</strong></span
+        >
+        <button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
+          Próxima →
+        </button>
+      </div>
+    </section>
+  </ng-container>
+</section>

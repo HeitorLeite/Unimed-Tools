@@ -75,4 +75,47 @@ export interface SguResultado {
   [key: string]: unknown;
 }
 
+export interface RelatorioPersonalizadoColuna {
+  id: string;
+  rotulo: string;
+  grupo: string;
+  selecionadaPorPadrao: boolean;
+  sensivel: boolean;
+}
+
+export interface RelatorioPersonalizadoOpcao {
+  valor: string;
+  rotulo: string;
+}
+
+export interface RelatorioPersonalizadoFiltro {
+  id: string;
+  rotulo: string;
+  grupo: string;
+  tipo: 'text' | 'number' | 'decimal' | 'date' | 'competencia' | 'select';
+  placeholder: string;
+  obrigatorio: boolean;
+  opcoes: RelatorioPersonalizadoOpcao[];
+}
+
+export interface RelatorioPersonalizadoConfiguracao {
+  apiNome: string;
+  fonte: string;
+  colunas: RelatorioPersonalizadoColuna[];
+  filtros: RelatorioPersonalizadoFiltro[];
+  limites: {
+    maximoColunas: number;
+    maximoMeses: number;
+    maximoLinhasPagina: number;
+  };
+}
+
+export interface RelatorioPersonalizadoRequest {
+  colunas: string[];
+  filtros: Record<string, unknown>;
+  pagina: number;
+  tamanhoPagina: number;
+  nomeArquivo: string;
+}
+
 export type FormatoExportacao = 'csv' | 'txt' | 'xlsx';

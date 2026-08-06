@@ -62,9 +62,6 @@
         <span>Catálogo operacional</span>
         <h2 id="operations-title">Escolha o fluxo de trabalho</h2>
       </div>
-      <p>
-        As ferramentas mantêm suas regras atuais; somente a experiência de uso foi reorganizada.
-      </p>
     </div>
 
     <div class="operations-grid">
@@ -72,18 +69,18 @@
         type="button"
         *ngFor="let cat of categories"
         [class]="'module-card module-' + cat.id"
-        [class.module-featured]="cat.id === 'xml'"
+        [class.module-featured]="cat.id === 'relatorios'"
         [class.module-disabled]="!cat.ready"
         [disabled]="!cat.ready"
         (click)="navigate(cat)"
       >
         <span class="module-topline">
           <span class="module-number">{{
-            cat.id === 'xml'
+            cat.id === 'relatorios'
               ? '01'
-              : cat.id === 'bi'
+              : cat.id === 'xml'
                 ? '02'
-                : cat.id === 'relatorios'
+                : cat.id === 'bi'
                   ? '03'
                   : cat.id === 'ans'
                     ? '04'

@@ -28,6 +28,16 @@ export class HomeComponent {
 
   categories: Category[] = [
     {
+      id: 'relatorios',
+      label: 'Consultas SGU',
+      tag: 'Central de relatórios',
+      desc: 'Executa relatórios cadastrados no SGU, monta os filtros automaticamente, exibe os resultados e exporta em CSV, TXT ou XLSX.',
+      route: '/relatorios',
+      accepts: 'CSV · TXT · XLSX',
+      ready: true,
+      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 4h12l4 4v16H6V4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18 4v5h5M10 14h8M10 18h8M10 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+    },
+    {
       id: 'xml',
       label: 'XML TISS',
       tag: 'Correção e validação',
@@ -48,14 +58,14 @@ export class HomeComponent {
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M8 18v-4M13 18v-8M18 18v-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
     {
-      id: 'relatorios',
-      label: 'Consultas SGU',
-      tag: 'Central de relatórios',
-      desc: 'Executa relatórios cadastrados no SGU, monta os filtros automaticamente, exibe os resultados e exporta em CSV, TXT ou XLSX.',
-      route: '/relatorios',
-      accepts: 'CSV · TXT · XLSX',
+      id: 'ans',
+      label: 'Agência Nacional de Saúde',
+      tag: 'Corretor de rede RPS',
+      desc: 'Filtra arquivos TXT posicionais com base em erros de CNES, CNPJ, Município, Prestador ou Aviso a partir de planilha de referência.',
+      route: '/ans/corretor-rede',
+      accepts: '.txt + .xlsx',
       ready: true,
-      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 4h12l4 4v16H6V4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18 4v5h5M10 14h8M10 18h8M10 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M7 10h14M7 14h9M7 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
     {
       id: 'fechamento',
@@ -66,16 +76,6 @@ export class HomeComponent {
       accepts: '.xlsx → .csv',
       ready: false,
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M5 5h12l6 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17 5v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 16h12M8 20h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
-    },
-    {
-      id: 'ans',
-      label: 'Agência Nacional de Saúde',
-      tag: 'Corretor de rede RPS',
-      desc: 'Filtra arquivos TXT posicionais com base em erros de CNES, CNPJ, Município, Prestador ou Aviso a partir de planilha de referência.',
-      route: '/ans/corretor-rede',
-      accepts: '.txt + .xlsx',
-      ready: true,
-      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M7 10h14M7 14h9M7 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
   ];
 

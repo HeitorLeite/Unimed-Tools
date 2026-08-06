@@ -156,7 +156,7 @@
 
   &:hover:not(.nav-disabled) {
     background: var(--sidebar-item-hover);
-    color: var(--text-primary);
+    color: var(--sidebar-item-active-bg);
   }
 
   &.active {

@@ -23,6 +23,8 @@ interface Grupo<T> {
   itens: T[];
 }
 
+type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
+
 @Component({
   selector: 'app-relatorios-personalizados',
   standalone: true,
@@ -53,6 +55,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
   exportando = false;
   erro = '';
   sucesso = '';
+  secoesRecolhidas = new Set<SecaoRelatorio>();
 
   constructor(
     private readonly relatorioService: RelatorioService,
@@ -163,6 +166,18 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     return (
       grupo.itens.length > 0 && grupo.itens.every((item) => this.colunasSelecionadas.has(item.id))
     );
+  }
+
+  alternarSecao(secao: SecaoRelatorio): void {
+    if (this.secoesRecolhidas.has(secao)) {
+      this.secoesRecolhidas.delete(secao);
+    } else {
+      this.secoesRecolhidas.add(secao);
+    }
+  }
+
+  secaoRecolhida(secao: SecaoRelatorio): boolean {
+    return this.secoesRecolhidas.has(secao);
   }
 
   limparFiltros(): void {

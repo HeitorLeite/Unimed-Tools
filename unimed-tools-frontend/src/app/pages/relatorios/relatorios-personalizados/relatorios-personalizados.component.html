@@ -52,46 +52,62 @@
             <span>Etapa 01</span>
             <h2>Filtros da consulta</h2>
           </div>
-          <button type="button" class="text-button" (click)="limparFiltros()">Limpar</button>
-        </div>
-        <p class="panel-help">
-          As competências são obrigatórias e aceitam no máximo
-          {{ configuracao.limites.maximoMeses }} meses por consulta.
-        </p>
-
-        <div class="filter-group" *ngFor="let grupo of gruposFiltros; trackBy: trackByGrupo">
-          <h3>{{ grupo.nome }}</h3>
-          <div class="fields-grid">
-            <label class="field" *ngFor="let filtro of grupo.itens; trackBy: trackById">
-              <span>{{ filtro.rotulo }} <b *ngIf="filtro.obrigatorio">obrigatório</b></span>
-              <select
-                *ngIf="filtro.tipo === 'select'; else entrada"
-                [(ngModel)]="valoresFiltro[filtro.id]"
+          <div class="panel-actions">
+            <button type="button" class="text-button" (click)="limparFiltros()">Limpar</button>
+            <button
+              type="button"
+              class="collapse-button"
+              [attr.aria-expanded]="!secaoRecolhida('filtros')"
+              aria-controls="conteudo-filtros"
+              (click)="alternarSecao('filtros')"
+            >
+              <span>{{ secaoRecolhida('filtros') ? 'Expandir' : 'Recolher' }}</span>
+              <span class="collapse-icon" [class.collapsed]="secaoRecolhida('filtros')" aria-hidden="true"
+                >⌃</span
               >
-                <option value="">Todos</option>
-                <option *ngFor="let opcao of filtro.opcoes" [value]="opcao.valor">
-                  {{ opcao.rotulo }}
-                </option>
-              </select>
-              <ng-template #entrada>
-                <input
-                  [type]="
-                    filtro.tipo === 'date'
-                      ? 'date'
-                      : filtro.tipo === 'competencia'
-                        ? 'month'
-                        : 'text'
-                  "
-                  [inputMode]="
-                    filtro.tipo === 'number' || filtro.tipo === 'decimal' ? 'numeric' : 'text'
-                  "
-                  [placeholder]="filtro.placeholder"
+            </button>
+          </div>
+        </div>
+        <div id="conteudo-filtros" [hidden]="secaoRecolhida('filtros')">
+          <p class="panel-help">
+            As competências são obrigatórias e aceitam no máximo
+            {{ configuracao.limites.maximoMeses }} meses por consulta.
+          </p>
+
+          <div class="filter-group" *ngFor="let grupo of gruposFiltros; trackBy: trackByGrupo">
+            <h3>{{ grupo.nome }}</h3>
+            <div class="fields-grid">
+              <label class="field" *ngFor="let filtro of grupo.itens; trackBy: trackById">
+                <span>{{ filtro.rotulo }} <b *ngIf="filtro.obrigatorio">obrigatório</b></span>
+                <select
+                  *ngIf="filtro.tipo === 'select'; else entrada"
                   [(ngModel)]="valoresFiltro[filtro.id]"
-                  [required]="filtro.obrigatorio"
-                  autocomplete="off"
-                />
-              </ng-template>
-            </label>
+                >
+                  <option value="">Todos</option>
+                  <option *ngFor="let opcao of filtro.opcoes" [value]="opcao.valor">
+                    {{ opcao.rotulo }}
+                  </option>
+                </select>
+                <ng-template #entrada>
+                  <input
+                    [type]="
+                      filtro.tipo === 'date'
+                        ? 'date'
+                        : filtro.tipo === 'competencia'
+                          ? 'month'
+                          : 'text'
+                    "
+                    [inputMode]="
+                      filtro.tipo === 'number' || filtro.tipo === 'decimal' ? 'numeric' : 'text'
+                    "
+                    [placeholder]="filtro.placeholder"
+                    [(ngModel)]="valoresFiltro[filtro.id]"
+                    [required]="filtro.obrigatorio"
+                    autocomplete="off"
+                  />
+                </ng-template>
+              </label>
+            </div>
           </div>
         </div>
       </section>
@@ -102,31 +118,47 @@
             <span>Etapa 02</span>
             <h2>Colunas do arquivo</h2>
           </div>
-          <strong class="selection-count"
-            >{{ colunasSelecionadas.size }}/{{ configuracao.limites.maximoColunas }}</strong
-          >
-        </div>
-        <p class="panel-help">A ordem marcada será preservada na prévia e na exportação.</p>
-
-        <div class="column-groups">
-          <div class="column-group" *ngFor="let grupo of gruposColunas; trackBy: trackByGrupo">
-            <div class="column-group-heading">
-              <h3>{{ grupo.nome }}</h3>
-              <button type="button" (click)="alternarGrupo(grupo)">
-                {{ grupoSelecionado(grupo) ? 'Remover grupo' : 'Selecionar grupo' }}
-              </button>
-            </div>
-            <label class="column-option" *ngFor="let coluna of grupo.itens; trackBy: trackById">
-              <input
-                type="checkbox"
-                [checked]="colunasSelecionadas.has(coluna.id)"
-                (change)="alternarColuna(coluna)"
-              />
-              <span
-                ><strong>{{ coluna.rotulo }}</strong
-                ><small *ngIf="coluna.sensivel">dado sensível</small></span
+          <div class="panel-actions">
+            <strong class="selection-count"
+              >{{ colunasSelecionadas.size }}/{{ configuracao.limites.maximoColunas }}</strong
+            >
+            <button
+              type="button"
+              class="collapse-button"
+              [attr.aria-expanded]="!secaoRecolhida('colunas')"
+              aria-controls="conteudo-colunas"
+              (click)="alternarSecao('colunas')"
+            >
+              <span>{{ secaoRecolhida('colunas') ? 'Expandir' : 'Recolher' }}</span>
+              <span class="collapse-icon" [class.collapsed]="secaoRecolhida('colunas')" aria-hidden="true"
+                >⌃</span
               >
-            </label>
+            </button>
+          </div>
+        </div>
+        <div id="conteudo-colunas" [hidden]="secaoRecolhida('colunas')">
+          <p class="panel-help">A ordem marcada será preservada na prévia e na exportação.</p>
+
+          <div class="column-groups">
+            <div class="column-group" *ngFor="let grupo of gruposColunas; trackBy: trackByGrupo">
+              <div class="column-group-heading">
+                <h3>{{ grupo.nome }}</h3>
+                <button type="button" (click)="alternarGrupo(grupo)">
+                  {{ grupoSelecionado(grupo) ? 'Remover grupo' : 'Selecionar grupo' }}
+                </button>
+              </div>
+              <label class="column-option" *ngFor="let coluna of grupo.itens; trackBy: trackById">
+                <input
+                  type="checkbox"
+                  [checked]="colunasSelecionadas.has(coluna.id)"
+                  (change)="alternarColuna(coluna)"
+                />
+                <span
+                  ><strong>{{ coluna.rotulo }}</strong
+                  ><small *ngIf="coluna.sensivel">dado sensível</small></span
+                >
+              </label>
+            </div>
           </div>
         </div>
       </aside>
@@ -139,7 +171,8 @@
           <h2>Prévia e exportação</h2>
           <p *ngIf="totalRegistros !== null">{{ totalRegistros }} registro(s) encontrado(s)</p>
         </div>
-        <div class="export-controls">
+        <div class="result-toolbar-actions">
+          <div class="export-controls" [hidden]="secaoRecolhida('resultado')">
           <label>
             <span>Nome do arquivo</span>
             <input type="text" [(ngModel)]="nomeArquivo" maxlength="100" />
@@ -168,40 +201,55 @@
           >
             {{ gerando ? 'Consultando…' : 'Gerar prévia' }}
           </button>
+          </div>
+          <button
+            type="button"
+            class="collapse-button"
+            [attr.aria-expanded]="!secaoRecolhida('resultado')"
+            aria-controls="conteudo-resultado"
+            (click)="alternarSecao('resultado')"
+          >
+            <span>{{ secaoRecolhida('resultado') ? 'Expandir' : 'Recolher' }}</span>
+            <span class="collapse-icon" [class.collapsed]="secaoRecolhida('resultado')" aria-hidden="true"
+              >⌃</span
+            >
+          </button>
         </div>
       </div>
 
-      <div class="empty-result" *ngIf="!registros.length && !gerando">
-        <span aria-hidden="true">⌁</span>
-        <strong>A prévia aparecerá aqui</strong>
-        <p>Revise filtros e colunas antes de executar. Nenhum dado é carregado automaticamente.</p>
-      </div>
+      <div id="conteudo-resultado" [hidden]="secaoRecolhida('resultado')">
+        <div class="empty-result" *ngIf="!registros.length && !gerando">
+          <span aria-hidden="true">⌁</span>
+          <strong>A prévia aparecerá aqui</strong>
+          <p>Revise filtros e colunas antes de executar. Nenhum dado é carregado automaticamente.</p>
+        </div>
 
-      <div class="table-scroll" *ngIf="registros.length">
-        <table>
-          <thead>
-            <tr>
-              <th *ngFor="let coluna of colunasResultado">{{ rotuloColuna(coluna) }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let registro of registros">
-              <td *ngFor="let coluna of colunasResultado">{{ valorCelula(registro[coluna]) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <div class="table-scroll" *ngIf="registros.length">
+          <table>
+            <thead>
+              <tr>
+                <th *ngFor="let coluna of colunasResultado">{{ rotuloColuna(coluna) }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let registro of registros">
+                <td *ngFor="let coluna of colunasResultado">{{ valorCelula(registro[coluna]) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-      <div class="pagination" *ngIf="registros.length">
-        <button type="button" [disabled]="pagina <= 1 || gerando" (click)="gerar(pagina - 1)">
-          ← Anterior
-        </button>
-        <span
-          >Página <strong>{{ pagina }}</strong></span
-        >
-        <button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
-          Próxima →
-        </button>
+        <div class="pagination" *ngIf="registros.length">
+          <button type="button" [disabled]="pagina <= 1 || gerando" (click)="gerar(pagina - 1)">
+            ← Anterior
+          </button>
+          <span
+            >Página <strong>{{ pagina }}</strong></span
+          >
+          <button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
+            Próxima →
+          </button>
+        </div>
       </div>
     </section>
   </ng-container>

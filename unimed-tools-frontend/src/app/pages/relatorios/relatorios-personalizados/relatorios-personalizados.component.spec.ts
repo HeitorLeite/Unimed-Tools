@@ -7,6 +7,25 @@ import { RelatorioService } from '../../../shared/services/relatorio.service';
 import { RelatoriosPersonalizadosComponent } from './relatorios-personalizados.component';
 
 describe('RelatoriosPersonalizadosComponent', () => {
+  it('recolhe e expande cada seção sem alterar as demais', () => {
+    const component = new RelatoriosPersonalizadosComponent(
+      {} as RelatorioService,
+      { detectChanges: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    expect(component.secaoRecolhida('filtros')).toBe(false);
+    expect(component.secaoRecolhida('colunas')).toBe(false);
+
+    component.alternarSecao('filtros');
+
+    expect(component.secaoRecolhida('filtros')).toBe(true);
+    expect(component.secaoRecolhida('colunas')).toBe(false);
+
+    component.alternarSecao('filtros');
+
+    expect(component.secaoRecolhida('filtros')).toBe(false);
+  });
+
   it('encerra o carregamento e atualiza a tabela sem depender de evento do navegador', () => {
     const resposta$ = new Subject<SguResultado>();
     const relatorioService = {

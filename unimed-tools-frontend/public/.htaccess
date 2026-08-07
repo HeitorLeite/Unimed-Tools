@@ -1,0 +1,7 @@
+RewriteEngine On
+RewriteBase /unimed-tools/
+
+# Preserva as rotas do Angular quando a página é aberta ou atualizada diretamente.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /unimed-tools/index.html [L]

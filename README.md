@@ -459,6 +459,14 @@ arquivo_PREENCHIDO.xlsx
 
 A Central de Relatórios permite cadastrar, localizar, executar, visualizar e exportar consultas publicadas como APIs no SGU.
 
+**Status:** Atual e disponível no ambiente local.
+
+A página oferece três modos:
+
+- **Manual:** catálogo local de APIs do SGU, com filtros e exportação sob demanda;
+- **Automático:** execução e exportação em lote dos grupos salvos no navegador;
+- **Personalizado:** construtor guiado com filtros e colunas previamente autorizados pelo backend.
+
 ### Relatório personalizado
 
 **Status:** Atual.
@@ -469,13 +477,72 @@ O modo de relatório personalizado utiliza exclusivamente a API reservada:
 0090-relatorio-personalizado
 ```
 
+A fonte atual é **Despesas por item de guia**. O catálogo controlado pelo
+backend contém 50 colunas e 23 filtros, organizados nos grupos Beneficiário,
+Contrato e empresa, Prestador, Guia, Procedimento, Valores e Período. As
+competências inicial e final são obrigatórias e o intervalo aceita no máximo 12
+meses. A prévia permite até 100 linhas por página; a exportação percorre todas
+as páginas e gera CSV, TXT ou XLSX apenas com as colunas selecionadas.
+
+Fluxo atual:
+
+1. o frontend solicita ao backend os rótulos, tipos, grupos, limites e marcações
+   de dados sensíveis;
+2. o usuário informa os filtros e escolhe ao menos uma coluna;
+3. o backend valida a allowlist de campos, tipos, intervalos e paginação;
+4. o SQL é montado somente com expressões aprovadas no código;
+5. a definição é publicada na API reservada e executada no SGU;
+6. a resposta é projetada novamente no backend para devolver somente as
+   colunas solicitadas;
+7. a interface apresenta a prévia ou baixa a exportação completa.
+
 A cada execução, o backend monta a consulta somente com colunas e filtros do
-catálogo aprovado, atualiza essa API no SGU e então realiza a consulta. Os
-identificadores usados entre Angular e Spring Boot permanecem com underscore,
-como `competencia_inicio`. Na fronteira com o SGU, o backend converte nomes e
-parâmetros para hífen, como `competencia-inicio`, conforme a validação exigida
-pelo serviço externo. O backend aceita os dois formatos na requisição para
-preservar compatibilidade, mas nunca monta fragmentos SQL enviados pelo usuário.
+catálogo aprovado. A API é publicada no SGU na primeira consulta e sempre que a
+estrutura mudar; paginações ou repetições idênticas reutilizam a definição já
+publicada para evitar uma chamada administrativa desnecessária. Em seguida, o
+backend executa a consulta. Os identificadores usados entre Angular e Spring
+Boot permanecem com underscore, como `competencia_inicio`. Na fronteira HTTP
+com o SGU, o backend remove os separadores e envia um identificador alfanumérico
+em minúsculas, como `competenciainicio`. O mesmo identificador é utilizado no bind
+`:competenciainicio`: ele não contém o underscore rejeitado pelo SGU nem o hífen
+inválido em parâmetros nomeados do Oracle. `nomeFiltro`, `conteudoFiltro` e os
+parâmetros de execução ficam, portanto, com exatamente o mesmo nome, sem
+comentários ou condições artificiais no SQL. O backend continua aceitando IDs
+com underscore ou hífen na requisição para preservar compatibilidade, mas nunca
+monta fragmentos SQL enviados pelo usuário.
+
+A consulta publicada calcula os campos filtráveis em uma consulta interna. O
+marcador `/*FILTROS*/` fica no `WHERE` da consulta externa e cada
+`conteudoFiltro` usa somente o alias calculado, um operador e o bind compacto,
+por exemplo `and RP.F_CODIGO_BENEFICIARIO = :codigobeneficiario`. Funções,
+expressões `CASE`, normalização de texto e formatação não são enviadas no
+`conteudoFiltro`: os cálculos permanecem no SQL-base aprovado e os valores de
+busca são normalizados pelo backend. Aliases técnicos usados na filtragem e na
+ordenação não são devolvidos ao navegador.
+
+A API reservada não aparece na listagem do catálogo manual e não pode ser
+alterada, executada ou removida pelos endpoints genéricos. Como ela é um
+recurso mutável compartilhado no SGU, o backend usa um lock durante publicação,
+execução e exportação. A última definição publicada também fica em cache na
+memória do processo: uma mudança nas colunas ou nos filtros ativos republica a
+API; uma nova página com a mesma estrutura reutiliza a definição existente.
+
+Validações atuais do construtor:
+
+- pelo menos uma coluna autorizada deve ser selecionada;
+- competência usa `AAAAMM`, possui mês válido e intervalo máximo de 12 meses;
+- datas inicial e final precisam formar um intervalo válido;
+- valor máximo não pode ser menor que o mínimo;
+- filtros numéricos e decimais são convertidos no backend;
+- CPF, código de beneficiário, CID e buscas textuais são normalizados antes da
+  integração;
+- filtros desconhecidos, duplicados ou acima de 240 caracteres são rejeitados;
+- nomes de arquivo são sanitizados antes do download.
+
+No frontend Angular sem Zone.js, o componente solicita explicitamente a
+atualização da view ao iniciar e concluir a chamada HTTP. Assim, o indicador de
+carregamento, a tabela, a paginação e as mensagens aparecem automaticamente
+quando a resposta chega, sem depender de redimensionamento ou abertura do F12.
 
 ### Dependências
 
@@ -973,6 +1040,79 @@ Use `npm start`, pois esse comando ativa o proxy definido em `proxy.conf.json`.
 
 Executar somente `ng serve` sem o proxy pode fazer as chamadas `/api` serem enviadas para a porta errada.
 
+### Acesso pela rede local com XAMPP
+
+**Atual:** o build `lan` publica a aplicação no caminho `/unimed-tools/` e usa
+o mesmo domínio do Apache para acessar `/api`. O Apache funciona como proxy
+reverso para o Spring Boot em `127.0.0.1:8080`; portanto, somente a porta 80
+precisa ficar acessível aos demais computadores.
+
+1. Inicie o backend na máquina que executa o XAMPP, restringindo a porta Java
+   ao próprio computador:
+
+```powershell
+cd unimed-tools-backend
+$env:SERVER_ADDRESS="127.0.0.1"
+mvn spring-boot:run
+```
+
+   Para usar a Central de Relatórios, defina também `SGU_API_KEY` como variável
+   de ambiente com uma chave válida e nunca a grave no repositório.
+2. Gere o frontend específico para a rede local:
+
+```powershell
+cd unimed-tools-frontend
+npm run build:lan
+```
+
+3. Publique **somente** o conteúdo de
+   `dist/unimed-tools-frontend/browser/` em
+   `C:\xampp\htdocs\unimed-tools\`. Não copie o repositório, fontes,
+   configurações do backend ou arquivos `.env` para `htdocs`.
+4. No Apache, mantenha `mod_proxy`, `mod_proxy_http` e `mod_rewrite` ativos e
+   adicione a configuração abaixo em
+   `C:\xampp\apache\conf\extra\httpd-vhosts.conf`:
+
+```apache
+ProxyRequests Off
+ProxyTimeout 3600
+ProxyPass        /api http://127.0.0.1:8080/api
+ProxyPassReverse /api http://127.0.0.1:8080/api
+```
+
+5. Valide a configuração com `httpd.exe -t`, reinicie o Apache e abra, em
+   outro computador da mesma rede:
+
+```text
+http://IP_DA_MAQUINA/unimed-tools/
+```
+
+O arquivo `.htaccess` incluído no build direciona rotas como
+`/unimed-tools/relatorios` para o `index.html`. Se o Windows bloquear o acesso,
+libere no Firewall apenas a porta TCP 80 para o perfil de rede privada. O
+backend deve permanecer restrito à própria máquina, atrás do proxy do Apache.
+
+#### Atualizar o frontend publicado no XAMPP
+
+O código-fonte deve ser alterado em `unimed-tools-frontend/`. A pasta
+`C:\xampp\htdocs\unimed-tools\` recebe somente o resultado compilado e não deve
+ser editada manualmente.
+
+```powershell
+cd unimed-tools-frontend
+npm test -- --watch=false
+npm run build:lan
+
+Copy-Item `
+  -Path ".\dist\unimed-tools-frontend\browser\*" `
+  -Destination "C:\xampp\htdocs\unimed-tools" `
+  -Recurse `
+  -Force
+```
+
+Não é necessário executar `npm start` nem reiniciar o Apache após copiar um
+novo build. Nos demais computadores, atualize a página com `Ctrl + F5`.
+
 ### Build do frontend
 
 ```bash
@@ -982,7 +1122,7 @@ npm run build
 ### Build do backend
 
 ```bash
-mvn clean package -DskipTests
+mvn clean package
 ```
 
 O JAR será criado dentro de:
@@ -1021,8 +1161,10 @@ No PowerShell, adapte as quebras de linha ou execute o comando em uma linha úni
 | Variável                 |     Obrigatória | Padrão                               | Função                                              |
 | ------------------------ | --------------: | ------------------------------------ | --------------------------------------------------- |
 | `PORT`                   |             Não | `8080`                               | Porta do backend                                    |
+| `SERVER_ADDRESS`         |             Não | `0.0.0.0`                            | Interface de rede; use `127.0.0.1` atrás do XAMPP   |
 | `SGU_API_BASE_URL`       | Para relatórios | `https://api.lorena.sgusuite.com.br` | URL principal do SGU                                |
-| `SGU_API_KEY`            | Para relatórios | vazio                                | Credencial enviada no header `apikey`               |
+| `SGU_API_KEY`            | Para relatórios | vazio                                | Credencial enviada somente pelo backend             |
+| `SGU_API_KEY_HEADERS`    |             Não | `apikey,x-api-key`                   | Headers que recebem a chave; use `apikey` se exigido |
 | `SGU_API_PROCEDURE_PATH` |             Não | `/api/procedure/p_prcssa_dados`      | Caminho das rotinas administrativas                 |
 | `SGU_API_EXECUTION_PATH` |             Não | `/api/procedure/p_prcssa_dados`      | Caminho de execução dos relatórios                  |
 | `SGU_EXPORT_PAGE_SIZE`   |             Não | `1000`                               | Registros solicitados por página durante exportação |
@@ -1102,13 +1244,38 @@ Multipart:
 
 ### Relatórios
 
-| Método | Endpoint                                           | Descrição                      |
-| ------ | -------------------------------------------------- | ------------------------------ |
-| POST   | `/api/relatorios/sgu/listar`                       | Localiza API cadastrada no SGU |
-| POST   | `/api/relatorios/sgu/criar`                        | Cria ou atualiza API no SGU    |
-| DELETE | `/api/relatorios/sgu/{nome}`                       | Apaga API no SGU               |
-| POST   | `/api/relatorios/sgu/executar/{nome}`              | Executa relatório              |
-| POST   | `/api/relatorios/sgu/exportar/{nome}?formato=xlsx` | Exporta relatório completo     |
+| Método | Endpoint                                                   | Descrição                                  |
+| ------ | ---------------------------------------------------------- | ------------------------------------------ |
+| GET    | `/api/relatorios/personalizado/configuracao`               | Retorna campos e limites autorizados       |
+| POST   | `/api/relatorios/personalizado/executar`                    | Gera uma página do relatório personalizado |
+| POST   | `/api/relatorios/personalizado/exportar?formato=xlsx`       | Exporta o relatório personalizado completo |
+| POST   | `/api/relatorios/sgu/listar`                                | Localiza API cadastrada no SGU             |
+| POST   | `/api/relatorios/sgu/criar`                                 | Cria ou atualiza API no SGU                |
+| DELETE | `/api/relatorios/sgu/{nome}`                                | Apaga API no SGU                           |
+| POST   | `/api/relatorios/sgu/executar/{nome}`                       | Executa relatório do catálogo manual       |
+| POST   | `/api/relatorios/sgu/exportar/{nome}?formato=xlsx`          | Exporta um relatório completo              |
+| POST   | `/api/relatorios/sgu/exportar-lote`                         | Exporta grupo automático em arquivo ZIP    |
+
+Contrato do relatório personalizado:
+
+```json
+{
+  "colunas": ["COD_BENEFICIARIO", "PERIODO", "VALOR_TOTAL"],
+  "filtros": {
+    "competencia_inicio": "202601",
+    "competencia_fim": "202601"
+  },
+  "pagina": 1,
+  "tamanhoPagina": 50,
+  "nomeArquivo": "relatorio_personalizado"
+}
+```
+
+O endpoint de configuração não devolve SQL nem credenciais. Na execução, a
+resposta do SGU é acrescida da lista `colunas` e o conteúdo é projetado conforme
+a seleção validada. Na exportação, `pagina` e `tamanhoPagina` não limitam o
+arquivo final, pois o backend materializa todas as páginas dentro dos limites
+globais configurados.
 
 Formatos de exportação:
 
@@ -1222,6 +1389,17 @@ A interface existe, mas o endpoint correspondente ainda não foi implementado.
 
 O catálogo é salvo apenas no `localStorage`. Não existe sincronização entre navegadores ou usuários.
 
+Essa limitação vale para os modos manual e automático. O catálogo de campos do
+relatório personalizado é definido no backend e não é persistido pelo navegador;
+os valores digitados permanecem apenas no estado atual da página.
+
+### Concorrência do relatório personalizado
+
+A API `0090-relatorio-personalizado` é compartilhada e mutável. O processo
+Spring Boot serializa publicação e execução com um lock local. Essa proteção não
+coordena múltiplas instâncias do backend; uma implantação com mais de uma réplica
+exigirá coordenação distribuída ou uma API independente por execução.
+
 ### XML
 
 A correção utiliza padrões relacionados às tags `ans:`. XMLs com outro namespace podem exigir adaptação.
@@ -1254,13 +1432,20 @@ Resposta:
 ok
 ```
 
-Inicie o frontend com:
+Em desenvolvimento, inicie o frontend com:
 
 ```bash
 npm start
 ```
 
 e não apenas com `ng serve`.
+
+Na publicação LAN com XAMPP, não execute `npm start`. Confirme que o Apache está
+ativo e que o proxy alcança o backend por meio de:
+
+```text
+http://IP_DA_MAQUINA/api/relatorios/personalizado/configuracao
+```
 
 ### Erro `status 0` ou `Unknown Error`
 
@@ -1305,13 +1490,20 @@ No painel da hospedagem, a chave e o valor devem ser cadastrados em campos separ
 
 ### Erro `401`
 
+Um `401` devolvido pelo SGU confirma que o backend alcançou o serviço externo,
+mas a autenticação foi rejeitada.
+
 Verifique:
 
 - valor de `SGU_API_KEY`;
 - espaços no início ou no fim;
 - aspas;
 - ambiente correto;
-- chave revogada.
+- chave revogada;
+- headers exigidos pelo ambiente em `SGU_API_KEY_HEADERS`.
+
+Nunca resolva o erro gravando a chave em `application.properties`; defina-a no
+ambiente do processo e reinicie o backend.
 
 ### Planilha de BI não é processada
 

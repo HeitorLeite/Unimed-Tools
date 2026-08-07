@@ -23,6 +23,7 @@ A aplicação fica disponível em `http://localhost:4200`. O comando `npm start`
 | --------------------------- | -------------------------------------------------------- |
 | `npm start`                 | Executa o servidor de desenvolvimento com o proxy local. |
 | `npm run build`             | Gera o build otimizado em `dist/unimed-tools-frontend/`. |
+| `npm run build:lan`         | Gera o build para XAMPP no caminho `/unimed-tools/`.      |
 | `npm run watch`             | Mantém um build de desenvolvimento em observação.        |
 | `npm test -- --watch=false` | Executa os testes uma vez.                               |
 

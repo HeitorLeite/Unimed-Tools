@@ -171,13 +171,10 @@ public class SguRelatorioService {
     } catch (RestClientResponseException ex) {
       int status = ex.getStatusCode().value();
 
-      String corpo = ex.getResponseBodyAsString(StandardCharsets.UTF_8);
-
       log.error(
-        "Erro na chamada ao SGU. " + "URL={}, status={}, resposta={}",
+        "Erro na chamada ao SGU. URL={}, status={}",
         uri,
-        status,
-        limitarLog(corpo)
+        status
       );
 
       if (status == 403) {
@@ -286,10 +283,27 @@ public class SguRelatorioService {
         mensagem = json.get("error");
       }
 
-      return mensagem == null ? corpo : String.valueOf(mensagem);
+      return sanitizarMensagemSgu(
+        mensagem == null ? corpo : String.valueOf(mensagem)
+      );
     } catch (Exception ignored) {
-      return corpo;
+      return sanitizarMensagemSgu(corpo);
     }
+  }
+
+  private static String sanitizarMensagemSgu(String mensagem) {
+    if (mensagem == null || mensagem.isBlank()) {
+      return "O SGU rejeitou a solicitação sem informar detalhes.";
+    }
+
+    String normalizada = mensagem.toLowerCase(Locale.ROOT);
+    if (
+      normalizada.contains("conteudofiltro") ||
+      normalizada.contains("consultasql")
+    ) {
+      return "O SGU rejeitou a definição SQL da API de relatório.";
+    }
+    return mensagem;
   }
 
   private static String normalizarBaseUrl(String baseUrl) {
@@ -429,19 +443,4 @@ public class SguRelatorioService {
     return resultado;
   }
 
-  private static String limitarLog(String texto) {
-    if (texto == null || texto.isBlank()) {
-      return "(resposta vazia)";
-    }
-
-    String textoLimpo = texto.replace("\r", " ").replace("\n", " ");
-
-    int limite = 1000;
-
-    if (textoLimpo.length() <= limite) {
-      return textoLimpo;
-    }
-
-    return textoLimpo.substring(0, limite) + "...";
-  }
 }

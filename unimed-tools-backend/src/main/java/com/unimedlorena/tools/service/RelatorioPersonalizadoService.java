@@ -71,6 +71,7 @@ public class RelatorioPersonalizadoService {
   private final SguRelatorioService sgu;
   private final ExportacaoRelatorioService exportacao;
   private final RelatorioPersonalizadoSqlBuilder sqlBuilder;
+  private RelatorioPersonalizadoSqlBuilder.ApiGerada ultimaApiPublicada;
 
   public RelatorioPersonalizadoService(
       SguRelatorioService sgu,
@@ -171,6 +172,15 @@ public class RelatorioPersonalizadoService {
         normalizada.colunas(),
         normalizada.filtros().keySet());
 
+    /*
+     * Paginação e repetições com a mesma estrutura não precisam republicar a
+     * API reservada. O acesso ocorre dentro de API_LOCK; se colunas ou filtros
+     * ativos mudarem, ApiGerada também muda e a publicação é refeita.
+     */
+    if (gerada.equals(ultimaApiPublicada)) {
+      return;
+    }
+
     Map<String, Object> definicao = new LinkedHashMap<>();
     definicao.put("nome", API_NOME);
     definicao.put("consultaSQL", gerada.consultaSql());
@@ -179,6 +189,7 @@ public class RelatorioPersonalizadoService {
 
     // ins_atu_query_api atualiza a definição existente com o mesmo nome.
     sgu.criarOuAtualizar(definicao);
+    ultimaApiPublicada = gerada;
   }
 
   private RequisicaoNormalizada normalizar(
@@ -273,11 +284,32 @@ public class RelatorioPersonalizadoService {
           "O filtro “" + filtro.rotulo() + "” excede o tamanho permitido.");
     }
 
-    return switch (filtro.tipoTela()) {
+    Object valor = switch (filtro.tipoTela()) {
       case "competencia" -> validarCompetencia(texto, filtro.rotulo());
       case "number" -> validarInteiro(texto, filtro.rotulo());
       case "decimal" -> validarDecimal(texto, filtro.rotulo());
       case "date" -> validarData(texto, filtro.rotulo());
+      default -> texto;
+    };
+    return normalizarValorParaAlias(filtro.id(), valor);
+  }
+
+  /**
+   * As transformações ficam no backend para que o SGU receba filtros formados
+   * somente por alias, operador e bind, sem funções no conteudoFiltro.
+   */
+  private Object normalizarValorParaAlias(String id, Object valor) {
+    if (!(valor instanceof String texto)) {
+      return valor;
+    }
+
+    return switch (id) {
+      case "codigo_beneficiario" -> texto.replace(".", "");
+      case "cpf" -> texto.replaceAll("[^0-9]", "");
+      case "cid" -> texto.toUpperCase(Locale.ROOT);
+      case "nome_beneficiario", "nome_empresa", "nome_prestador",
+          "grupo_prestador", "descricao_item", "tipo_procedimento" ->
+          "%" + texto.toUpperCase(Locale.ROOT) + "%";
       default -> texto;
     };
   }

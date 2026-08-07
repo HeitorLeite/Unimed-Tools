@@ -33,6 +33,8 @@ public class RelatorioPersonalizadoSqlBuilder {
       String tipoTela,
       String placeholder,
       boolean obrigatorio,
+      String aliasSql,
+      String expressaoSql,
       String conteudoSgu,
       String tipoSgu,
       String mascaraSgu) {
@@ -259,7 +261,7 @@ public class RelatorioPersonalizadoSqlBuilder {
       )
       """.strip();
 
-  private static final String FROM_SQL = """
+  private static final String FROM_BASE_SQL = """
       FROM DBAUNIMED.GUIA G
       LEFT JOIN DBAUNIMED.BNFRIO BF
         ON G.GUIA_COD_UNIMED_BNFRIO = BF.UNI_COD_RESPON
@@ -328,8 +330,9 @@ public class RelatorioPersonalizadoSqlBuilder {
         ON ESP_REEMB.ESPMD_COD = REE.REEMB_COD_ESPEC_MEDICA
       WHERE 1 = 1
         AND GI.GUITE_IND_STATUS = 'I'
-        /*FILTROS*/
       """.strip();
+
+  private static final Map<String, String> COLUNAS_ORDENACAO = criarColunasOrdenacao();
 
   private static final Map<String, Campo> CAMPOS = criarCampos();
   private static final Map<String, Filtro> FILTROS = criarFiltros();
@@ -351,16 +354,20 @@ public class RelatorioPersonalizadoSqlBuilder {
   }
 
   /**
-   * Converte o identificador interno para o formato exigido pelo SGU.
-   * Internamente usamos underscore para manter o contrato já consumido pelo
-   * frontend; somente a integração externa recebe nomes com hífen.
+   * Converte o identificador interno em um nome aceito simultaneamente pelo SGU
+   * e pelos parâmetros nomeados do Oracle.
+   *
+   * O frontend mantém IDs legíveis com underscore. Na integração externa, os
+   * separadores são removidos: o SGU não aceita underscore e um hífen não pode
+   * fazer parte de um bind Oracle. Exemplo: nome_beneficiario se torna
+   * nomebeneficiario tanto em nomeFiltro quanto em :nomebeneficiario.
    */
   public String nomeFiltroSgu(String id) {
     Filtro filtro = filtro(id);
     if (filtro == null) {
       throw new IllegalArgumentException("Filtro não permitido: " + id + ".");
     }
-    return filtro.id().replace('_', '-');
+    return filtro.id().replace("_", "");
   }
 
   public ApiGerada gerar(List<String> colunas, Set<String> filtrosAtivos) {
@@ -368,13 +375,15 @@ public class RelatorioPersonalizadoSqlBuilder {
       throw new IllegalArgumentException("Selecione pelo menos uma coluna.");
     }
 
-    List<String> expressoes = new ArrayList<>();
+    List<String> projecoes = new ArrayList<>();
+    Map<String, String> expressoesInternas = new LinkedHashMap<>();
     for (String id : colunas) {
       Campo campo = CAMPOS.get(id);
       if (campo == null) {
         throw new IllegalArgumentException("Coluna não permitida: " + id + ".");
       }
-      expressoes.add(campo.expressaoSql() + " AS " + campo.id());
+      projecoes.add("RP." + campo.id());
+      expressoesInternas.put(campo.id(), campo.expressaoSql());
     }
 
     Set<String> ativos = new LinkedHashSet<>();
@@ -388,32 +397,43 @@ public class RelatorioPersonalizadoSqlBuilder {
       }
     }
 
-    String consulta = CTE_SQL + "\nSELECT\n  " +
-        String.join(",\n  ", expressoes) + "\n" + FROM_SQL;
-
     List<Map<String, Object>> definicoesFiltro = new ArrayList<>();
     for (Filtro filtro : FILTROS.values()) {
       if (!ativos.contains(filtro.id()))
         continue;
 
+      expressoesInternas.putIfAbsent(filtro.aliasSql(), filtro.expressaoSql());
+
       String nomeFiltroSgu = nomeFiltroSgu(filtro.id());
       Map<String, Object> definicao = new LinkedHashMap<>();
       definicao.put("nomeFiltro", nomeFiltroSgu);
-      /*
-       * O nome público exigido pelo SGU usa hífen, mas o bind do Oracle deve
-       * permanecer com underscore. Um hífen no identificador do bind é sintaxe
-       * inválida em PL/SQL e seria interpretado como uma subtração.
-       */
-      definicao.put("conteudoFiltro", filtro.conteudoSgu());
+      definicao.put("conteudoFiltro", conteudoFiltroSgu(filtro));
       definicao.put("tipoDadoFiltro", filtro.tipoSgu());
       definicao.put("mascaraFiltro", filtro.mascaraSgu());
       definicao.put("obrigatorioFiltro", filtro.obrigatorio() ? "S" : "N");
       definicoesFiltro.add(definicao);
     }
 
+    COLUNAS_ORDENACAO.forEach(expressoesInternas::putIfAbsent);
+
+    List<String> colunasInternas = expressoesInternas.entrySet().stream()
+        .map(coluna -> coluna.getValue() + " AS " + coluna.getKey())
+        .toList();
+    /*
+     * O SGU valida cada conteudoFiltro antes de executar o Oracle. Por isso,
+     * cálculos e CASE ficam na consulta interna e o marcador permanece no
+     * WHERE externo, onde somente aliases simples são filtrados.
+     */
+    String consultaInterna = "SELECT\n    " +
+        String.join(",\n    ", colunasInternas) + "\n" + FROM_BASE_SQL;
+    String consulta = CTE_SQL + "\nSELECT\n  " +
+        String.join(",\n  ", projecoes) +
+        "\nFROM (\n" + consultaInterna.indent(2).stripTrailing() +
+        "\n) RP\nWHERE 1 = 1\n  /*FILTROS*/";
+
     return new ApiGerada(
         consulta,
-        "G.GUIA_NRO_COMPET, G.GUIA_COD_ID, GI.GUITE_NRO_SEQ",
+        "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ",
         List.copyOf(definicoesFiltro));
   }
 
@@ -497,59 +517,101 @@ public class RelatorioPersonalizadoSqlBuilder {
   private static Map<String, Filtro> criarFiltros() {
     LinkedHashMap<String, Filtro> filtros = new LinkedHashMap<>();
     adicionar(filtros, "competencia_inicio", "Competência inicial", "Período", "competencia", "Ex.: 202601", true,
-        "and G.GUIA_NRO_COMPET >= :competencia_inicio /* :competencia-inicio */", "NUMBER", "");
+        "F_COMPETENCIA", "G.GUIA_NRO_COMPET",
+        "and RP.F_COMPETENCIA >= :competencia_inicio", "NUMBER", "");
     adicionar(filtros, "competencia_fim", "Competência final", "Período", "competencia", "Ex.: 202612", true,
-        "and G.GUIA_NRO_COMPET <= :competencia_fim /* :competencia-fim */", "NUMBER", "");
+        "F_COMPETENCIA", "G.GUIA_NRO_COMPET",
+        "and RP.F_COMPETENCIA <= :competencia_fim", "NUMBER", "");
     adicionar(filtros, "data_guia_inicio", "Data da guia inicial", "Período", "date", "", false,
-        "and TRUNC(G.GUIA_DTH_EMIS) >= TO_DATE(:data_guia_inicio, 'YYYY-MM-DD')", "VARCHAR(10)", "");
+        "F_DATA_GUIA", "TO_CHAR(TRUNC(G.GUIA_DTH_EMIS), 'YYYY-MM-DD')",
+        "and RP.F_DATA_GUIA >= :data_guia_inicio", "VARCHAR(10)", "");
     adicionar(filtros, "data_guia_fim", "Data da guia final", "Período", "date", "", false,
-        "and TRUNC(G.GUIA_DTH_EMIS) <= TO_DATE(:data_guia_fim, 'YYYY-MM-DD')", "VARCHAR(10)", "");
+        "F_DATA_GUIA", "TO_CHAR(TRUNC(G.GUIA_DTH_EMIS), 'YYYY-MM-DD')",
+        "and RP.F_DATA_GUIA <= :data_guia_fim", "VARCHAR(10)", "");
     adicionar(filtros, "codigo_beneficiario", "Código do beneficiário", "Beneficiário", "text", "000.0000.000000.00",
-        false, "and REPLACE(" + CODIGO_BENEFICIARIO + ", '.', '') = REPLACE(:codigo_beneficiario, '.', '')",
+        false, "F_CODIGO_BENEFICIARIO", "REPLACE(" + CODIGO_BENEFICIARIO + ", '.', '')",
+        "and RP.F_CODIGO_BENEFICIARIO = :codigo_beneficiario",
         "VARCHAR(30)", "");
     adicionar(filtros, "nome_beneficiario", "Nome do beneficiário", "Beneficiário", "text", "Digite parte do nome",
-        false, "and UPPER(" + NOME_BENEFICIARIO + ") LIKE '%' || UPPER(:nome_beneficiario) || '%'", "VARCHAR(120)", "");
+        false, "F_NOME_BENEFICIARIO", "UPPER(" + NOME_BENEFICIARIO + ")",
+        "and RP.F_NOME_BENEFICIARIO LIKE :nome_beneficiario", "VARCHAR(120)", "");
     adicionar(filtros, "cpf", "CPF", "Beneficiário", "text", "Somente números", false,
-        "and REGEXP_REPLACE(PESDOC.DOC_NRO, '[^0-9]', '') = REGEXP_REPLACE(:cpf, '[^0-9]', '')", "VARCHAR(14)", "");
+        "F_CPF", "REGEXP_REPLACE(PESDOC.DOC_NRO, '[^0-9]', '')",
+        "and RP.F_CPF = :cpf", "VARCHAR(14)", "");
     adicionar(filtros, "numero_contrato", "Número do contrato", "Contrato e empresa", "number", "", false,
-        "and (" + NUMERO_CONTRATO + ") = :numero_contrato", "NUMBER", "");
+        "F_NUMERO_CONTRATO", NUMERO_CONTRATO,
+        "and RP.F_NUMERO_CONTRATO = :numero_contrato", "NUMBER", "");
     adicionar(filtros, "codigo_empresa", "Código da empresa", "Contrato e empresa", "number", "", false,
-        "and (" + CODIGO_EMPRESA + ") = :codigo_empresa", "NUMBER", "");
+        "F_CODIGO_EMPRESA", CODIGO_EMPRESA,
+        "and RP.F_CODIGO_EMPRESA = :codigo_empresa", "NUMBER", "");
     adicionar(filtros, "nome_empresa", "Nome da empresa", "Contrato e empresa", "text", "Digite parte do nome", false,
-        "and UPPER(" + NOME_EMPRESA + ") LIKE '%' || UPPER(:nome_empresa) || '%'", "VARCHAR(120)", "");
+        "F_NOME_EMPRESA", "UPPER(" + NOME_EMPRESA + ")",
+        "and RP.F_NOME_EMPRESA LIKE :nome_empresa", "VARCHAR(120)", "");
     adicionar(filtros, "numero_guia", "Número da guia", "Guia", "text", "Número ou código da guia", false,
-        "and G.GUIA_COD = :numero_guia", "VARCHAR(40)", "");
+        "F_NUMERO_GUIA", "G.GUIA_COD",
+        "and RP.F_NUMERO_GUIA = :numero_guia", "VARCHAR(40)", "");
     adicionar(filtros, "tipo_guia", "Tipo da guia", "Guia", "number", "Código do tipo", false,
-        "and G.GUIA_TIP = :tipo_guia", "NUMBER", "");
-    adicionar(filtros, "cid", "CID", "Guia", "text", "Ex.: J45", false, "and UPPER(GC.GUCID_COD_CID) = UPPER(:cid)",
+        "F_TIPO_GUIA", "G.GUIA_TIP",
+        "and RP.F_TIPO_GUIA = :tipo_guia", "NUMBER", "");
+    adicionar(filtros, "cid", "CID", "Guia", "text", "Ex.: J45", false,
+        "F_CID", "UPPER(GC.GUCID_COD_CID)", "and RP.F_CID = :cid",
         "VARCHAR(20)", "");
     adicionar(filtros, "codigo_prestador", "Código do prestador", "Prestador", "number", "", false,
-        "and PR_EXEC.PREST_COD_PESSOA = :codigo_prestador", "NUMBER", "");
+        "F_CODIGO_PRESTADOR", "PR_EXEC.PREST_COD_PESSOA",
+        "and RP.F_CODIGO_PRESTADOR = :codigo_prestador", "NUMBER", "");
     adicionar(filtros, "nome_prestador", "Nome do prestador", "Prestador", "text", "Digite parte do nome", false,
-        "and UPPER(" + NOME_PRESTADOR + ") LIKE '%' || UPPER(:nome_prestador) || '%'", "VARCHAR(120)", "");
+        "F_NOME_PRESTADOR", "UPPER(" + NOME_PRESTADOR + ")",
+        "and RP.F_NOME_PRESTADOR LIKE :nome_prestador", "VARCHAR(120)", "");
     adicionar(filtros, "grupo_prestador", "Grupo do prestador", "Prestador", "text", "Digite parte do grupo", false,
-        "and UPPER(" + GRUPO_PRESTADOR + ") LIKE '%' || UPPER(:grupo_prestador) || '%'", "VARCHAR(120)", "");
+        "F_GRUPO_PRESTADOR", "UPPER(" + GRUPO_PRESTADOR + ")",
+        "and RP.F_GRUPO_PRESTADOR LIKE :grupo_prestador", "VARCHAR(120)", "");
     adicionar(filtros, "codigo_especialidade", "Código da especialidade", "Prestador", "number", "", false,
-        "and " + CODIGO_ESPECIALIDADE + " = :codigo_especialidade", "NUMBER", "");
+        "F_CODIGO_ESPECIALIDADE", CODIGO_ESPECIALIDADE,
+        "and RP.F_CODIGO_ESPECIALIDADE = :codigo_especialidade", "NUMBER", "");
     adicionar(filtros, "codigo_tuss", "Código TUSS", "Procedimento", "text", "Código completo", false,
-        "and TO_CHAR(IT.ITEM_COD) || IT.ITEM_COD_DIG = :codigo_tuss", "VARCHAR(20)", "");
+        "F_CODIGO_TUSS", "TO_CHAR(IT.ITEM_COD) || IT.ITEM_COD_DIG",
+        "and RP.F_CODIGO_TUSS = :codigo_tuss", "VARCHAR(20)", "");
     adicionar(filtros, "descricao_item", "Descrição do item", "Procedimento", "text", "Digite parte da descrição",
-        false, "and UPPER(" + DESCRICAO_ITEM + ") LIKE '%' || UPPER(:descricao_item) || '%'", "VARCHAR(160)", "");
+        false, "F_DESCRICAO_ITEM", "UPPER(" + DESCRICAO_ITEM + ")",
+        "and RP.F_DESCRICAO_ITEM LIKE :descricao_item", "VARCHAR(160)", "");
     adicionar(filtros, "grupo_item", "Grupo do item", "Procedimento", "text", "Primeiros quatro dígitos", false,
-        "and SUBSTR(TO_CHAR(GI.ITEM_COD), 1, 4) = :grupo_item", "VARCHAR(20)", "");
+        "F_GRUPO_ITEM", "SUBSTR(TO_CHAR(GI.ITEM_COD), 1, 4)",
+        "and RP.F_GRUPO_ITEM = :grupo_item", "VARCHAR(20)", "");
     adicionar(filtros, "tipo_procedimento", "Tipo do procedimento", "Procedimento", "text", "Ex.: PROCEDIMENTO", false,
-        "and UPPER(" + TIPO_PROCEDIMENTO + ") LIKE '%' || UPPER(:tipo_procedimento) || '%'", "VARCHAR(60)", "");
+        "F_TIPO_PROCEDIMENTO", "UPPER(" + TIPO_PROCEDIMENTO + ")",
+        "and RP.F_TIPO_PROCEDIMENTO LIKE :tipo_procedimento", "VARCHAR(60)", "");
     adicionar(filtros, "valor_minimo", "Valor total mínimo", "Valores", "decimal", "0,00", false,
-        "and (" + VALOR_TOTAL + ") >= :valor_minimo", "NUMBER", "");
+        "F_VALOR_TOTAL", VALOR_TOTAL,
+        "and RP.F_VALOR_TOTAL >= :valor_minimo", "NUMBER", "");
     adicionar(filtros, "valor_maximo", "Valor total máximo", "Valores", "decimal", "0,00", false,
-        "and (" + VALOR_TOTAL + ") <= :valor_maximo", "NUMBER", "");
+        "F_VALOR_TOTAL", VALOR_TOTAL,
+        "and RP.F_VALOR_TOTAL <= :valor_maximo", "NUMBER", "");
     return Collections.unmodifiableMap(filtros);
+  }
+
+  private static Map<String, String> criarColunasOrdenacao() {
+    LinkedHashMap<String, String> colunas = new LinkedHashMap<>();
+    colunas.put("O_COMPETENCIA", "G.GUIA_NRO_COMPET");
+    colunas.put("O_GUIA_ID", "G.GUIA_COD_ID");
+    colunas.put("O_ITEM_SEQ", "GI.GUITE_NRO_SEQ");
+    return Collections.unmodifiableMap(colunas);
   }
 
   private static String normalizarIdFiltro(String id) {
     return id == null
         ? null
         : id.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+  }
+
+  private String conteudoFiltroSgu(Filtro filtro) {
+    String bindInterno = ":" + filtro.id();
+    String bindSgu = ":" + nomeFiltroSgu(filtro.id());
+
+    // O validador do SGU exige correspondência exata entre nomeFiltro e bind.
+    return filtro.conteudoSgu()
+        .replace(bindInterno, bindSgu)
+        .replaceAll("\\R\\s*", " ")
+        .trim();
   }
 
   private static void adicionar(
@@ -571,11 +633,14 @@ public class RelatorioPersonalizadoSqlBuilder {
       String tipoTela,
       String placeholder,
       boolean obrigatorio,
+      String aliasSql,
+      String expressaoSql,
       String conteudoSgu,
       String tipoSgu,
       String mascaraSgu) {
     filtros.put(id,
-        new Filtro(id, rotulo, grupo, tipoTela, placeholder, obrigatorio, conteudoSgu, tipoSgu, mascaraSgu));
+        new Filtro(id, rotulo, grupo, tipoTela, placeholder, obrigatorio,
+            aliasSql, expressaoSql, conteudoSgu, tipoSgu, mascaraSgu));
   }
 
   private static String parentesco() {

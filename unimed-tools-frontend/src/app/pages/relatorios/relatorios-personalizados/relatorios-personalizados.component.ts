@@ -4,7 +4,7 @@
  */
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, EventEmitter, OnInit, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 
@@ -54,12 +54,20 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
   erro = '';
   sucesso = '';
 
-  constructor(private readonly relatorioService: RelatorioService) {}
+  constructor(
+    private readonly relatorioService: RelatorioService,
+    private readonly cdr: ChangeDetectorRef,
+  ) {}
 
   ngOnInit(): void {
     this.relatorioService
       .configuracaoPersonalizada()
-      .pipe(finalize(() => (this.carregandoConfiguracao = false)))
+      .pipe(
+        finalize(() => {
+          this.carregandoConfiguracao = false;
+          this.cdr.detectChanges();
+        }),
+      )
       .subscribe({
         next: (configuracao) => this.prepararConfiguracao(configuracao),
         error: (erro) => (this.erro = this.mensagemErro(erro)),
@@ -75,10 +83,17 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     this.gerando = true;
     this.erro = '';
     this.sucesso = '';
+    this.cdr.detectChanges();
 
     this.relatorioService
       .executarPersonalizado(request)
-      .pipe(finalize(() => (this.gerando = false)))
+      .pipe(
+        finalize(() => {
+          this.gerando = false;
+          // HttpClient não agenda a atualização desta view no modo zoneless.
+          this.cdr.detectChanges();
+        }),
+      )
       .subscribe({
         next: (resposta) => this.aplicarResultado(resposta, pagina),
         error: (erro) => {
@@ -97,10 +112,16 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     this.exportando = true;
     this.erro = '';
     this.sucesso = '';
+    this.cdr.detectChanges();
 
     this.relatorioService
       .exportarPersonalizado(this.formatoSelecionado, request)
-      .pipe(finalize(() => (this.exportando = false)))
+      .pipe(
+        finalize(() => {
+          this.exportando = false;
+          this.cdr.detectChanges();
+        }),
+      )
       .subscribe({
         next: (arquivo) => {
           const url = URL.createObjectURL(arquivo);

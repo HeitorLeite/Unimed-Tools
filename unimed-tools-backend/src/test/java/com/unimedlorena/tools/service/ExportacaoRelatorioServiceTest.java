@@ -144,4 +144,30 @@ class ExportacaoRelatorioServiceTest {
         .isEqualTo(CellType.STRING);
     }
   }
+
+  @Test
+  void deveAceitarDatasVaziasAoCombinarRelatoriosAutomaticos()
+    throws Exception {
+    LinkedHashMap<String, Object> primeiro = new LinkedHashMap<>();
+    primeiro.put("DATA_PAGAMENTO", "");
+    primeiro.put("NOME", "Primeiro relatório");
+
+    LinkedHashMap<String, Object> segundo = new LinkedHashMap<>();
+    segundo.put("DATA_PAGAMENTO", "10/08/2026");
+    segundo.put("NOME", "Segundo relatório");
+
+    LinkedHashMap<String, Object> terceiro = new LinkedHashMap<>();
+    terceiro.put("NOME", "Terceiro relatório");
+
+    List<LinkedHashMap<String, Object>> registros = List.of(
+      primeiro,
+      segundo,
+      terceiro
+    );
+
+    for (String formato : List.of("xlsx", "csv", "txt")) {
+      var arquivo = service.gerarArquivo(formato, registros);
+      assertThat(arquivo.conteudo()).isNotEmpty();
+    }
+  }
 }

@@ -450,7 +450,7 @@ public class ExportacaoRelatorioService {
   }
 
   private String formatarTexto(Object valor, TipoColuna tipo) {
-    if (valor == null) return "";
+    if (valor == null || texto(valor).isBlank()) return "";
 
     return switch (tipo) {
       case DATA -> DATA_BRASILEIRA.format(converterData(valor));

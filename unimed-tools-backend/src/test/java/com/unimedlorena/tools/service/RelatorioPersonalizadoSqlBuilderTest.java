@@ -136,4 +136,18 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .extracting(filtro -> filtro.get("nomeFiltro"))
         .containsExactly("competenciainicio");
   }
+
+  @Test
+  void deveAplicarDistinctEOrdenarPelasColunasProjetadas() {
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of("NUMERO_GUIA", "PERIODO"),
+        Set.of("competencia_inicio", "competencia_fim"),
+        true);
+
+    assertThat(api.consultaSql())
+        .contains("SELECT DISTINCT\n  RP.NUMERO_GUIA,\n  RP.PERIODO\nFROM (");
+    assertThat(api.ordenacao())
+        .isEqualTo("RP.NUMERO_GUIA, RP.PERIODO")
+        .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
+  }
 }

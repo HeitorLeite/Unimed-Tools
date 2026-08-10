@@ -312,12 +312,36 @@
           {{ executando ? 'Gerando lote… ' + segundosExecucao + 's' : 'Gerar todos os relatórios' }}
         </button>
 
-        <div class="batch-progress" *ngIf="executando" aria-live="polite">
+        <div
+          class="batch-progress"
+          *ngIf="executando || progressoExecucao === 100"
+          [class.completed]="progressoExecucao === 100"
+          aria-live="polite"
+        >
           <div>
-            <strong>O backend está consultando e montando os arquivos.</strong>
-            <small> Não feche esta página. Lotes grandes podem levar vários minutos. </small>
+            <strong>{{ etapaExecucao }}</strong>
+            <small *ngIf="executando">
+              Progresso estimado pelo tempo e pela quantidade de relatórios. Não feche esta página.
+            </small>
+            <small *ngIf="progressoExecucao === 100">
+              A geração terminou; confira o download e o resumo acima.
+            </small>
           </div>
-          <div class="progress-line"><span></span></div>
+          <div
+            class="progress-line"
+            role="progressbar"
+            aria-label="Progresso estimado da geração"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            [attr.aria-valuenow]="progressoExecucao"
+          >
+            <span [style.width.%]="progressoExecucao"></span>
+          </div>
+          <div class="progress-meta">
+            <strong>{{ progressoExecucao }}%</strong>
+            <span *ngIf="executando">{{ segundosExecucao }}s decorridos</span>
+            <span *ngIf="progressoExecucao === 100">Concluído</span>
+          </div>
         </div>
       </section>
     </main>

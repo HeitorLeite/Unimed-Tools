@@ -403,6 +403,11 @@
   padding: 14px;
   border-radius: 11px;
   background: rgba(0, 107, 95, 0.07);
+
+  &.completed {
+    background: rgba(28, 139, 82, 0.1);
+    border: 1px solid rgba(28, 139, 82, 0.2);
+  }
 }
 
 .batch-progress strong,
@@ -420,11 +425,29 @@
 
 .progress-line span {
   display: block;
-  width: 35%;
+  width: 0;
   height: 100%;
   border-radius: inherit;
   background: var(--primary, #006b5f);
-  animation: progress-slide 1.2s infinite ease-in-out;
+  transition: width 0.8s ease;
+}
+
+.batch-progress.completed .progress-line span {
+  background: #1c8b52;
+}
+
+.progress-meta {
+  align-items: center;
+  color: var(--text-muted, #667085);
+  display: flex;
+  font-size: 11px;
+  justify-content: space-between;
+  margin-top: 7px;
+}
+
+.progress-meta strong {
+  color: var(--primary, #006b5f);
+  font-size: 12px;
 }
 
 .empty-groups {
@@ -550,15 +573,6 @@
 .selection-report-copy small,
 .file-label-field small {
   color: var(--text-muted, #667085);
-}
-
-@keyframes progress-slide {
-  from {
-    transform: translateX(-120%);
-  }
-  to {
-    transform: translateX(320%);
-  }
 }
 
 @media (max-width: 980px) {

@@ -67,7 +67,7 @@ export interface RelatorioLoteRequest {
 
 export interface SguResultado {
   content: Record<string, unknown>[];
-  totalElements?: number;
+  totalElements?: number | string;
   numberOfElements?: number | string;
   totalPages?: number;
   number?: number;
@@ -113,6 +113,7 @@ export interface RelatorioPersonalizadoConfiguracao {
 export interface RelatorioPersonalizadoRequest {
   colunas: string[];
   filtros: Record<string, unknown>;
+  distinct: boolean;
   pagina: number;
   tamanhoPagina: number;
   nomeArquivo: string;

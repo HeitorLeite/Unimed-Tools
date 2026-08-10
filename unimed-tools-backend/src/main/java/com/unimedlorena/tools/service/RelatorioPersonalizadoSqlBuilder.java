@@ -371,6 +371,13 @@ public class RelatorioPersonalizadoSqlBuilder {
   }
 
   public ApiGerada gerar(List<String> colunas, Set<String> filtrosAtivos) {
+    return gerar(colunas, filtrosAtivos, false);
+  }
+
+  public ApiGerada gerar(
+      List<String> colunas,
+      Set<String> filtrosAtivos,
+      boolean distinct) {
     if (colunas == null || colunas.isEmpty()) {
       throw new IllegalArgumentException("Selecione pelo menos uma coluna.");
     }
@@ -426,14 +433,18 @@ public class RelatorioPersonalizadoSqlBuilder {
      */
     String consultaInterna = "SELECT\n    " +
         String.join(",\n    ", colunasInternas) + "\n" + FROM_BASE_SQL;
-    String consulta = CTE_SQL + "\nSELECT\n  " +
+    String consulta = CTE_SQL + (distinct ? "\nSELECT DISTINCT\n  " : "\nSELECT\n  ") +
         String.join(",\n  ", projecoes) +
         "\nFROM (\n" + consultaInterna.indent(2).stripTrailing() +
         "\n) RP\nWHERE 1 = 1\n  /*FILTROS*/";
 
+    String ordenacao = distinct
+        ? String.join(", ", projecoes)
+        : "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
+
     return new ApiGerada(
         consulta,
-        "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ",
+        ordenacao,
         List.copyOf(definicoesFiltro));
   }
 

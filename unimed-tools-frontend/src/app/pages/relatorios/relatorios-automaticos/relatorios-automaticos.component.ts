@@ -4,6 +4,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import {
+  ChangeDetectorRef,
   Component,
   EventEmitter,
   Input,
@@ -87,13 +88,18 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
 
   executando = false;
   segundosExecucao = 0;
+  progressoExecucao = 0;
+  etapaExecucao = '';
   erro = '';
   sucesso = '';
 
   private intervaloExecucao?: ReturnType<typeof setInterval>;
   private readonly timeoutLoteMs = 3_600_000;
 
-  constructor(private readonly relatorioService: RelatorioService) {}
+  constructor(
+    private readonly relatorioService: RelatorioService,
+    private readonly cdr: ChangeDetectorRef,
+  ) {}
 
   ngOnInit(): void {
     this.grupos = this.relatorioService.listarGruposAutomaticos();
@@ -232,6 +238,8 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     this.montarFiltrosExecucao(grupo);
     this.erro = '';
     this.sucesso = '';
+    this.progressoExecucao = 0;
+    this.etapaExecucao = '';
   }
 
   // ── Seleção e resumo dos relatórios que compõem um grupo ───────────────────
@@ -355,9 +363,12 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
 
     this.executando = true;
     this.segundosExecucao = 0;
+    this.progressoExecucao = 5;
+    this.etapaExecucao = 'Preparando consultas e arquivos…';
     this.erro = '';
     this.sucesso = '';
-    this.iniciarCronometro();
+    this.iniciarCronometro(request.itens.length);
+    this.cdr.detectChanges();
 
     this.relatorioService
       .exportarLote(request)
@@ -366,6 +377,12 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
         finalize(() => {
           this.executando = false;
           this.pararCronometro();
+          if (this.progressoExecucao < 100) {
+            this.progressoExecucao = 0;
+            this.etapaExecucao = '';
+          }
+          // HttpClient não atualiza automaticamente esta view no modo zoneless.
+          this.cdr.detectChanges();
         }),
       )
       .subscribe({
@@ -373,6 +390,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
           const blob = resposta.body;
           if (!blob) {
             this.erro = 'O backend não devolveu o arquivo ZIP.';
+            this.progressoExecucao = 0;
             return;
           }
 
@@ -391,7 +409,10 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
 
           if (gerados === '0' && falhas && falhas !== '0') {
             this.erro = `Nenhum relatório foi gerado. O ZIP contém o resumo de ${falhas} falha(s).`;
+            this.progressoExecucao = 0;
           } else {
+            this.progressoExecucao = 100;
+            this.etapaExecucao = 'Lote concluído e download preparado.';
             this.sucesso = gerados
               ? `${gerados} arquivo(s) gerado(s).${
                   falhas && falhas !== '0'
@@ -400,12 +421,16 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
                 }`
               : `Lote concluído: ${nomeZip}.zip`;
           }
+          this.cdr.detectChanges();
         },
         error: async (erro: unknown) => {
           this.erro = await this.mensagemErroBlob(
             erro,
             'Não foi possível gerar o grupo automático.',
           );
+          this.progressoExecucao = 0;
+          this.etapaExecucao = '';
+          this.cdr.detectChanges();
         },
       });
   }
@@ -830,10 +855,20 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     return `${ano}${mes}${dia}`;
   }
 
-  private iniciarCronometro(): void {
+  private iniciarCronometro(quantidadeItens: number): void {
     this.pararCronometro();
+    const segundosEstimados = Math.max(20, quantidadeItens * 12);
     this.intervaloExecucao = setInterval(() => {
       this.segundosExecucao += 1;
+      const aproximacao = 1 - Math.exp(-this.segundosExecucao / segundosEstimados);
+      this.progressoExecucao = Math.min(94, Math.round(5 + aproximacao * 89));
+      this.etapaExecucao =
+        this.progressoExecucao < 30
+          ? 'Preparando consultas e arquivos…'
+          : this.progressoExecucao < 70
+            ? 'Consultando os relatórios do grupo…'
+            : 'Consolidando os resultados e montando o ZIP…';
+      this.cdr.detectChanges();
     }, 1000);
   }
 

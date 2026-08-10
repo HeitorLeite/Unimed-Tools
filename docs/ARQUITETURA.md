@@ -74,7 +74,7 @@ Controllers não devem incorporar parsing de arquivos ou regras de negócio. Ser
 | Componente                            | Responsabilidade                                                       |
 | ------------------------------------- | ---------------------------------------------------------------------- |
 | `RelatorioController`                 | Expõe configuração, execução e exportação e protege a API reservada.   |
-| `RelatorioPersonalizadoRequest`       | Contrato de colunas, filtros, paginação e nome do arquivo.             |
+| `RelatorioPersonalizadoRequest`       | Contrato de colunas, filtros, `distinct`, paginação e nome do arquivo. |
 | `RelatorioPersonalizadoService`       | Valida entradas, coordena publicação/execução e projeta a resposta.    |
 | `RelatorioPersonalizadoSqlBuilder`    | Mantém a allowlist e monta SQL somente com fragmentos aprovados.       |
 | `SguRelatorioService`                 | Envia a definição e os parâmetros ao SGU sem expor a chave ao cliente. |
@@ -98,11 +98,11 @@ sequenceDiagram
     F->>C: GET /personalizado/configuracao
     C->>R: configuracao()
     R-->>F: 50 colunas, 23 filtros e limites
-    U->>F: informa filtros e seleciona colunas
+    U->>F: informa filtros, seleciona colunas e define distinct
     F->>C: POST /personalizado/executar
     C->>R: request tipado
     R->>R: valida e normaliza entradas
-    R->>Q: gerar(colunas, filtros ativos)
+    R->>Q: gerar(colunas, filtros ativos, distinct)
     Q-->>R: SQL, ordenação e filtros SGU
     alt estrutura diferente da última publicação
         R->>S: ins_atu_query_api
@@ -129,7 +129,12 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
 - filtros desconhecidos, repetidos ou maiores que 240 caracteres são rejeitados;
 - IDs internos aceitam underscore e, por compatibilidade, hífen;
 - na fronteira SGU, nomes e binds são compactados para caracteres alfanuméricos;
+- `distinct=true` aplica `SELECT DISTINCT` somente à projeção externa autorizada
+  e ordena pelas próprias colunas projetadas para preservar compatibilidade com
+  o Oracle;
 - a resposta e a exportação contêm apenas as colunas solicitadas e validadas;
+- a prévia apresenta o total informado pelo SGU e a exportação devolve a
+  quantidade materializada no header CORS `X-Total-Registros`;
 - o XLSX grava datas, números e textos em células tipadas; identificadores são
   preservados como texto, enquanto CSV e TXT recebem representação compatível
   com a importação no Excel sem alterar sua natureza textual;

@@ -53,7 +53,12 @@ public class ExportacaoRelatorioService {
   private static final DateTimeFormatter DATA_BRASILEIRA =
     DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-  public record Arquivo(byte[] conteudo, String contentType, String extensao) {}
+  public record Arquivo(
+    byte[] conteudo,
+    String contentType,
+    String extensao,
+    int quantidadeRegistros
+  ) {}
 
   private final SguRelatorioService sgu;
   private final int tamanhoLote;
@@ -150,17 +155,20 @@ public class ExportacaoRelatorioService {
       case "csv" -> new Arquivo(
         gerarCsv(dados, ';'),
         "text/csv; charset=UTF-8",
-        "csv"
+        "csv",
+        dados.size()
       );
       case "txt" -> new Arquivo(
         gerarTxt(dados),
         "text/plain; charset=UTF-8",
-        "txt"
+        "txt",
+        dados.size()
       );
       case "xlsx" -> new Arquivo(
         gerarXlsx(dados),
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "xlsx"
+        "xlsx",
+        dados.size()
       );
       default -> throw new IllegalArgumentException(
         "Formato inválido. Use csv, txt ou xlsx."

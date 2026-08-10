@@ -85,6 +85,7 @@ public class RelatorioController {
           .build()
           .toString()
       )
+      .header("X-Total-Registros", String.valueOf(arquivo.quantidadeRegistros()))
       .body(arquivo.conteudo());
   }
 
@@ -151,6 +152,7 @@ public class RelatorioController {
           .build()
           .toString()
       )
+      .header("X-Total-Registros", String.valueOf(arquivo.quantidadeRegistros()))
       .body(arquivo.conteudo());
   }
 

@@ -56,10 +56,14 @@ describe('RelatoriosPersonalizadosComponent', () => {
       competencia_fim: '2026-01',
     };
     component.colunasSelecionadas.add('COD_BENEFICIARIO');
+    component.somenteDistintos = true;
 
     component.gerar();
 
     expect(component.gerando).toBe(true);
+    expect(relatorioService.executarPersonalizado).toHaveBeenCalledWith(
+      expect.objectContaining({ distinct: true }),
+    );
     expect(cdr.detectChanges).toHaveBeenCalledTimes(1);
 
     resposta$.next({
@@ -72,6 +76,7 @@ describe('RelatoriosPersonalizadosComponent', () => {
     expect(component.gerando).toBe(false);
     expect(component.registros).toHaveLength(1);
     expect(component.colunasResultado).toEqual(['COD_BENEFICIARIO']);
+    expect(component.totalRegistros).toBe(1);
     expect(cdr.detectChanges).toHaveBeenCalledTimes(2);
   });
 });

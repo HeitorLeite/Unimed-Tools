@@ -467,6 +467,12 @@ A página oferece três modos:
 - **Automático:** execução e exportação em lote dos grupos salvos no navegador;
 - **Personalizado:** construtor guiado com filtros e colunas previamente autorizados pelo backend.
 
+No modo automático, a interface exibe uma evolução estimada enquanto o backend
+consulta os itens e monta o ZIP. Como a exportação é uma única resposta HTTP e o
+backend não envia eventos intermediários, o percentual fica limitado a 94% até a
+chegada do arquivo; então muda para 100%, encerra o carregamento e informa a
+conclusão ou a falha do lote.
+
 ### Relatório personalizado
 
 **Status:** Atual.
@@ -481,8 +487,10 @@ A fonte atual é **Despesas por item de guia**. O catálogo controlado pelo
 backend contém 50 colunas e 23 filtros, organizados nos grupos Beneficiário,
 Contrato e empresa, Prestador, Guia, Procedimento, Valores e Período. As
 competências inicial e final são obrigatórias e o intervalo aceita no máximo 12
-meses. A prévia permite até 100 linhas por página; a exportação percorre todas
-as páginas e gera CSV, TXT ou XLSX apenas com as colunas selecionadas.
+meses. A prévia permite 25, 50 ou 100 linhas por página, mostra a quantidade
+total informada pelo SGU, possui cabeçalho fixo, numeração das linhas e modo
+ampliado; a exportação percorre todas as páginas e gera CSV, TXT ou XLSX apenas
+com as colunas selecionadas.
 
 Fluxo atual:
 
@@ -495,6 +503,12 @@ Fluxo atual:
 6. a resposta é projetada novamente no backend para devolver somente as
    colunas solicitadas;
 7. a interface apresenta a prévia ou baixa a exportação completa.
+
+O usuário pode marcar **Remover linhas duplicadas**. Essa opção acrescenta
+`DISTINCT` ao `SELECT` externo aprovado pelo backend e considera a combinação de
+todas as colunas selecionadas. Para obter uma guia uma única vez, devem ser
+selecionadas somente as colunas que identificam a guia; campos de item ou outros
+valores diferentes continuam produzindo linhas diferentes.
 
 A cada execução, o backend monta a consulta somente com colunas e filtros do
 catálogo aprovado. A API é publicada no SGU na primeira consulta e sempre que a
@@ -538,6 +552,10 @@ Validações atuais do construtor:
   integração;
 - filtros desconhecidos, duplicados ou acima de 240 caracteres são rejeitados;
 - nomes de arquivo são sanitizados antes do download.
+
+Após a exportação personalizada, o backend envia a quantidade efetivamente
+gravada no header `X-Total-Registros`, exposto pelo CORS para que a interface
+mostre o total de linhas geradas.
 
 No frontend Angular sem Zone.js, o componente solicita explicitamente a
 atualização da view ao iniciar e concluir a chamada HTTP. Assim, o indicador de
@@ -1279,6 +1297,7 @@ Contrato do relatório personalizado:
     "competencia_inicio": "202601",
     "competencia_fim": "202601"
   },
+  "distinct": true,
   "pagina": 1,
   "tamanhoPagina": 50,
   "nomeArquivo": "relatorio_personalizado"
@@ -1289,7 +1308,9 @@ O endpoint de configuração não devolve SQL nem credenciais. Na execução, a
 resposta do SGU é acrescida da lista `colunas` e o conteúdo é projetado conforme
 a seleção validada. Na exportação, `pagina` e `tamanhoPagina` não limitam o
 arquivo final, pois o backend materializa todas as páginas dentro dos limites
-globais configurados.
+globais configurados. O campo booleano `distinct` é opcional por compatibilidade
+e assume `false` quando não enviado. As respostas de exportação incluem o header
+`X-Total-Registros` com a quantidade de linhas do arquivo.
 
 Formatos de exportação:
 

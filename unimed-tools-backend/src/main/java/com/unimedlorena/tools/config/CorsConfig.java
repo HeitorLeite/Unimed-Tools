@@ -43,6 +43,7 @@ public class CorsConfig {
       List.of(
         "X-Stats",
         "Content-Disposition",
+        "X-Total-Registros",
         "X-Relatorios-Gerados",
         "X-Relatorios-Erros"
       )

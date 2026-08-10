@@ -28,6 +28,8 @@ class ExportacaoRelatorioServiceTest {
 
     var arquivo = service.gerarArquivo("xlsx", List.of(registro));
 
+    assertThat(arquivo.quantidadeRegistros()).isEqualTo(1);
+
     try (
       XSSFWorkbook workbook = new XSSFWorkbook(
         new ByteArrayInputStream(arquivo.conteudo())

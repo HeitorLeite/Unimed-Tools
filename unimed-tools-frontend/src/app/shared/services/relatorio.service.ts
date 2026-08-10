@@ -201,8 +201,9 @@ export class RelatorioService {
   exportarPersonalizado(
     formato: FormatoExportacao,
     request: RelatorioPersonalizadoRequest,
-  ): Observable<Blob> {
+  ): Observable<HttpResponse<Blob>> {
     return this.http.post(`${this.baseUrl}/personalizado/exportar?formato=${formato}`, request, {
+      observe: 'response',
       responseType: 'blob',
     });
   }

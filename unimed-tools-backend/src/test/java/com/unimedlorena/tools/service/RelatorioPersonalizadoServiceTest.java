@@ -98,10 +98,41 @@ class RelatorioPersonalizadoServiceTest {
     verify(sgu, times(2)).executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap());
   }
 
+  @Test
+  void devePublicarConsultaDistinctQuandoSolicitado() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(sgu.executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(Map.of("content", List.of(), "last", true));
+
+    service.executar(new RelatorioPersonalizadoRequest(
+        List.of("NUMERO_GUIA"),
+        Map.of(
+            "competencia_inicio", "202601",
+            "competencia_fim", "202601"),
+        true,
+        1,
+        50,
+        "guias_distintas"));
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> definicao = ArgumentCaptor.forClass(Map.class);
+    verify(sgu).criarOuAtualizar(definicao.capture());
+    assertThat(String.valueOf(definicao.getValue().get("consultaSQL")))
+        .contains("SELECT DISTINCT\n  RP.NUMERO_GUIA");
+  }
+
   private RelatorioPersonalizadoRequest requisicao(Map<String, Object> filtros) {
     return new RelatorioPersonalizadoRequest(
         List.of("COD_BENEFICIARIO"),
         filtros,
+        false,
         1,
         50,
         "relatorio_personalizado");

@@ -139,6 +139,22 @@
         <div id="conteudo-colunas" [hidden]="secaoRecolhida('colunas')">
           <p class="panel-help">A ordem marcada será preservada na prévia e na exportação.</p>
 
+          <label class="distinct-option" [class.active]="somenteDistintos">
+            <input
+              type="checkbox"
+              [checked]="somenteDistintos"
+              (change)="alternarDistinct()"
+            />
+            <span>
+              <strong>Remover linhas duplicadas</strong>
+              <small>
+                Aplica SELECT DISTINCT às colunas escolhidas. Para obter uma guia apenas uma vez,
+                selecione somente os campos que identificam a guia.
+              </small>
+            </span>
+            <code>SELECT DISTINCT</code>
+          </label>
+
           <div class="column-groups">
             <div class="column-group" *ngFor="let grupo of gruposColunas; trackBy: trackByGrupo">
               <div class="column-group-heading">
@@ -164,12 +180,18 @@
       </aside>
     </div>
 
-    <section class="panel result-panel">
+    <section class="panel result-panel" [class.preview-expanded]="previaExpandida">
       <div class="result-toolbar">
         <div>
           <span>Etapa 03</span>
           <h2>Prévia e exportação</h2>
-          <p *ngIf="totalRegistros !== null">{{ totalRegistros }} registro(s) encontrado(s)</p>
+          <p *ngIf="totalRegistros !== null">
+            {{ totalRegistros }} linha(s) encontrada(s)
+            <span *ngIf="somenteDistintos">· sem duplicidades</span>
+          </p>
+          <p *ngIf="totalRegistrosExportados !== null">
+            Último arquivo: {{ totalRegistrosExportados }} linha(s) gerada(s)
+          </p>
         </div>
         <div class="result-toolbar-actions">
           <div class="export-controls" [hidden]="secaoRecolhida('resultado')">
@@ -214,41 +236,100 @@
               >⌃</span
             >
           </button>
+          <button
+            *ngIf="previaExpandida"
+            type="button"
+            class="close-preview-button"
+            (click)="alternarPreviaExpandida()"
+          >
+            Fechar prévia
+          </button>
         </div>
       </div>
 
       <div id="conteudo-resultado" [hidden]="secaoRecolhida('resultado')">
+        <div class="preview-loading" *ngIf="gerando" role="status">
+          <span class="spinner"></span>
+          <strong>Consultando e preparando a prévia…</strong>
+        </div>
+
         <div class="empty-result" *ngIf="!registros.length && !gerando">
           <span aria-hidden="true">⌁</span>
           <strong>A prévia aparecerá aqui</strong>
           <p>Revise filtros e colunas antes de executar. Nenhum dado é carregado automaticamente.</p>
         </div>
 
+        <div class="preview-summary" *ngIf="registros.length">
+          <div>
+            <span>Linhas nesta página</span>
+            <strong>{{ primeiraLinhaPagina }}–{{ ultimaLinhaPagina }}</strong>
+          </div>
+          <div>
+            <span>Total encontrado</span>
+            <strong>{{ totalRegistros === null ? 'Calculando…' : totalRegistros }}</strong>
+          </div>
+          <div>
+            <span>Colunas exibidas</span>
+            <strong>{{ colunasResultado.length }}</strong>
+          </div>
+          <div>
+            <span>Duplicidades</span>
+            <strong>{{ somenteDistintos ? 'Removidas' : 'Mantidas' }}</strong>
+          </div>
+          <button type="button" class="expand-preview-button" (click)="alternarPreviaExpandida()">
+            {{ previaExpandida ? 'Restaurar tamanho' : 'Ampliar prévia' }}
+          </button>
+        </div>
+
         <div class="table-scroll" *ngIf="registros.length">
           <table>
             <thead>
               <tr>
-                <th *ngFor="let coluna of colunasResultado">{{ rotuloColuna(coluna) }}</th>
+                <th class="row-number">#</th>
+                <th *ngFor="let coluna of colunasResultado" [title]="rotuloColuna(coluna)">
+                  {{ rotuloColuna(coluna) }}
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let registro of registros">
-                <td *ngFor="let coluna of colunasResultado">{{ valorCelula(registro[coluna]) }}</td>
+              <tr *ngFor="let registro of registros; index as indice">
+                <td class="row-number">{{ indiceLinha(indice) }}</td>
+                <td
+                  *ngFor="let coluna of colunasResultado"
+                  [title]="valorCelula(registro[coluna])"
+                >
+                  <span>{{ valorCelula(registro[coluna]) }}</span>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
 
         <div class="pagination" *ngIf="registros.length">
-          <button type="button" [disabled]="pagina <= 1 || gerando" (click)="gerar(pagina - 1)">
-            ← Anterior
-          </button>
-          <span
-            >Página <strong>{{ pagina }}</strong></span
-          >
-          <button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
-            Próxima →
-          </button>
+          <label class="page-size-control">
+            <span>Linhas por página</span>
+            <select
+              [ngModel]="tamanhoPagina"
+              [disabled]="gerando"
+              (ngModelChange)="alterarTamanhoPagina($event)"
+            >
+              <option [ngValue]="25">25</option>
+              <option [ngValue]="50">50</option>
+              <option [ngValue]="100">100</option>
+            </select>
+          </label>
+          <div class="pagination-actions">
+            <button type="button" [disabled]="pagina <= 1 || gerando" (click)="gerar(pagina - 1)">
+              ← Anterior
+            </button>
+            <span>
+              Página <strong>{{ pagina }}</strong>
+              <ng-container *ngIf="totalPaginas !== null"> de {{ totalPaginas }}</ng-container>
+            </span>
+            <button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
+              Próxima →
+            </button>
+          </div>
         </div>
       </div>
     </section>

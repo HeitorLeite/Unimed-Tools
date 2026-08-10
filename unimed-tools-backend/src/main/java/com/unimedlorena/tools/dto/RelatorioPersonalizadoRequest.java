@@ -9,6 +9,7 @@ import java.util.Map;
 public record RelatorioPersonalizadoRequest(
   List<String> colunas,
   Map<String, Object> filtros,
+  Boolean distinct,
   Integer pagina,
   Integer tamanhoPagina,
   String nomeArquivo

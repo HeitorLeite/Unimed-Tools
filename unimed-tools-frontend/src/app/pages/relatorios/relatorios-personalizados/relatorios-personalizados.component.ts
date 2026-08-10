@@ -4,7 +4,14 @@
  */
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectorRef, Component, EventEmitter, OnInit, Output } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  EventEmitter,
+  HostListener,
+  OnInit,
+  Output,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 
@@ -47,6 +54,9 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
   tamanhoPagina = 50;
   ultimaPagina = false;
   totalRegistros: number | null = null;
+  totalRegistrosExportados: number | null = null;
+  somenteDistintos = false;
+  previaExpandida = false;
 
   formatoSelecionado: FormatoExportacao = 'xlsx';
   nomeArquivo = 'relatorio_personalizado';
@@ -126,14 +136,28 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
         }),
       )
       .subscribe({
-        next: (arquivo) => {
+        next: (resposta) => {
+          const arquivo = resposta.body;
+          if (!arquivo) {
+            this.erro = 'O backend não devolveu o arquivo solicitado.';
+            return;
+          }
+
           const url = URL.createObjectURL(arquivo);
           const link = document.createElement('a');
           link.href = url;
           link.download = `${this.nomeArquivoSeguro()}.${this.formatoSelecionado}`;
           link.click();
-          URL.revokeObjectURL(url);
-          this.sucesso = 'Arquivo gerado com as colunas selecionadas.';
+          setTimeout(() => URL.revokeObjectURL(url), 0);
+
+          const totalCabecalho = resposta.headers.get('X-Total-Registros');
+          const totalConvertido = totalCabecalho === null ? Number.NaN : Number(totalCabecalho);
+          this.totalRegistrosExportados = Number.isFinite(totalConvertido)
+            ? totalConvertido
+            : null;
+          this.sucesso = this.totalRegistrosExportados !== null
+            ? `Arquivo gerado com ${this.totalRegistrosExportados} linha(s).`
+            : 'Arquivo gerado com as colunas selecionadas.';
         },
         error: (erro) => (this.erro = this.mensagemErro(erro)),
       });
@@ -146,6 +170,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
       this.colunasSelecionadas.add(coluna.id);
     }
     this.colunasResultado = [...this.colunasSelecionadas];
+    this.limparPrevia();
   }
 
   alternarGrupo(grupo: Grupo<RelatorioPersonalizadoColuna>): void {
@@ -160,6 +185,28 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
       });
     }
     this.colunasResultado = [...this.colunasSelecionadas];
+    this.limparPrevia();
+  }
+
+  alternarDistinct(): void {
+    this.somenteDistintos = !this.somenteDistintos;
+    this.limparPrevia();
+  }
+
+  alternarPreviaExpandida(): void {
+    this.previaExpandida = !this.previaExpandida;
+  }
+
+  @HostListener('document:keydown.escape')
+  fecharPreviaComEscape(): void {
+    this.previaExpandida = false;
+  }
+
+  alterarTamanhoPagina(valor: string | number): void {
+    const tamanho = Number(valor);
+    if (![25, 50, 100].includes(tamanho) || tamanho === this.tamanhoPagina) return;
+    this.tamanhoPagina = tamanho;
+    if (this.registros.length) this.gerar(1);
   }
 
   grupoSelecionado(grupo: Grupo<RelatorioPersonalizadoColuna>): boolean {
@@ -187,6 +234,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     this.valoresFiltro['competencia_fim'] = competenciaAtual;
     this.registros = [];
     this.totalRegistros = null;
+    this.totalRegistrosExportados = null;
     this.erro = '';
     this.sucesso = '';
   }
@@ -199,6 +247,24 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     if (valor === null || valor === undefined || valor === '') return '—';
     if (typeof valor === 'object') return JSON.stringify(valor);
     return String(valor);
+  }
+
+  indiceLinha(indice: number): number {
+    return (this.pagina - 1) * this.tamanhoPagina + indice + 1;
+  }
+
+  get primeiraLinhaPagina(): number {
+    return this.registros.length ? (this.pagina - 1) * this.tamanhoPagina + 1 : 0;
+  }
+
+  get ultimaLinhaPagina(): number {
+    return this.primeiraLinhaPagina + Math.max(0, this.registros.length - 1);
+  }
+
+  get totalPaginas(): number | null {
+    return this.totalRegistros === null
+      ? null
+      : Math.max(1, Math.ceil(this.totalRegistros / this.tamanhoPagina));
   }
 
   trackById(_: number, item: { id: string }): string {
@@ -246,6 +312,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     return {
       colunas: [...this.colunasSelecionadas],
       filtros,
+      distinct: this.somenteDistintos,
       pagina,
       tamanhoPagina: this.tamanhoPagina,
       nomeArquivo: this.nomeArquivoSeguro(),
@@ -260,11 +327,29 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     this.colunasResultado = colunasResposta;
     this.pagina = paginaSolicitada;
     this.ultimaPagina = resposta.last ?? this.registros.length < this.tamanhoPagina;
-    this.totalRegistros =
-      typeof resposta.totalElements === 'number' ? resposta.totalElements : null;
+    const totalInformado =
+      resposta.totalElements === null ||
+      resposta.totalElements === undefined ||
+      resposta.totalElements === ''
+        ? Number.NaN
+        : Number(resposta.totalElements);
+    this.totalRegistros = Number.isFinite(totalInformado)
+      ? totalInformado
+      : resposta.last
+        ? (paginaSolicitada - 1) * this.tamanhoPagina + this.registros.length
+        : null;
     this.sucesso = this.registros.length
       ? `${this.registros.length} registro(s) carregado(s) nesta página.`
       : 'A consulta foi concluída, mas não encontrou registros.';
+  }
+
+  private limparPrevia(): void {
+    this.registros = [];
+    this.totalRegistros = null;
+    this.totalRegistrosExportados = null;
+    this.pagina = 1;
+    this.ultimaPagina = false;
+    this.sucesso = '';
   }
 
   private agrupar<T extends { grupo: string }>(itens: T[]): Grupo<T>[] {

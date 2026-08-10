@@ -170,7 +170,8 @@ public class RelatorioPersonalizadoService {
   private void publicarApi(RequisicaoNormalizada normalizada) {
     RelatorioPersonalizadoSqlBuilder.ApiGerada gerada = sqlBuilder.gerar(
         normalizada.colunas(),
-        normalizada.filtros().keySet());
+        normalizada.filtros().keySet(),
+        normalizada.distinct());
 
     /*
      * Paginação e repetições com a mesma estrutura não precisam republicar a
@@ -213,8 +214,14 @@ public class RelatorioPersonalizadoService {
             50,
             "Tamanho da página")
         : MAXIMO_LINHAS_PAGINA;
+    boolean distinct = Boolean.TRUE.equals(request.distinct());
 
-    return new RequisicaoNormalizada(colunas, filtros, pagina, tamanho);
+    return new RequisicaoNormalizada(
+        colunas,
+        filtros,
+        distinct,
+        pagina,
+        tamanho);
   }
 
   private List<String> normalizarColunas(List<String> solicitadas) {
@@ -456,6 +463,7 @@ public class RelatorioPersonalizadoService {
   private record RequisicaoNormalizada(
       List<String> colunas,
       Map<String, Object> filtros,
+      boolean distinct,
       int pagina,
       int tamanhoPagina) {
   }

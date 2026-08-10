@@ -74,7 +74,9 @@ class SguRelatorioServiceTest {
     assertThatThrownBy(() -> service.criarOuAtualizar(Map.of("nome", "api-teste")))
       .isInstanceOf(IllegalArgumentException.class)
       .hasMessage("O SGU rejeitou a definição SQL da API de relatório.")
-      .hasMessageNotContaining("CASE", "segredo_sql", "conteudoFiltro");
+      .hasMessageNotContaining("CASE")
+      .hasMessageNotContaining("segredo_sql")
+      .hasMessageNotContaining("conteudoFiltro");
     server.verify();
   }
 }

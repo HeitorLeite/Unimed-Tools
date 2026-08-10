@@ -689,20 +689,34 @@ A exportação não utiliza somente a página visível. O backend percorre as p�
 - codificação UTF-8;
 - BOM para facilitar abertura no Excel;
 - separador `;`.
+- datas são normalizadas como `DD/MM/AAAA`;
+- valores decimais usam vírgula como separador decimal;
+- campos textuais potencialmente interpretados como fórmula são neutralizados.
 
 #### TXT
 
 - codificação UTF-8;
 - BOM;
 - colunas separadas por tabulação.
+- datas e valores decimais seguem a mesma representação do CSV;
+- campos textuais potencialmente interpretados como fórmula são neutralizados.
 
 #### XLSX
 
 - cabeçalho em destaque;
 - primeira linha congelada;
 - filtro automático;
-- colunas com largura inicial ajustada;
+- colunas com largura ajustada ao conteúdo, limitada a 60 caracteres;
+- células gravadas com tipo e formato de texto, número inteiro, decimal ou data;
+- códigos, documentos, guias, contratos, competências e outros identificadores
+  permanecem como texto para preservar zeros à esquerda;
 - geração por workbook de streaming.
+
+O XLSX é o formato indicado quando a tipagem das células precisa ser preservada.
+CSV e TXT são formatos textuais e, por definição, não armazenam tipos de coluna;
+nesses formatos a aplicação normaliza a representação para facilitar a importação
+no Excel, mas o resultado final ainda depende das opções de importação e da
+configuração regional do programa.
 
 ### Remover relatório
 

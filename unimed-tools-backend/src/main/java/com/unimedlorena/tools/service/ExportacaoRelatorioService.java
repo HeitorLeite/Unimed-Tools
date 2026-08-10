@@ -9,7 +9,15 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -20,6 +28,8 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.IndexedColors;
@@ -31,6 +41,17 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ExportacaoRelatorioService {
+
+  private enum TipoColuna {
+    TEXTO,
+    INTEIRO,
+    DECIMAL,
+    DATA,
+    BOOLEANO,
+  }
+
+  private static final DateTimeFormatter DATA_BRASILEIRA =
+    DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
   public record Arquivo(byte[] conteudo, String contentType, String extensao) {}
 
@@ -186,13 +207,20 @@ public class ExportacaoRelatorioService {
       )
     ) {
       List<String> colunas = colunas(registros);
-      if (!colunas.isEmpty()) printer.printRecord(colunas);
+      Map<String, TipoColuna> tipos = inferirTipos(registros, colunas);
+      if (!colunas.isEmpty()) {
+        printer.printRecord(
+          colunas.stream().map(this::neutralizarFormula).toList()
+        );
+      }
 
       for (Map<String, Object> registro : registros) {
         printer.printRecord(
           colunas
             .stream()
-            .map(coluna -> texto(registro.get(coluna)))
+            .map(coluna ->
+              formatarTexto(registro.get(coluna), tipos.get(coluna))
+            )
             .toList()
         );
       }
@@ -208,14 +236,23 @@ public class ExportacaoRelatorioService {
 
     try (Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
       List<String> colunas = colunas(registros);
-      writer.write(String.join("\t", colunas));
+      Map<String, TipoColuna> tipos = inferirTipos(registros, colunas);
+      writer.write(
+        String.join(
+          "\t",
+          colunas.stream().map(this::neutralizarFormula).toList()
+        )
+      );
       writer.write("\r\n");
 
       for (Map<String, Object> registro : registros) {
         for (int i = 0; i < colunas.size(); i++) {
           if (i > 0) writer.write('\t');
           writer.write(
-            texto(registro.get(colunas.get(i)))
+            formatarTexto(
+              registro.get(colunas.get(i)),
+              tipos.get(colunas.get(i))
+            )
               .replace('\t', ' ')
               .replace('\n', ' ')
               .replace('\r', ' ')
@@ -237,6 +274,7 @@ public class ExportacaoRelatorioService {
       sheet.createFreezePane(0, 1);
 
       List<String> colunas = colunas(registros);
+      Map<String, TipoColuna> tipos = inferirTipos(registros, colunas);
       CellStyle cabecalho = workbook.createCellStyle();
       Font fonte = workbook.createFont();
       fonte.setBold(true);
@@ -246,23 +284,56 @@ public class ExportacaoRelatorioService {
       );
       cabecalho.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
+      DataFormat formato = workbook.createDataFormat();
+      CellStyle texto = workbook.createCellStyle();
+      texto.setDataFormat(formato.getFormat("@"));
+      CellStyle inteiro = workbook.createCellStyle();
+      inteiro.setDataFormat(formato.getFormat("#,##0"));
+      CellStyle decimal = workbook.createCellStyle();
+      decimal.setDataFormat(formato.getFormat("#,##0.00########"));
+      CellStyle data = workbook.createCellStyle();
+      data.setDataFormat(formato.getFormat("dd/mm/yyyy"));
+      Map<TipoColuna, CellStyle> estilos = Map.of(
+        TipoColuna.TEXTO,
+        texto,
+        TipoColuna.INTEIRO,
+        inteiro,
+        TipoColuna.DECIMAL,
+        decimal,
+        TipoColuna.DATA,
+        data,
+        TipoColuna.BOOLEANO,
+        texto
+      );
+
+      int[] larguras = new int[colunas.size()];
+
       Row header = sheet.createRow(0);
       for (int i = 0; i < colunas.size(); i++) {
         Cell cell = header.createCell(i);
         cell.setCellValue(colunas.get(i));
         cell.setCellStyle(cabecalho);
-        sheet.setColumnWidth(
-          i,
-          Math.min(60, Math.max(12, colunas.get(i).length() + 3)) * 256
-        );
+        larguras[i] = Math.max(12, colunas.get(i).length() + 3);
+        sheet.setDefaultColumnStyle(i, estilos.get(tipos.get(colunas.get(i))));
       }
 
       int indiceLinha = 1;
       for (Map<String, Object> registro : registros) {
         Row row = sheet.createRow(indiceLinha++);
         for (int i = 0; i < colunas.size(); i++) {
-          preencherCelula(row.createCell(i), registro.get(colunas.get(i)));
+          String coluna = colunas.get(i);
+          Object valor = registro.get(coluna);
+          TipoColuna tipo = tipos.get(coluna);
+          preencherCelula(row.createCell(i), valor, tipo, estilos.get(tipo));
+          larguras[i] = Math.max(
+            larguras[i],
+            Math.min(60, formatarTexto(valor, tipo).length() + 2)
+          );
         }
+      }
+
+      for (int i = 0; i < colunas.size(); i++) {
+        sheet.setColumnWidth(i, Math.min(60, larguras[i]) * 256);
       }
 
       if (!colunas.isEmpty()) {
@@ -283,16 +354,229 @@ public class ExportacaoRelatorioService {
     }
   }
 
-  private void preencherCelula(Cell cell, Object valor) {
-    if (valor == null) return;
+  private void preencherCelula(
+    Cell cell,
+    Object valor,
+    TipoColuna tipo,
+    CellStyle estilo
+  ) {
+    cell.setCellStyle(estilo);
+    if (valor == null || texto(valor).isBlank()) return;
 
-    if (valor instanceof Number numero) {
-      cell.setCellValue(numero.doubleValue());
-    } else if (valor instanceof Boolean booleano) {
-      cell.setCellValue(booleano);
-    } else {
-      cell.setCellValue(texto(valor));
+    switch (tipo) {
+      case DATA -> cell.setCellValue(converterData(valor));
+      case INTEIRO, DECIMAL -> cell.setCellValue(
+        converterNumero(valor).doubleValue()
+      );
+      case BOOLEANO -> {
+        cell.setCellType(CellType.BOOLEAN);
+        cell.setCellValue((Boolean) valor);
+      }
+      case TEXTO -> cell.setCellValue(texto(valor));
     }
+  }
+
+  private Map<String, TipoColuna> inferirTipos(
+    List<LinkedHashMap<String, Object>> registros,
+    List<String> colunas
+  ) {
+    Map<String, TipoColuna> tipos = new LinkedHashMap<>();
+    for (String coluna : colunas) {
+      tipos.put(coluna, inferirTipo(registros, coluna));
+    }
+    return tipos;
+  }
+
+  private TipoColuna inferirTipo(
+    List<LinkedHashMap<String, Object>> registros,
+    String coluna
+  ) {
+    String nome = normalizarNomeColuna(coluna);
+    boolean nomeDeData = nome.matches(".*(^|_)(DATA|DT|DTH)($|_).*");
+    boolean nomeTextual = nome.matches(
+      ".*(^|_)(COD|CODIGO|ID|CPF|CNPJ|CNES|CEP|CID|TUSS|GUIA|CONTRATO|" +
+        "MATRICULA|CARTEIRA|PROTOCOLO|TELEFONE|COMPETENCIA|PERIODO|" +
+        "REGISTRO|DOCUMENTO|DOC|SEQ|SEQUENCIA|TIPO|NUMERO|NRO|CHAVE|UF)($|_).*"
+    );
+    boolean nomeNumerico = nome.matches(
+      ".*(^|_)(VALOR|QTD|QUANTIDADE|IDADE|TOTAL|PRECO|PERCENTUAL|TAXA)($|_).*"
+    );
+
+    if (nomeTextual && !nomeDeData) return TipoColuna.TEXTO;
+
+    boolean possuiValor = false;
+    boolean todosDatas = true;
+    boolean todosNumeros = true;
+    boolean todosBooleanos = true;
+    boolean possuiNumeroNativo = false;
+    boolean possuiParteDecimal = false;
+    boolean numerosTextuaisSeguros = true;
+
+    for (Map<String, Object> registro : registros) {
+      Object valor = registro.get(coluna);
+      if (valor == null || texto(valor).isBlank()) continue;
+
+      possuiValor = true;
+      todosDatas &= tentarConverterData(valor) != null;
+
+      BigDecimal numero = tentarConverterNumero(valor);
+      todosNumeros &= numero != null;
+      if (numero != null && numero.stripTrailingZeros().scale() > 0) {
+        possuiParteDecimal = true;
+      }
+      possuiNumeroNativo |= valor instanceof Number;
+      if (valor instanceof CharSequence && numero != null) {
+        String digitos = numero.abs().toBigInteger().toString();
+        String original = valor.toString().trim().replaceFirst("^[+-]", "");
+        boolean zeroAEsquerda = original.matches("0\\d+(?:[.,]\\d+)?");
+        numerosTextuaisSeguros &= !zeroAEsquerda && digitos.length() <= 15;
+      }
+      todosBooleanos &= valor instanceof Boolean;
+    }
+
+    if (!possuiValor) return nomeDeData ? TipoColuna.DATA : TipoColuna.TEXTO;
+    if (todosDatas && (nomeDeData || !todosNumeros)) return TipoColuna.DATA;
+    if (todosBooleanos) return TipoColuna.BOOLEANO;
+    if (
+      todosNumeros &&
+      (possuiNumeroNativo ||
+        nomeNumerico ||
+        possuiParteDecimal ||
+        numerosTextuaisSeguros)
+    ) {
+      return possuiParteDecimal ? TipoColuna.DECIMAL : TipoColuna.INTEIRO;
+    }
+    return TipoColuna.TEXTO;
+  }
+
+  private String formatarTexto(Object valor, TipoColuna tipo) {
+    if (valor == null) return "";
+
+    return switch (tipo) {
+      case DATA -> DATA_BRASILEIRA.format(converterData(valor));
+      case INTEIRO -> converterNumero(valor).setScale(0).toPlainString();
+      case DECIMAL -> formatarDecimal(converterNumero(valor));
+      case BOOLEANO -> texto(valor);
+      case TEXTO -> neutralizarFormula(texto(valor));
+    };
+  }
+
+  private String neutralizarFormula(String valor) {
+    if (valor.isEmpty()) return valor;
+    String semEspacosIniciais = valor.stripLeading();
+    if (semEspacosIniciais.isEmpty()) return valor;
+    char primeiro = semEspacosIniciais.charAt(0);
+    // CSV e TXT não distinguem texto de fórmula; o apóstrofo impede execução no Excel.
+    return primeiro == '=' || primeiro == '+' || primeiro == '-' || primeiro == '@'
+      ? "'" + valor
+      : valor;
+  }
+
+  private String formatarDecimal(BigDecimal numero) {
+    int escala = Math.max(2, Math.max(0, numero.stripTrailingZeros().scale()));
+    return numero.setScale(escala).toPlainString().replace('.', ',');
+  }
+
+  private LocalDate converterData(Object valor) {
+    LocalDate data = tentarConverterData(valor);
+    if (data == null) {
+      throw new IllegalArgumentException("Valor de data inválido na exportação.");
+    }
+    return data;
+  }
+
+  private LocalDate tentarConverterData(Object valor) {
+    if (valor instanceof LocalDate data) return data;
+    if (valor instanceof LocalDateTime dataHora) return dataHora.toLocalDate();
+    if (valor instanceof OffsetDateTime dataHora) return dataHora.toLocalDate();
+    if (valor instanceof java.sql.Date data) return data.toLocalDate();
+    if (valor instanceof java.util.Date data)
+      return data.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+    if (!(valor instanceof CharSequence)) return null;
+
+    String texto = valor.toString().trim();
+    if (texto.isEmpty()) return null;
+
+    List<DateTimeFormatter> formatos = List.of(
+      DATA_BRASILEIRA,
+      DateTimeFormatter.ISO_LOCAL_DATE,
+      DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+    );
+    for (DateTimeFormatter formato : formatos) {
+      try {
+        return formato.parseBest(
+          texto,
+          LocalDateTime::from,
+          LocalDate::from
+        ) instanceof LocalDateTime dataHora
+          ? dataHora.toLocalDate()
+          : LocalDate.parse(texto, formato);
+      } catch (DateTimeParseException ignored) {
+        // Tenta o próximo formato aceito pelo contrato de exportação.
+      }
+    }
+
+    try {
+      return OffsetDateTime.parse(texto).toLocalDate();
+    } catch (DateTimeParseException ignored) {
+      try {
+        return LocalDateTime.parse(texto).toLocalDate();
+      } catch (DateTimeParseException ignoredAgain) {
+        return null;
+      }
+    }
+  }
+
+  private BigDecimal converterNumero(Object valor) {
+    BigDecimal numero = tentarConverterNumero(valor);
+    if (numero == null) {
+      throw new IllegalArgumentException("Valor numérico inválido na exportação.");
+    }
+    return numero;
+  }
+
+  private BigDecimal tentarConverterNumero(Object valor) {
+    if (valor instanceof BigDecimal numero) return numero;
+    if (valor instanceof Number numero) {
+      try {
+        return new BigDecimal(numero.toString());
+      } catch (NumberFormatException ignored) {
+        return null;
+      }
+    }
+    if (!(valor instanceof CharSequence)) return null;
+
+    String original = valor.toString().trim();
+    String normalizado;
+    if (original.matches("[-+]?\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?")) {
+      normalizado = original.replace(".", "").replace(',', '.');
+    } else if (
+      original.matches("[-+]?\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?")
+    ) {
+      normalizado = original.replace(",", "");
+    } else if (original.matches("[-+]?\\d+(?:[.,]\\d+)?")) {
+      normalizado = original.replace(',', '.');
+    } else {
+      return null;
+    }
+    try {
+      return new BigDecimal(normalizado);
+    } catch (NumberFormatException ignored) {
+      return null;
+    }
+  }
+
+  private String normalizarNomeColuna(String coluna) {
+    String palavrasSeparadas = texto(coluna).replaceAll(
+      "([a-z0-9])([A-Z])",
+      "$1_$2"
+    );
+    return Normalizer.normalize(palavrasSeparadas, Normalizer.Form.NFD)
+      .replaceAll("\\p{M}", "")
+      .toUpperCase(Locale.ROOT)
+      .replaceAll("[^A-Z0-9]+", "_")
+      .replaceAll("^_+|_+$", "");
   }
 
   private List<String> colunas(List<LinkedHashMap<String, Object>> registros) {

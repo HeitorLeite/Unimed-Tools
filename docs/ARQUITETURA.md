@@ -78,7 +78,7 @@ Controllers não devem incorporar parsing de arquivos ou regras de negócio. Ser
 | `RelatorioPersonalizadoService`       | Valida entradas, coordena publicação/execução e projeta a resposta.    |
 | `RelatorioPersonalizadoSqlBuilder`    | Mantém a allowlist e monta SQL somente com fragmentos aprovados.       |
 | `SguRelatorioService`                 | Envia a definição e os parâmetros ao SGU sem expor a chave ao cliente. |
-| `ExportacaoRelatorioService`          | Percorre páginas e gera CSV, TXT ou XLSX.                              |
+| `ExportacaoRelatorioService`          | Percorre páginas, infere tipos e gera CSV, TXT ou XLSX.                 |
 
 A API `0090-relatorio-personalizado` é reservada ao construtor. Ela é ocultada
 da listagem do catálogo manual e os endpoints genéricos impedem sua criação,
@@ -130,6 +130,9 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
 - IDs internos aceitam underscore e, por compatibilidade, hífen;
 - na fronteira SGU, nomes e binds são compactados para caracteres alfanuméricos;
 - a resposta e a exportação contêm apenas as colunas solicitadas e validadas;
+- o XLSX grava datas, números e textos em células tipadas; identificadores são
+  preservados como texto, enquanto CSV e TXT recebem representação compatível
+  com a importação no Excel sem alterar sua natureza textual;
 - SQL, aliases técnicos e `SGU_API_KEY` não são enviados ao navegador.
 
 Os endpoints específicos são:

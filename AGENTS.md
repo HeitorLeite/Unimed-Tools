@@ -59,6 +59,7 @@ corretor-de-arquivos/
 ├── unimed-tools-frontend/       # Frontend Angular
 ├── unimed-tools-backend/    # Backend Spring Boot
 ├── docs/                    # Documentação de engenharia de software
+├── database/                # Esquema MariaDB de identidade e acesso
 ├── README.md
 ├── SEGURANCA.md
 ├── PADRAO_DE_COMMITS.md
@@ -146,10 +147,21 @@ Tecnologias e características atuais:
 
 ### Autenticação e persistência
 
-- A aplicação não possui autenticação própria no estado atual.
-- O backend não utiliza persistência JPA para os catálogos da aplicação.
-- Autenticação, autorização, auditoria e persistência central são evoluções propostas, não comportamentos existentes.
-- Não introduzir essas mudanças incidentalmente em outra tarefa.
+- A aplicação possui autenticação própria com sessão opaca em cookie `HttpOnly`,
+  CSRF, autorização por permissão, auditoria e persistência JDBC no MariaDB.
+- Administradores exigem MFA TOTP; cadastro de usuário exige
+  `USUARIOS_CRIAR` e confirmação TOTP adicional no backend.
+- Usuários operacionais são criados sem permissões de módulo; concessões ficam
+  em `usuario_permissao` e somente administradores podem alterá-las com step-up
+  TOTP. A tela não concede permissões administrativas ou de dados sensíveis.
+- Reset administrativo de senha cria credencial temporária de 24 horas, exige
+  troca no próximo acesso, revoga as sessões do usuário e gera auditoria.
+- Senhas usam BCrypt, tokens de sessão são persistidos somente por hash e o
+  segredo TOTP é protegido com chave externa ao banco.
+- O backend continua sem JPA para os catálogos da aplicação; catálogo,
+  templates e grupos de relatórios permanecem no `localStorage`.
+- Não armazenar token de sessão no `localStorage` ou expor a chave MFA no
+  frontend. Não enfraquecer guards, filtros ou permissões incidentalmente.
 
 ## 6. Processo obrigatório antes de alterar o código
 

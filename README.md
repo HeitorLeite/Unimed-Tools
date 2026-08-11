@@ -65,6 +65,12 @@ flowchart LR
 
 | Página                     | Rota                       |                Status | Processamento                  |
 | -------------------------- | -------------------------- | --------------------: | ------------------------------ |
+| Login e MFA                | `/login`                   |            Disponível | Frontend + Backend + MariaDB   |
+| Troca de senha             | `/alterar-senha`           |            Disponível | Frontend + Backend + MariaDB   |
+| Cadastro de usuário        | `/usuarios/novo`           |    Somente administrador | Frontend + Backend + MariaDB |
+| Gerenciamento de usuários  | `/usuarios`                |    Somente administrador | Frontend + Backend + MariaDB |
+| Permissões por usuário     | `/usuarios/permissoes`     |    Somente administrador | Frontend + Backend + MariaDB |
+| Reset administrativo       | `/usuarios/resetar-senha`  |    Somente administrador | Frontend + Backend + MariaDB |
 | Página inicial             | `/`                        |            Disponível | Frontend                       |
 | Ferramentas XML TISS       | `/xml/ferramentas`         |            Disponível | Navegador                      |
 | BI — Especialidade Médica  | `/bi/especialidade-medica` |            Disponível | Backend                        |
@@ -85,6 +91,11 @@ Isso indica uma restrição externa de IP, ACL, WAF ou autorização de origem. 
 ### Frontend
 
 O frontend utiliza componentes standalone do Angular e carregamento de páginas por rota.
+
+**Atual:** `/login` é a única entrada pública da interface. Guards aguardam a
+validação da sessão antes de liberar o layout, a troca da senha temporária é
+obrigatória e cada página de módulo verifica a permissão recebida do backend.
+Tokens de sessão não são armazenados em `localStorage` ou `sessionStorage`.
 
 Principais responsabilidades:
 
@@ -108,6 +119,12 @@ O proxy possui tempo limite de 120 segundos e é carregado pelo comando `npm sta
 ### Backend
 
 O backend recebe requisições HTTP, processa arquivos e devolve os resultados para download.
+
+**Atual:** o Spring Security nega acesso por padrão. A autenticação usa senha
+com BCrypt, desafio TOTP obrigatório para administradores, sessão opaca em
+cookie `HttpOnly`, proteção CSRF e autorização por permissão. O MariaDB persiste
+somente o hash SHA-256 do token de sessão; o segredo TOTP é protegido com
+AES-256-GCM usando uma chave externa ao banco.
 
 Principais responsabilidades:
 
@@ -143,6 +160,8 @@ O backend está configurado para aceitar requisições de até:
 
 - Java 21
 - Spring Boot 3.3
+- Spring Security 6.3
+- MariaDB / MySQL com JDBC
 - Maven
 - Apache POI
 - Apache Commons CSV
@@ -962,6 +981,7 @@ corretor-de-arquivos/
 ├── unimed-tools-backend/              # Backend Spring Boot
 │   ├── src/main/java/com/unimedlorena/tools/
 │   │   ├── controller/
+│   │   ├── auth/
 │   │   ├── dto/
 │   │   ├── service/
 │   │   ├── config/
@@ -971,6 +991,10 @@ corretor-de-arquivos/
 │   │   └── application.properties
 │   ├── Dockerfile
 │   └── pom.xml
+│
+├── database/
+│   ├── DBUNIMED.sql                    # Esquema completo atual
+│   └── README.md                       # Instalação e privilégios do banco
 │
 ├── docs/
 │   └── ARQUITETURA.md                  # Fronteiras e responsabilidades técnicas
@@ -996,6 +1020,8 @@ Instale:
 - npm;
 - Java 21;
 - Maven 3.9 ou superior.
+- XAMPP com MariaDB/MySQL e phpMyAdmin;
+- aplicativo autenticador compatível com TOTP para contas administrativas.
 
 ### 1. Clonar o projeto
 
@@ -1004,7 +1030,36 @@ git clone https://github.com/HeitorLeite/corretor-de-arquivos.git
 cd corretor-de-arquivos
 ```
 
-### 2. Iniciar o backend
+### 2. Preparar o banco e o primeiro administrador
+
+1. Importe [`database/DBUNIMED.sql`](database/DBUNIMED.sql) no phpMyAdmin.
+2. Siga [`database/README.md`](database/README.md) para criar uma conta de banco
+   exclusiva da aplicação.
+3. Gere uma chave aleatória de 32 bytes para proteger os segredos TOTP:
+
+```powershell
+$authKeyBytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Fill($authKeyBytes)
+$env:AUTH_MFA_ENCRYPTION_KEY=[Convert]::ToBase64String($authKeyBytes)
+```
+
+4. Antes da primeira execução, defina o acesso ao banco e a conta inicial:
+
+```powershell
+$env:DB_USERNAME="unimed_tools_app"
+$env:DB_PASSWORD="SENHA_DO_BANCO"
+$env:AUTH_BOOTSTRAP_ADMIN_NAME="Administrador inicial"
+$env:AUTH_BOOTSTRAP_ADMIN_LOGIN="admin.inicial"
+$env:AUTH_BOOTSTRAP_ADMIN_EMAIL=""
+$env:AUTH_BOOTSTRAP_ADMIN_PASSWORD="SENHA_TEMPORARIA_FORTE"
+```
+
+Os valores acima são ilustrativos. Não salve senhas reais no repositório. Na
+primeira inicialização, o backend cria a conta administradora, força a troca da
+senha temporária em até 24 horas e exige a configuração do TOTP. Depois da
+criação, remova `AUTH_BOOTSTRAP_ADMIN_PASSWORD` do ambiente.
+
+### 3. Iniciar o backend
 
 #### PowerShell
 
@@ -1016,7 +1071,8 @@ $env:SGU_API_KEY="SUA_CHAVE_REAL"
 $env:SGU_API_PROCEDURE_PATH="/api/procedure/p_prcssa_dados"
 $env:SGU_API_EXECUTION_PATH="/api/procedure/p_prcssa_dados"
 
-mvn spring-boot:run
+# O perfil local permite cookie sem Secure somente no loopback.
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 #### Linux ou macOS
@@ -1029,7 +1085,7 @@ export SGU_API_KEY="SUA_CHAVE_REAL"
 export SGU_API_PROCEDURE_PATH="/api/procedure/p_prcssa_dados"
 export SGU_API_EXECUTION_PATH="/api/procedure/p_prcssa_dados"
 
-mvn spring-boot:run
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 ```
 
 O backend será iniciado em:
@@ -1052,7 +1108,7 @@ ok
 
 > A chave do SGU é necessária apenas para a Central de Relatórios. As outras ferramentas podem ser utilizadas sem ela.
 
-### 3. Iniciar o frontend
+### 4. Iniciar o frontend
 
 Em outro terminal:
 
@@ -1076,8 +1132,9 @@ Executar somente `ng serve` sem o proxy pode fazer as chamadas `/api` serem envi
 
 **Atual:** o build `lan` publica a aplicação no caminho `/unimed-tools/` e usa
 o mesmo domínio do Apache para acessar `/api`. O Apache funciona como proxy
-reverso para o Spring Boot em `127.0.0.1:8080`; portanto, somente a porta 80
-precisa ficar acessível aos demais computadores.
+reverso para o Spring Boot em `127.0.0.1:8080`. Como agora existem credenciais e
+cookies de sessão, computadores da rede devem acessar o Apache exclusivamente
+por HTTPS na porta 443, com certificado aprovado pela organização.
 
 1. Inicie o backend na máquina que executa o XAMPP, restringindo a porta Java
    ao próprio computador:
@@ -1085,6 +1142,7 @@ precisa ficar acessível aos demais computadores.
 ```powershell
 cd unimed-tools-backend
 $env:SERVER_ADDRESS="127.0.0.1"
+$env:AUTH_COOKIE_SECURE="true"
 mvn spring-boot:run
 ```
 
@@ -1112,17 +1170,22 @@ ProxyPass        /api http://127.0.0.1:8080/api
 ProxyPassReverse /api http://127.0.0.1:8080/api
 ```
 
-5. Valide a configuração com `httpd.exe -t`, reinicie o Apache e abra, em
+5. Configure o VirtualHost TLS do Apache com o certificado corporativo, valide
+   com `httpd.exe -t`, reinicie o Apache e abra, em
    outro computador da mesma rede:
 
 ```text
-http://IP_DA_MAQUINA/unimed-tools/
+https://NOME_DNS_DA_MAQUINA/unimed-tools/
 ```
 
 O arquivo `.htaccess` incluído no build direciona rotas como
 `/unimed-tools/relatorios` para o `index.html`. Se o Windows bloquear o acesso,
-libere no Firewall apenas a porta TCP 80 para o perfil de rede privada. O
+libere no Firewall apenas a porta TCP 443 para o perfil de rede privada. O
 backend deve permanecer restrito à própria máquina, atrás do proxy do Apache.
+
+Não desative a validação do certificado e não use HTTP para contornar problemas
+de configuração. O perfil `local`, que desabilita `Secure` no cookie, serve
+somente para `localhost` e nunca deve ser usado no acesso pela rede.
 
 #### Atualizar o frontend publicado no XAMPP
 
@@ -1176,15 +1239,16 @@ docker build -t unimed-tools-backend .
 ```bash
 docker run --rm \
   -p 8080:8080 \
-  -e PORT=8080 \
-  -e SGU_API_BASE_URL=https://api.lorena.sgusuite.com.br \
-  -e SGU_API_KEY=SUA_CHAVE_REAL \
-  -e SGU_API_PROCEDURE_PATH=/api/procedure/p_prcssa_dados \
-  -e SGU_API_EXECUTION_PATH=/api/procedure/p_prcssa_dados \
+  --env-file .env.local \
   unimed-tools-backend
 ```
 
-No PowerShell, adapte as quebras de linha ou execute o comando em uma linha única.
+No Windows com o MariaDB do XAMPP, use
+`DB_URL=jdbc:mariadb://host.docker.internal:3306/DBUNIMED` no arquivo
+`.env.local`. Inclua nele as variáveis de banco, MFA, bootstrap inicial e SGU
+descritas abaixo. Arquivos `.env*` são ignorados pelo Git; nunca versione esse
+arquivo. No PowerShell, adapte as quebras de linha ou execute o comando em uma
+linha única.
 
 ---
 
@@ -1194,6 +1258,20 @@ No PowerShell, adapte as quebras de linha ou execute o comando em uma linha úni
 | ------------------------ | --------------: | ------------------------------------ | --------------------------------------------------- |
 | `PORT`                   |             Não | `8080`                               | Porta do backend                                    |
 | `SERVER_ADDRESS`         |             Não | `0.0.0.0`                            | Interface de rede; use `127.0.0.1` atrás do XAMPP   |
+| `DB_URL`                 |             Não | `jdbc:mariadb://localhost:3306/DBUNIMED` | Conexão JDBC do banco                            |
+| `DB_USERNAME`            |            Sim  | vazio                                | Conta de banco exclusiva da aplicação               |
+| `DB_PASSWORD`            |            Sim  | vazio                                | Senha da conta de banco                              |
+| `AUTH_MFA_ENCRYPTION_KEY`|            Sim  | vazio                                | Chave Base64 de 32 bytes para AES-256-GCM            |
+| `AUTH_COOKIE_SECURE`     | Produção/rede   | `true`                               | Exige HTTPS para o cookie de sessão                  |
+| `AUTH_COOKIE_SAME_SITE`  |             Não | `Strict`                             | Política SameSite do cookie de sessão                |
+| `AUTH_SESSION_IDLE_MINUTES` |          Não | `30`                                 | Expiração da sessão por inatividade                  |
+| `AUTH_SESSION_ABSOLUTE_HOURS` |         Não | `8`                                  | Duração absoluta da sessão                           |
+| `AUTH_LOGIN_MAX_ATTEMPTS`|             Não | `5`                                  | Falhas antes do bloqueio temporário                  |
+| `AUTH_LOGIN_BLOCK_MINUTES` |           Não | `15`                                 | Duração do bloqueio temporário                       |
+| `AUTH_BOOTSTRAP_ADMIN_NAME` | Primeiro uso | vazio                                | Nome do primeiro administrador                       |
+| `AUTH_BOOTSTRAP_ADMIN_LOGIN` | Primeiro uso | vazio                               | Login do primeiro administrador                      |
+| `AUTH_BOOTSTRAP_ADMIN_EMAIL` |          Não | vazio                                | E-mail opcional do primeiro administrador            |
+| `AUTH_BOOTSTRAP_ADMIN_PASSWORD` | Primeiro uso | vazio                             | Senha temporária; remover depois da criação          |
 | `SGU_API_BASE_URL`       | Para relatórios | `https://api.lorena.sgusuite.com.br` | URL principal do SGU                                |
 | `SGU_API_KEY`            | Para relatórios | vazio                                | Credencial enviada somente pelo backend             |
 | `SGU_API_KEY_HEADERS`    |             Não | `apikey,x-api-key`                   | Headers que recebem a chave; use `apikey` se exigido |
@@ -1240,6 +1318,26 @@ Nunca salve a chave no:
 | Método | Endpoint  | Descrição                        |
 | ------ | --------- | -------------------------------- |
 | GET    | `/health` | Verifica se o backend está ativo |
+
+### Autenticação e usuários
+
+| Método | Endpoint                 | Acesso                         | Descrição                              |
+| ------ | ------------------------ | ------------------------------ | -------------------------------------- |
+| GET    | `/api/auth/csrf`         | Público                        | Emite o token CSRF para o navegador    |
+| POST   | `/api/auth/login`        | Público + CSRF                 | Valida login e senha                   |
+| POST   | `/api/auth/mfa/verificar`| Desafio temporário + CSRF      | Ativa ou valida o TOTP administrativo  |
+| GET    | `/api/auth/me`           | Sessão válida                  | Retorna usuário e permissões           |
+| POST   | `/api/auth/senha`        | Sessão válida + CSRF           | Troca a senha e rotaciona a sessão     |
+| POST   | `/api/auth/logout`       | Sessão válida + CSRF           | Revoga a sessão atual                  |
+| POST   | `/api/usuarios`          | `USUARIOS_CRIAR` + step-up MFA | Cadastra conta com senha temporária    |
+| GET    | `/api/usuarios`          | `USUARIOS_VISUALIZAR` + administrador | Lista contas para gerenciamento |
+| GET    | `/api/usuarios/permissoes-disponiveis` | `USUARIOS_VISUALIZAR` + administrador | Lista permissões operacionais concedíveis |
+| PUT    | `/api/usuarios/{id}/permissoes` | `USUARIOS_EDITAR` + step-up MFA | Substitui as permissões individuais |
+| POST   | `/api/usuarios/{id}/resetar-senha` | `USUARIOS_EDITAR` + step-up MFA | Define senha temporária e revoga sessões |
+
+Todos os endpoints operacionais em `/api` exigem sessão e a permissão do
+módulo. `POST /api/relatorios/sgu/criar` e a exclusão de APIs exigem também
+`RELATORIOS_ADMINISTRAR`.
 
 ### XML
 
@@ -1334,13 +1432,16 @@ Endpoint planejado, ainda não implementado no backend atual.
 
 ## Frontend — Vercel
 
-O ambiente de produção utiliza:
+O ambiente de produção utiliza API na mesma origem do navegador:
 
 ```typescript
-apiUrl: "https://corretor-de-arquivos.onrender.com/api";
+apiUrl: "/api";
 ```
 
-Ao mudar o endereço do backend, atualize:
+O `unimed-tools-frontend/vercel.json` encaminha `/api/*` ao backend. Essa mesma
+origem é necessária para o cookie `HttpOnly` e para a proteção CSRF. Ao mudar o
+endereço do backend, atualize o destino do rewrite, sem expor segredos no
+frontend.
 
 ```text
 unimed-tools-frontend/src/environments/environment.prod.ts
@@ -1364,6 +1465,11 @@ O arquivo `render.yaml` configura:
 - Dockerfile `./Dockerfile`;
 - porta `10000`;
 - variáveis do SGU.
+- conexão do MariaDB e chave de proteção MFA como segredos do ambiente.
+
+O banco do XAMPP local não é acessível pelo Render. Uma implantação hospedada
+precisa de uma instância MariaDB/MySQL privada e autorizada para o backend; não
+publique a porta do banco diretamente na internet.
 
 A aplicação deve escutar em:
 
@@ -1441,13 +1547,27 @@ A correção utiliza padrões relacionados às tags `ans:`. XMLs com outro names
 
 ### Autenticação da aplicação
 
-A aplicação não possui, no código atual, um sistema próprio de login e controle de usuários.
+**Atual:** a aplicação possui login próprio, autorização por perfis e
+permissões, sessões revogáveis, bloqueio temporário, auditoria e MFA TOTP
+obrigatório para administradores. O cadastro é feito apenas por administrador e
+as senhas temporárias expiram em 24 horas. Senhas aceitam entre 8 e 128
+caracteres e continuam sujeitas à rejeição de valores comuns ou relacionados ao
+login/e-mail.
 
-Como ela foi criada para uso interno, recomenda-se protegê-la por rede corporativa, proxy autenticado, VPN ou outro controle de acesso antes de disponibilizá-la publicamente.
+Usuários operacionais são criados sem acesso a módulos. Um administrador define
+as permissões individuais em `/usuarios/permissoes`; permissões administrativas
+e acesso a dados sensíveis não são delegáveis por essa tela. Alterações de
+permissão e reset de senha exigem um novo código TOTP e geram auditoria.
+
+**Pendente:** não existe recuperação automática de conta ou de MFA. A perda do
+autenticador exige um procedimento administrativo aprovado, ainda não
+implementado. A aplicação também não substitui proteção de rede, HTTPS,
+monitoramento e revisão periódica de acessos.
 
 ### Tratamento de erros
 
-O backend utiliza um handler global que pode transformar exceções em respostas HTTP 500. Consulte os logs do backend para encontrar a causa original.
+O backend devolve códigos e mensagens sanitizadas. Falhas inesperadas recebem
+um `correlationId`; o detalhe técnico permanece somente no log do servidor.
 
 ---
 

@@ -4,6 +4,7 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { NgFor, NgIf } from '@angular/common';
+import { AuthService } from '../../shared/services/auth.service';
 
 interface Category {
   id: string;
@@ -14,6 +15,7 @@ interface Category {
   accepts: string;
   icon: string;
   ready: boolean;
+  permission?: string;
 }
 
 @Component({
@@ -24,7 +26,10 @@ interface Category {
   styleUrls: ['./home.component.scss'],
 })
 export class HomeComponent {
-  constructor(private router: Router) {}
+  constructor(
+    private router: Router,
+    private readonly auth: AuthService,
+  ) {}
 
   categories: Category[] = [
     {
@@ -35,6 +40,7 @@ export class HomeComponent {
       route: '/relatorios',
       accepts: 'CSV · TXT · XLSX',
       ready: true,
+      permission: 'RELATORIOS_ACESSAR',
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 4h12l4 4v16H6V4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18 4v5h5M10 14h8M10 18h8M10 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
     {
@@ -45,6 +51,7 @@ export class HomeComponent {
       route: '/xml/ferramentas',
       accepts: '.xml',
       ready: true,
+      permission: 'XML_ACESSAR',
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M10 8L5 14l5 6M18 8l5 6-5 6M15 5l-3 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     },
     {
@@ -55,6 +62,7 @@ export class HomeComponent {
       route: '/bi/especialidade-medica',
       accepts: '.xlsx recomendado',
       ready: true,
+      permission: 'BI_ACESSAR',
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M8 18v-4M13 18v-8M18 18v-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
     {
@@ -65,6 +73,7 @@ export class HomeComponent {
       route: '/ans/corretor-rede',
       accepts: '.txt + .xlsx',
       ready: true,
+      permission: 'ANS_ACESSAR',
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M7 10h14M7 14h9M7 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
     {
@@ -75,6 +84,7 @@ export class HomeComponent {
       route: '/fechamento/corretor',
       accepts: '.xlsx → .csv',
       ready: false,
+      permission: 'APLICACAO_ACESSAR',
       icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M5 5h12l6 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17 5v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 16h12M8 20h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     },
   ];
@@ -83,7 +93,18 @@ export class HomeComponent {
     if (cat.ready) this.router.navigate([cat.route]);
   }
 
+  navigateFirstAvailable() {
+    const category = this.accessibleCategories.find((item) => item.ready);
+    if (category) this.navigate(category);
+  }
+
   get availableCategories() {
-    return this.categories.filter((category) => category.ready).length;
+    return this.accessibleCategories.filter((category) => category.ready).length;
+  }
+
+  get accessibleCategories() {
+    return this.categories.filter(
+      (category) => !category.permission || this.auth.hasPermission(category.permission),
+    );
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Responsabilidade: Define a política CORS consumida pelo frontend e os cabeçalhos de resposta visíveis no navegador.
+ * Responsabilidade: Define a allowlist CORS e os cabeçalhos visíveis ao frontend.
  */
 package com.unimedlorena.tools.config;
 
@@ -7,23 +7,14 @@ import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
-/**
- * Configura as origens e os cabeçalhos necessários para a comunicação entre
- * o frontend e a API. Os cabeçalhos expostos transportam estatísticas e
- * metadados dos arquivos gerados para o navegador.
- */
 @Configuration
 public class CorsConfig {
 
-  /**
-   * Aplica a política CORS a todos os endpoints sem habilitar credenciais de
-   * navegador, pois a aplicação ainda não possui autenticação por sessão.
-   */
   @Bean
-  public CorsFilter corsFilter() {
+  public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cfg = new CorsConfiguration();
     cfg.setAllowedOriginPatterns(
       List.of(
@@ -34,11 +25,10 @@ public class CorsConfig {
         "https://*.vercel.app"
       )
     );
-
-    cfg.setAllowedMethods(
-      List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+    cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    cfg.setAllowedHeaders(
+      List.of("Content-Type", "Accept", "X-XSRF-TOKEN", "X-CSRF-TOKEN")
     );
-    cfg.setAllowedHeaders(List.of("*"));
     cfg.setExposedHeaders(
       List.of(
         "X-Stats",
@@ -48,13 +38,11 @@ public class CorsConfig {
         "X-Relatorios-Erros"
       )
     );
+    // A origem continua em allowlist; credenciais habilitam o cookie HttpOnly.
+    cfg.setAllowCredentials(true);
 
-    cfg.setAllowCredentials(false);
-
-    UrlBasedCorsConfigurationSource source =
-      new UrlBasedCorsConfigurationSource();
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", cfg);
-
-    return new CorsFilter(source);
+    return source;
   }
 }

@@ -75,7 +75,7 @@
 
     <div class="nav-divider tools-divider"><span *ngIf="open">Ferramentas</span></div>
 
-    <ng-container *ngFor="let item of items">
+    <ng-container *ngFor="let item of visibleItems">
       <a
         class="nav-item"
         [class.nav-disabled]="!item.ready"
@@ -93,8 +93,44 @@
     </ng-container>
   </nav>
 
-  <div class="sidebar-footer" *ngIf="open">
-    <span class="environment-status"><i></i> Ambiente interno</span>
-    <small>Unimed Tools · v7.0</small>
+  <div class="sidebar-footer" *ngIf="user() as currentUser">
+    <div class="account-menu" *ngIf="accountOpen() && open" (click)="$event.stopPropagation()">
+      <div class="account-menu-heading">
+        <strong>{{ currentUser.nome }}</strong
+        ><small>{{ currentUser.login }}</small>
+      </div>
+      <ng-container *ngIf="currentUser.perfil === 'ADMINISTRADOR'">
+        <a routerLink="/usuarios" (click)="closeAccount()">Gerenciamento</a>
+      </ng-container>
+      <button type="button" (click)="logout()">Sair</button>
+    </div>
+
+    <button
+      class="account-trigger"
+      type="button"
+      [attr.aria-expanded]="accountOpen()"
+      aria-haspopup="menu"
+      (click)="toggleAccount($event)"
+      [title]="currentUser.nome"
+    >
+      <span class="account-avatar" aria-hidden="true">{{
+        currentUser.nome.charAt(0).toUpperCase()
+      }}</span>
+      <span class="account-copy" *ngIf="open"
+        ><strong>{{ currentUser.nome }}</strong
+        ><small>{{
+          currentUser.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Usuário operacional'
+        }}</small></span
+      >
+      <svg *ngIf="open" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="m4 10 4-4 4 4"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
   </div>
 </aside>

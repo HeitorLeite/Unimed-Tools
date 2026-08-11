@@ -6,8 +6,11 @@ Este documento apresenta a organização técnica implementada no repositório. 
 
 ```mermaid
 flowchart LR
-    U[Usuário interno] --> F[Frontend Angular]
+    U[Usuário interno] --> L[Login Angular]
+    L -->|senha + TOTP administrativo| I[Identidade Spring Security]
+    I -->|sessão opaca HttpOnly| F[Frontend Angular]
     F -->|HTTP /api| B[Backend Spring Boot]
+    B -->|usuários, permissões, sessões e auditoria| D[(MariaDB DBUNIMED)]
     B -->|Catálogo, execução e exportação| S[SGU Suite / Kong]
     F -->|XML local| X[Processamento no navegador]
     B -->|ANS, BI e exportações| A[Processamento de arquivos]
@@ -23,6 +26,47 @@ processamento XML principal permanece local no navegador; a implementação Java
 existente é mantida porque sua remoção ou unificação depende de decisão
 arquitetural específica.
 
+## Identidade e acesso
+
+**Status: Atual.** A primeira rota exibida é `/login`. O backend valida senha
+com BCrypt e cria uma sessão opaca; somente o hash SHA-256 do token é persistido
+em `sessao_usuario`, enquanto o navegador recebe o valor em cookie `HttpOnly`,
+`SameSite=Strict` e `Secure` fora do perfil local. Requisições de escrita também
+exigem o token CSRF mantido em cookie separado, sem capacidade de autenticação.
+
+Administradores precisam configurar e validar TOTP. O segredo compartilhado é
+criptografado com AES-256-GCM antes de chegar ao banco, usando
+`AUTH_MFA_ENCRYPTION_KEY`. O primeiro administrador é criado por bootstrap
+somente quando `usuario` está vazia; os próximos usuários são cadastrados em
+`POST /api/usuarios` por uma sessão com `USUARIOS_CRIAR` e um novo código TOTP.
+
+O perfil `USUARIO` não herda permissões operacionais. As concessões individuais
+ficam em `usuario_permissao` e são combinadas às permissões do perfil a cada
+requisição. A interface administrativa permite somente a allowlist de módulos;
+permissões de administração e dados sensíveis permanecem fora desse fluxo.
+Alterações de acesso e redefinições de senha exigem step-up TOTP e são auditadas.
+
+```mermaid
+sequenceDiagram
+    actor U as Usuário
+    participant A as Angular
+    participant B as Spring Security
+    participant D as MariaDB
+    U->>A: login e senha
+    A->>B: POST /api/auth/login + CSRF
+    B->>D: valida conta, hash e bloqueio
+    alt administrador
+        B-->>A: desafio MFA temporário
+        U->>A: código TOTP
+        A->>B: POST /api/auth/mfa/verificar
+    end
+    B->>D: grava somente hash da sessão
+    B-->>A: cookie HttpOnly
+    A->>B: requisição de módulo
+    B->>D: valida sessão e permissões atuais
+    B-->>A: resposta autorizada
+```
+
 ## Frontend
 
 Diretório: `unimed-tools-frontend/`
@@ -34,6 +78,7 @@ Diretório: `unimed-tools-frontend/`
 | `src/app/shared/components/` | Elementos visuais reutilizáveis.                      |
 | `src/app/shared/models/`     | Contratos de dados da aplicação.                      |
 | `src/app/shared/services/`   | HTTP, armazenamento local e regras reutilizáveis.     |
+| `src/app/shared/guards/`     | Entrada autenticada e autorização de rotas.           |
 | `src/app/shared/constants/`  | Identificadores que precisam permanecer consistentes. |
 | `src/app/shared/utils/`      | Funções puras e utilitários sem estado.               |
 | `src/environments/`          | Endereço da API por ambiente de build.                |
@@ -64,6 +109,7 @@ Diretório: `unimed-tools-backend/`
 | `dto`        | Objetos de entrada, saída e estatísticas.     |
 | `exception`  | Tratamento uniforme de erros.                 |
 | `service`    | Regras de negócio, arquivos e integração SGU. |
+| `auth`       | Senhas, MFA, sessões, usuários e auditoria.    |
 
 Controllers não devem incorporar parsing de arquivos ou regras de negócio. Services não devem conhecer detalhes visuais do frontend.
 
@@ -154,8 +200,11 @@ Os endpoints específicos são:
 - As chaves são centralizadas e versionadas; qualquer mudança exige migração explícita.
 - Filtros do relatório personalizado não são persistidos; o catálogo autorizado vem do backend.
 - O cache da última definição personalizada publicada existe apenas na memória da instância Spring Boot.
-- O backend atual não possui banco de dados ou entidades JPA.
-- O projeto não possui autenticação própria no estado atual.
+- Usuários, perfis, permissões, desafios, sessões e auditorias ficam no MariaDB.
+- O backend usa JDBC parametrizado e não introduz JPA nos catálogos existentes.
+- Token de sessão, senha e segredo TOTP nunca são persistidos em claro.
+- O estado de autenticação do Angular fica apenas em memória; o cookie de sessão
+  não é acessível pelo JavaScript.
 
 ## Implantação local em rede
 
@@ -180,9 +229,9 @@ O código-fonte não deve ser copiado para `htdocs`. O fluxo de atualização é
 3. copiar somente `dist/unimed-tools-frontend/browser/` para o diretório público;
 4. manter `.htaccess` para o fallback das rotas Angular.
 
-Essa topologia reduz a exposição da porta Java, mas não adiciona autenticação.
-O acesso deve permanecer limitado à rede corporativa ou a outro controle de
-acesso aprovado.
+Essa topologia mantém a porta Java restrita e agora inclui autenticação. Como há
+tráfego de credenciais e sessão, o Apache deve publicar a aplicação por HTTPS
+com certificado aprovado, sem desativar a validação TLS.
 
 ## Limites arquiteturais conhecidos
 
@@ -193,6 +242,10 @@ acesso aprovado.
 - O indicador de coluna sensível orienta a interface, mas não substitui autorização, pois a aplicação ainda não possui login próprio.
 - Uploads grandes são limitados a 100 MB e exigem atenção ao consumo de memória.
 - Serviços XML em TypeScript e Java não devem ser fundidos ou removidos incidentalmente.
+- Recuperação de senha e recuperação de MFA ainda não possuem fluxo próprio;
+  dependem de procedimento administrativo futuro e aprovado.
+- A chave de criptografia MFA precisa permanecer disponível e protegida durante
+  todo o ciclo de vida; perdê-la impede validar os segredos TOTP existentes.
 
 ## Como evoluir a estrutura
 

@@ -3,5 +3,6 @@
  */
 export const environment = {
   production: true,
-  apiUrl: 'https://corretor-de-arquivos.onrender.com/api',
+  // Sessões e CSRF exigem que o navegador use a mesma origem do frontend.
+  apiUrl: '/api',
 };

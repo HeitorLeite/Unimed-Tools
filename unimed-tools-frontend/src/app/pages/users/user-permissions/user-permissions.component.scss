@@ -1,0 +1,26 @@
+:host { display: block; }
+.permission-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 22px; align-items: start; }
+.permission-form { padding: 0; overflow: hidden; }
+.section-heading { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 13px; padding: 23px 25px 17px; }
+.section-heading > span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--brand-green-dark); color: #fff; font-size: 10px; font-weight: 700; }
+.section-heading h2 { font-size: 17px; font-weight: 650; }
+.section-heading p { margin-top: 3px; color: var(--text-secondary); font-size: 11px; }
+.section-border { margin-top: 8px; border-top: 1px solid var(--surface-border); }
+.select-field, .mfa-field { padding: 0 25px 20px 72px; }
+.select-field select, .mfa-field input { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--surface-border); border-radius: 6px; background: #fff; }
+.select-field small { color: var(--text-muted); font-size: 10px; }
+.mfa-field input { max-width: 230px; font-family: var(--font-mono); font-size: 19px; letter-spacing: .28em; text-align: center; }
+.permission-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 25px 20px 72px; }
+.permission-grid-disabled { opacity: .58; }
+.permission-option { min-height: 78px; display: flex; gap: 11px; align-items: flex-start; padding: 14px; border: 1px solid var(--surface-border); border-radius: var(--radius-md); background: var(--surface-secondary); cursor: pointer; }
+.permission-option.selected { border-color: var(--brand-green); background: var(--brand-green-soft); }
+.permission-option input { margin-top: 3px; accent-color: var(--brand-green); }
+.permission-option span { display: flex; flex-direction: column; gap: 5px; }
+.permission-option small { color: var(--brand-green); font-size: 8px; font-weight: 700; letter-spacing: .08em; }
+.permission-option strong { font-size: 11px; font-weight: 600; line-height: 1.4; }
+.form-message { margin: 0 25px 14px 72px; padding: 10px 12px; border-radius: 6px; font-size: 11px; }
+.form-message.error { border: 1px solid #ecc5c2; background: var(--error-bg); color: var(--error); }
+.form-message.success { border: 1px solid #b9d9c3; background: var(--success-bg); color: var(--success); }
+.submit-button { margin: 0 25px 25px 72px; }
+@media (max-width: 900px) { .permission-layout { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .permission-grid { grid-template-columns: 1fr; padding-left: 25px; } .select-field, .mfa-field { padding-left: 25px; } .form-message { margin-left: 25px; } .submit-button { width: calc(100% - 50px); margin-left: 25px; } }

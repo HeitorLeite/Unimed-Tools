@@ -1,0 +1,88 @@
+<main class="auth-page">
+  <section class="auth-identity" aria-label="Unimed Tools">
+    <div class="identity-brand">
+      <span class="identity-logo" aria-hidden="true">
+        <svg viewBox="0 0 42 42" fill="none">
+          <path d="M9 30c5-2 8-9 6-20 8 5 12 13 9 22M33 30c-5-2-8-9-6-20-8 5-12 13-9 22" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+      </span>
+      <span><strong>Unimed</strong><small>TOOLS</small></span>
+    </div>
+
+    <div class="identity-copy">
+      <span>Workspace interno · Unimed Lorena</span>
+      <h1>Rotinas essenciais.<br />Acesso protegido.</h1>
+      <p>Entre com sua conta institucional para acessar somente as ferramentas autorizadas para o seu perfil.</p>
+    </div>
+
+    <footer><i></i> Ambiente interno operacional</footer>
+  </section>
+
+  <section class="auth-panel">
+    <div class="auth-card">
+      <ng-container *ngIf="stage() === 'CREDENCIAIS'; else mfaStep">
+        <header>
+          <span class="auth-eyebrow">Identificação</span>
+          <h2>Bem-vindo de volta</h2>
+          <p>Informe suas credenciais para continuar.</p>
+        </header>
+
+        <form [formGroup]="credentialsForm" (ngSubmit)="submitCredentials()" novalidate>
+          <div class="auth-field">
+            <label for="login">Login</label>
+            <input id="login" type="text" formControlName="login" autocomplete="username" maxlength="80" placeholder="seu.login" />
+            <small *ngIf="credentialsForm.controls.login.touched && credentialsForm.controls.login.invalid">Informe seu login.</small>
+          </div>
+
+          <div class="auth-field">
+            <label for="senha">Senha</label>
+            <div class="password-input">
+              <input id="senha" [type]="showPassword() ? 'text' : 'password'" formControlName="senha" autocomplete="current-password" maxlength="128" placeholder="Digite sua senha" />
+              <button type="button" (click)="showPassword.set(!showPassword())">{{ showPassword() ? 'Ocultar' : 'Mostrar' }}</button>
+            </div>
+            <small *ngIf="credentialsForm.controls.senha.touched && credentialsForm.controls.senha.invalid">Informe sua senha.</small>
+          </div>
+
+          <div class="auth-error" role="alert" *ngIf="error()">{{ error() }}</div>
+
+          <button class="auth-submit" type="submit" [disabled]="loading()">
+            <span>{{ loading() ? 'Verificando…' : 'Entrar no Unimed Tools' }}</span>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M3 9h12M11 5l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          </button>
+        </form>
+      </ng-container>
+
+      <ng-template #mfaStep>
+        <header>
+          <span class="auth-eyebrow">Verificação em duas etapas</span>
+          <h2>{{ stage() === 'MFA_CONFIGURACAO' ? 'Proteja sua conta' : 'Confirme que é você' }}</h2>
+          <p *ngIf="stage() === 'MFA_VALIDACAO'">Digite o código de seis números exibido no seu aplicativo autenticador.</p>
+          <p *ngIf="stage() === 'MFA_CONFIGURACAO'">No autenticador, escolha adicionar uma conta por chave de configuração e informe o código abaixo.</p>
+        </header>
+
+        <div class="setup-key" *ngIf="stage() === 'MFA_CONFIGURACAO'">
+          <span>Chave de configuração</span>
+          <strong>{{ mfaSecret() }}</strong>
+          <small>Tipo: baseado em tempo · 6 dígitos · período de 30 segundos</small>
+        </div>
+
+        <form [formGroup]="mfaForm" (ngSubmit)="submitMfa()" novalidate>
+          <div class="auth-field">
+            <label for="mfaCode">Código do autenticador</label>
+            <input class="otp-input" id="mfaCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" formControlName="codigo" placeholder="000000" />
+            <small *ngIf="mfaForm.controls.codigo.touched && mfaForm.controls.codigo.invalid">Informe os seis números do código.</small>
+          </div>
+
+          <div class="auth-error" role="alert" *ngIf="error()">{{ error() }}</div>
+
+          <button class="auth-submit" type="submit" [disabled]="loading()">
+            {{ loading() ? 'Validando…' : stage() === 'MFA_CONFIGURACAO' ? 'Ativar e continuar' : 'Confirmar acesso' }}
+          </button>
+          <button class="auth-link" type="button" (click)="restart()">Voltar ao login</button>
+        </form>
+      </ng-template>
+
+      <p class="auth-help">Não possui uma conta? Solicite o cadastro a um administrador do sistema.</p>
+    </div>
+  </section>
+</main>

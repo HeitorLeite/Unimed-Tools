@@ -1,0 +1,30 @@
+<section class="tool-page management-page">
+  <header class="tool-page-header">
+    <div class="tool-header-copy">
+      <span class="badge">Administração de acesso</span>
+      <h1>Gerenciamento de usuários</h1>
+      <p>Cadastre contas, defina quais módulos cada usuário operacional pode acessar e gere uma nova senha temporária quando necessário.</p>
+    </div>
+    <div class="tool-header-meta"><span><small>Acesso</small><strong>Somente administradores</strong></span></div>
+  </header>
+
+  <div class="management-grid">
+    <a class="management-card" routerLink="/usuarios/novo">
+      <span class="management-number">01</span>
+      <div><small>Contas</small><h2>Cadastrar usuário</h2><p>Crie uma conta com senha temporária e troca obrigatória no primeiro acesso.</p></div>
+      <strong>Abrir cadastro →</strong>
+    </a>
+    <a class="management-card" routerLink="/usuarios/permissoes">
+      <span class="management-number">02</span>
+      <div><small>Autorização</small><h2>Permissões de acesso</h2><p>Escolha individualmente os módulos liberados para cada usuário operacional.</p></div>
+      <strong>Gerenciar permissões →</strong>
+    </a>
+    <a class="management-card" routerLink="/usuarios/resetar-senha">
+      <span class="management-number">03</span>
+      <div><small>Credenciais</small><h2>Resetar senha</h2><p>Defina uma nova senha temporária e encerre as sessões abertas da conta.</p></div>
+      <strong>Gerar senha temporária →</strong>
+    </a>
+  </div>
+
+  <aside class="management-note"><strong>Princípio do menor privilégio</strong><span>Novos usuários operacionais começam sem acesso a módulos. Toda liberação é explícita, validada no servidor e auditada.</span></aside>
+</section>

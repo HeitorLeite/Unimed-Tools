@@ -10,6 +10,7 @@ import {
   ManagedUser,
   NewUserRequest,
   OperationResponse,
+  UpdateUserRequest,
 } from '../models/auth.model';
 import { AuthStateService } from './auth-state.service';
 
@@ -59,6 +60,29 @@ export class AuthService {
     return this.http.get<ManagedUser[]>(`${environment.apiUrl}/usuarios`);
   }
 
+  updateUser(userId: number, request: UpdateUserRequest): Observable<ManagedUser> {
+    return this.http.put<ManagedUser>(`${environment.apiUrl}/usuarios/${userId}`, request).pipe(
+      tap((updated) => {
+        const current = this.state.user();
+        if (current?.id === updated.id) {
+          this.state.setUser({
+            ...current,
+            nome: updated.nome,
+            email: updated.email,
+            perfil: updated.perfil,
+            permissoes: updated.permissoes,
+          });
+        }
+      }),
+    );
+  }
+
+  deleteUser(userId: number, codigoMfaAdministrador: string): Observable<OperationResponse> {
+    return this.http.delete<OperationResponse>(`${environment.apiUrl}/usuarios/${userId}`, {
+      body: { codigoMfaAdministrador },
+    });
+  }
+
   listAvailablePermissions(): Observable<AvailablePermission[]> {
     return this.http.get<AvailablePermission[]>(
       `${environment.apiUrl}/usuarios/permissoes-disponiveis`,
@@ -70,10 +94,10 @@ export class AuthService {
     permissoes: string[],
     codigoMfaAdministrador: string,
   ): Observable<OperationResponse> {
-    return this.http.put<OperationResponse>(
-      `${environment.apiUrl}/usuarios/${userId}/permissoes`,
-      { permissoes, codigoMfaAdministrador },
-    );
+    return this.http.put<OperationResponse>(`${environment.apiUrl}/usuarios/${userId}/permissoes`, {
+      permissoes,
+      codigoMfaAdministrador,
+    });
   }
 
   resetUserPassword(

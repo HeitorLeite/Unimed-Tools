@@ -44,7 +44,21 @@ O perfil `USUARIO` não herda permissões operacionais. As concessões individua
 ficam em `usuario_permissao` e são combinadas às permissões do perfil a cada
 requisição. A interface administrativa permite somente a allowlist de módulos;
 permissões de administração e dados sensíveis permanecem fora desse fluxo.
-Alterações de acesso e redefinições de senha exigem step-up TOTP e são auditadas.
+Alterações de cadastro, perfil, acesso, exclusões e redefinições de senha exigem
+step-up TOTP e são auditadas. Mudanças de perfil removem concessões individuais
+e revogam as sessões do usuário para que o novo nível de acesso seja aplicado
+imediatamente.
+
+O Angular distingue falha de step-up (`MFA_INVALIDO`) de ausência de sessão
+(`NAO_AUTENTICADO`). Somente a segunda limpa o estado local e redireciona para
+`/login`; um TOTP administrativo rejeitado mantém a sessão para nova tentativa.
+
+A exclusão de usuário é uma desativação lógica. O backend marca a conta como
+`INATIVO`, remove concessões e revoga sessões, mas mantém o registro necessário
+para a integridade das auditorias. A própria conta administrativa e o último
+administrador ativo não podem ser excluídos. A tela Angular correspondente fica
+em `/usuarios/cadastrados` e o servidor continua sendo a fronteira de
+autorização para todas as operações.
 
 ```mermaid
 sequenceDiagram

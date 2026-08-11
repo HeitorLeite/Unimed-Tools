@@ -15,6 +15,10 @@ A migração 002:
 - mantém todas as permissões do perfil `ADMINISTRADOR`;
 - faz usuários operacionais começarem sem acesso até uma concessão individual.
 
+A edição e a exclusão lógica de usuários não exigem outra migração. O esquema
+atual já possui `atualizado_por`, `desativado_por` e `desativado_em`; a aplicação
+usa esses campos para preservar a trilha de auditoria sem manter a conta ativa.
+
 Faça backup antes de aplicar uma migração em um ambiente com dados importantes.
 Depois da importação, reinicie o backend para que a versão nova do código passe
 a usar a tabela criada.

@@ -12,8 +12,7 @@ export const routes: Routes = [
   {
     path: 'login',
     canActivate: [guestGuard],
-    loadComponent: () =>
-      import('./pages/auth/login/login.component').then((m) => m.LoginComponent),
+    loadComponent: () => import('./pages/auth/login/login.component').then((m) => m.LoginComponent),
   },
   {
     path: 'alterar-senha',
@@ -91,6 +90,13 @@ export const routes: Routes = [
           import('./pages/users/user-registration/user-registration.component').then(
             (m) => m.UserRegistrationComponent,
           ),
+      },
+      {
+        path: 'usuarios/cadastrados',
+        canActivate: [adminGuard, permissionGuard],
+        data: { permission: 'USUARIOS_EDITAR' },
+        loadComponent: () =>
+          import('./pages/users/user-list/user-list.component').then((m) => m.UserListComponent),
       },
       {
         path: 'usuarios/permissoes',

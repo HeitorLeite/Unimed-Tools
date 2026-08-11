@@ -106,6 +106,70 @@ class UsuarioServiceTest {
     verify(repository).revogarSessoesDoUsuario(2, "SENHA_REDEFINIDA_ADMIN");
   }
 
+  @Test
+  void deveRemoverPermissoesERevogarSessoesAoAlterarPerfil() {
+    UsuarioRow operacional = usuario(2, "USUARIO", null);
+    UsuarioRow administrador = usuario(2, "ADMINISTRADOR", null);
+    when(repository.buscarUsuarioPorId(2))
+      .thenReturn(Optional.of(operacional), Optional.of(administrador));
+    when(repository.buscarPermissoes(2)).thenReturn(Set.of("APLICACAO_ACESSAR"));
+
+    UsuarioDtos.ResumoResponse atualizado = service.atualizar(
+      principalAdmin,
+      2,
+      new UsuarioDtos.AtualizacaoDadosRequest(
+        "Usuário Atualizado",
+        "USUARIO@EXEMPLO.COM",
+        "ADMINISTRADOR",
+        "123456"
+      ),
+      info
+    );
+
+    verify(repository).atualizarDadosUsuario(
+      2,
+      "Usuário Atualizado",
+      "usuario@exemplo.com",
+      "ADMINISTRADOR",
+      1
+    );
+    verify(repository).removerPermissoesUsuario(2);
+    verify(repository).revogarSessoesDoUsuario(2, "PERFIL_ALTERADO_ADMIN");
+    assertThat(atualizado.perfil()).isEqualTo("ADMINISTRADOR");
+  }
+
+  @Test
+  void deveDesativarUsuarioERevogarSessoesAoExcluir() {
+    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO", null)));
+
+    service.excluir(
+      principalAdmin,
+      2,
+      new UsuarioDtos.ExclusaoRequest("123456"),
+      info
+    );
+
+    verify(repository).removerPermissoesUsuario(2);
+    verify(repository).desativarUsuario(2, 1);
+    verify(repository).revogarSessoesDoUsuario(2, "USUARIO_EXCLUIDO_ADMIN");
+  }
+
+  @Test
+  void deveImpedirExclusaoDaPropriaConta() {
+    ApiException erro = assertThrows(
+      ApiException.class,
+      () -> service.excluir(
+        principalAdmin,
+        1,
+        new UsuarioDtos.ExclusaoRequest("123456"),
+        info
+      )
+    );
+
+    assertThat(erro.codigo()).isEqualTo("EXCLUSAO_PROPRIA");
+    verify(repository, never()).desativarUsuario(anyLong(), anyLong());
+  }
+
   private UsuarioRow usuario(long id, String perfil, String segredoMfa) {
     return new UsuarioRow(
       id,

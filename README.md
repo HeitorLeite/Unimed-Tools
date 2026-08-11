@@ -69,6 +69,7 @@ flowchart LR
 | Troca de senha             | `/alterar-senha`           |            Disponível | Frontend + Backend + MariaDB   |
 | Cadastro de usuário        | `/usuarios/novo`           |    Somente administrador | Frontend + Backend + MariaDB |
 | Gerenciamento de usuários  | `/usuarios`                |    Somente administrador | Frontend + Backend + MariaDB |
+| Usuários cadastrados       | `/usuarios/cadastrados`    |    Somente administrador | Frontend + Backend + MariaDB |
 | Permissões por usuário     | `/usuarios/permissoes`     |    Somente administrador | Frontend + Backend + MariaDB |
 | Reset administrativo       | `/usuarios/resetar-senha`  |    Somente administrador | Frontend + Backend + MariaDB |
 | Página inicial             | `/`                        |            Disponível | Frontend                       |
@@ -1331,6 +1332,8 @@ Nunca salve a chave no:
 | POST   | `/api/auth/logout`       | Sessão válida + CSRF           | Revoga a sessão atual                  |
 | POST   | `/api/usuarios`          | `USUARIOS_CRIAR` + step-up MFA | Cadastra conta com senha temporária    |
 | GET    | `/api/usuarios`          | `USUARIOS_VISUALIZAR` + administrador | Lista contas para gerenciamento |
+| PUT    | `/api/usuarios/{id}`     | `USUARIOS_EDITAR` + step-up MFA | Altera nome, e-mail ou tipo de acesso |
+| DELETE | `/api/usuarios/{id}`     | `USUARIOS_EDITAR` + step-up MFA | Desativa a conta e revoga suas sessões |
 | GET    | `/api/usuarios/permissoes-disponiveis` | `USUARIOS_VISUALIZAR` + administrador | Lista permissões operacionais concedíveis |
 | PUT    | `/api/usuarios/{id}/permissoes` | `USUARIOS_EDITAR` + step-up MFA | Substitui as permissões individuais |
 | POST   | `/api/usuarios/{id}/resetar-senha` | `USUARIOS_EDITAR` + step-up MFA | Define senha temporária e revoga sessões |
@@ -1557,7 +1560,20 @@ login/e-mail.
 Usuários operacionais são criados sem acesso a módulos. Um administrador define
 as permissões individuais em `/usuarios/permissoes`; permissões administrativas
 e acesso a dados sensíveis não são delegáveis por essa tela. Alterações de
-permissão e reset de senha exigem um novo código TOTP e geram auditoria.
+cadastro, tipo de acesso, permissão, exclusão e reset de senha exigem um novo
+código TOTP e geram auditoria. A tela `/usuarios/cadastrados` permite editar
+nome, e-mail e tipo de acesso. Uma mudança de perfil revoga as sessões atuais e
+remove permissões individuais; ao se tornar operacional, a conta volta ao
+estado sem acesso a módulos.
+
+Um código TOTP administrativo inválido ou já utilizado é apresentado como erro
+da operação e não encerra a sessão atual. O frontend redireciona para `/login`
+somente quando o backend responde com o código `NAO_AUTENTICADO`.
+
+A exclusão administrativa é lógica: a conta fica `INATIVO`, perde permissões e
+sessões e deixa de aparecer nas listas ativas. O registro mínimo permanece no
+banco para preservar relacionamentos e auditoria. Um administrador não pode
+excluir a própria conta nem remover o último administrador ativo.
 
 **Pendente:** não existe recuperação automática de conta ou de MFA. A perda do
 autenticador exige um procedimento administrativo aprovado, ainda não

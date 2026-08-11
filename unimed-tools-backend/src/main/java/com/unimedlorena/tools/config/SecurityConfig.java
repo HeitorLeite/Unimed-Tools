@@ -90,6 +90,8 @@ public class SecurityConfig {
         .requestMatchers(HttpMethod.GET, "/api/usuarios", "/api/usuarios/permissoes-disponiveis")
           .hasAuthority("USUARIOS_VISUALIZAR")
         .requestMatchers(HttpMethod.POST, "/api/usuarios").hasAuthority("USUARIOS_CRIAR")
+        .requestMatchers(HttpMethod.PUT, "/api/usuarios/*").hasAuthority("USUARIOS_EDITAR")
+        .requestMatchers(HttpMethod.DELETE, "/api/usuarios/*").hasAuthority("USUARIOS_EDITAR")
         .requestMatchers(HttpMethod.PUT, "/api/usuarios/*/permissoes")
           .hasAuthority("USUARIOS_EDITAR")
         .requestMatchers(HttpMethod.POST, "/api/usuarios/*/resetar-senha")

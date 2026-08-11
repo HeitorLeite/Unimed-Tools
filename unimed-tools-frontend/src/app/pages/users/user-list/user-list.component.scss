@@ -1,0 +1,338 @@
+:host {
+  display: block;
+}
+
+.users-card {
+  padding: 0;
+  overflow: hidden;
+}
+.users-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--surface-border);
+}
+.users-toolbar h2 {
+  margin: 3px 0 0;
+  font-size: 20px;
+  font-weight: 650;
+}
+.eyebrow {
+  color: var(--brand-green);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.eyebrow.danger {
+  color: #b42318;
+}
+.search-field {
+  width: min(340px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 650;
+}
+.search-field input {
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: #fafbf9;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.users-table-wrap {
+  overflow-x: auto;
+}
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.users-table th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--surface-border);
+  background: #f3f3ee;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.users-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--surface-border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  vertical-align: middle;
+}
+.users-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.users-table tbody tr:hover {
+  background: #fafbf9;
+}
+.users-table th:last-child,
+.users-table td:last-child {
+  text-align: right;
+}
+
+.user-cell {
+  min-width: 210px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.user-cell > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.user-cell strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-cell small {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--brand-green-soft);
+  color: var(--brand-green-dark);
+  font-weight: 750;
+}
+
+.profile-badge,
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #eef1ed;
+  color: #506158;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.profile-badge.admin {
+  background: var(--brand-green-soft);
+  color: var(--brand-green-dark);
+}
+.status-badge {
+  background: #eaf6ee;
+  color: #187044;
+}
+.status-badge.blocked {
+  background: #fff0ee;
+  color: #b42318;
+}
+.row-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.delete-button,
+.danger-action {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #efc5c0;
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: #b42318;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.delete-button:hover:not(:disabled),
+.danger-action:hover:not(:disabled) {
+  background: #fff0ee;
+}
+.delete-button:disabled,
+.danger-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.loading-state,
+.empty-state {
+  min-height: 210px;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  padding: 30px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+.empty-state strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.user-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(20, 43, 29, 0.62);
+  backdrop-filter: blur(2px);
+}
+.user-modal {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 24px 70px rgba(20, 43, 29, 0.24);
+}
+.user-modal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--surface-border);
+}
+.user-modal h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 650;
+}
+.user-modal > header > button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+}
+.modal-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 22px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field.full-field {
+  grid-column: 1 / -1;
+}
+.field label {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+.field input,
+.field select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: #fafbf9;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+.field input:disabled,
+.field select:disabled {
+  background: #eeefeb;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.field small {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.field small.field-error {
+  color: #b42318;
+}
+.user-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--surface-border);
+  background: #f3f3ee;
+}
+.danger-action {
+  min-height: 38px;
+  background: #b42318;
+  color: #fff;
+  border-color: #b42318;
+}
+.danger-action:hover:not(:disabled) {
+  background: #912018;
+}
+.delete-modal {
+  width: min(520px, 100%);
+}
+.delete-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+}
+.delete-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.delete-copy .field {
+  margin-top: 5px;
+}
+
+@media (max-width: 720px) {
+  .users-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .search-field {
+    width: 100%;
+  }
+  .modal-fields {
+    grid-template-columns: 1fr;
+  }
+  .field.full-field {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .user-modal footer {
+    flex-direction: column-reverse;
+  }
+  .user-modal footer > * {
+    width: 100%;
+  }
+}

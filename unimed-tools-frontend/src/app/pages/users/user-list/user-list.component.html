@@ -1,0 +1,241 @@
+<section class="tool-page user-list-page">
+  <header class="tool-page-header">
+    <div class="tool-header-copy">
+      <span class="badge">Administração de acesso</span>
+      <h1>Usuários cadastrados</h1>
+      <p>Consulte as contas ativas e altere as informações de identificação ou o tipo de acesso.</p>
+    </div>
+    <a class="btn btn-secondary" routerLink="/usuarios">Voltar ao gerenciamento</a>
+  </header>
+
+  <div class="form-message error" role="alert" *ngIf="error()">{{ error() }}</div>
+  <div class="form-message success" role="status" *ngIf="success()">{{ success() }}</div>
+
+  <section class="card users-card">
+    <div class="users-toolbar">
+      <div>
+        <span class="eyebrow">Contas disponíveis</span>
+        <h2>{{ users().length }} usuário(s)</h2>
+      </div>
+      <label class="search-field" for="userSearch">
+        <span>Buscar usuário</span>
+        <input
+          id="userSearch"
+          type="search"
+          [value]="search()"
+          (input)="search.set($any($event.target).value)"
+          placeholder="Nome, login, e-mail ou acesso"
+        />
+      </label>
+    </div>
+
+    <div class="loading-state" *ngIf="loading()">Carregando usuários…</div>
+
+    <div class="users-table-wrap" *ngIf="!loading() && filteredUsers().length">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Usuário</th>
+            <th>E-mail</th>
+            <th>Tipo de acesso</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let user of filteredUsers(); trackBy: trackByUserId">
+            <td>
+              <span class="user-cell">
+                <span class="user-avatar" aria-hidden="true">{{
+                  user.nome.charAt(0).toUpperCase()
+                }}</span>
+                <span
+                  ><strong>{{ user.nome }}</strong
+                  ><small>{{ user.login }}</small></span
+                >
+              </span>
+            </td>
+            <td>{{ user.email || 'Não informado' }}</td>
+            <td>
+              <span class="profile-badge" [class.admin]="user.perfil === 'ADMINISTRADOR'">{{
+                profileLabel(user.perfil)
+              }}</span>
+            </td>
+            <td>
+              <span class="status-badge" [class.blocked]="user.status === 'BLOQUEADO'">{{
+                statusLabel(user.status)
+              }}</span>
+            </td>
+            <td>
+              <span class="row-actions">
+                <button class="btn btn-secondary btn-sm" type="button" (click)="openEdit(user)">
+                  Editar
+                </button>
+                <button
+                  class="delete-button"
+                  type="button"
+                  [disabled]="user.id === currentUserId"
+                  [title]="
+                    user.id === currentUserId
+                      ? 'Sua própria conta não pode ser excluída'
+                      : 'Excluir usuário'
+                  "
+                  (click)="openDelete(user)"
+                >
+                  Excluir
+                </button>
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="empty-state" *ngIf="!loading() && !filteredUsers().length">
+      <strong>{{
+        users().length ? 'Nenhum resultado encontrado' : 'Nenhum usuário cadastrado'
+      }}</strong>
+      <span>{{
+        users().length
+          ? 'Tente buscar por outro nome, login ou e-mail.'
+          : 'Cadastre uma nova conta para começar.'
+      }}</span>
+    </div>
+  </section>
+</section>
+
+<div class="user-modal-backdrop" *ngIf="editingUser() as user" (click)="closeEdit()">
+  <section
+    class="user-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="editUserTitle"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <span class="eyebrow">Editar cadastro</span>
+        <h2 id="editUserTitle">{{ user.nome }}</h2>
+      </div>
+      <button type="button" aria-label="Fechar" (click)="closeEdit()">×</button>
+    </header>
+    <form [formGroup]="editForm" (ngSubmit)="saveEdit()" novalidate>
+      <div class="modal-fields">
+        <div class="field">
+          <label for="editUserName">Nome</label>
+          <input id="editUserName" type="text" maxlength="150" formControlName="nome" />
+          <small
+            class="field-error"
+            *ngIf="editForm.controls.nome.touched && editForm.controls.nome.invalid"
+            >Informe um nome entre 3 e 150 caracteres.</small
+          >
+        </div>
+        <div class="field">
+          <label for="editUserEmail">E-mail</label>
+          <input
+            id="editUserEmail"
+            type="email"
+            maxlength="254"
+            formControlName="email"
+            placeholder="nome@empresa.com.br"
+          />
+          <small
+            class="field-error"
+            *ngIf="editForm.controls.email.touched && editForm.controls.email.invalid"
+            >Informe um e-mail válido.</small
+          >
+        </div>
+        <div class="field">
+          <label for="editUserLogin">Login</label>
+          <input id="editUserLogin" type="text" [value]="user.login" disabled />
+          <small>O login não pode ser alterado.</small>
+        </div>
+        <div class="field">
+          <label for="editUserProfile">Tipo de acesso</label>
+          <select id="editUserProfile" formControlName="perfilCodigo">
+            <option value="USUARIO">Operacional</option>
+            <option value="ADMINISTRADOR">Administrador</option>
+          </select>
+          <small *ngIf="user.id === currentUserId"
+            >O tipo de acesso da sua própria conta não pode ser alterado.</small
+          >
+          <small *ngIf="user.id !== currentUserId"
+            >Ao alterar o tipo, as sessões e permissões individuais atuais serão encerradas.</small
+          >
+        </div>
+        <div class="field full-field">
+          <label for="editUserMfa">Código MFA do administrador</label>
+          <input
+            id="editUserMfa"
+            type="text"
+            inputmode="numeric"
+            maxlength="6"
+            autocomplete="one-time-code"
+            formControlName="codigoMfaAdministrador"
+            placeholder="000000"
+          />
+          <small
+            class="field-error"
+            *ngIf="
+              editForm.controls.codigoMfaAdministrador.touched &&
+              editForm.controls.codigoMfaAdministrador.invalid
+            "
+            >Informe os 6 dígitos de um código novo.</small
+          >
+        </div>
+      </div>
+      <footer>
+        <button class="btn btn-secondary" type="button" (click)="closeEdit()">Cancelar</button>
+        <button class="btn btn-primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>
+
+<div class="user-modal-backdrop" *ngIf="deletingUser() as user" (click)="closeDelete()">
+  <section
+    class="user-modal delete-modal"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="deleteUserTitle"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <span class="eyebrow danger">Excluir usuário</span>
+        <h2 id="deleteUserTitle">{{ user.nome }}</h2>
+      </div>
+      <button type="button" aria-label="Fechar" (click)="closeDelete()">×</button>
+    </header>
+    <div class="delete-copy">
+      <p>
+        A conta <strong>{{ user.login }}</strong> perderá o acesso imediatamente e todas as sessões
+        abertas serão encerradas.
+      </p>
+      <p>O registro mínimo será preservado somente para manter a trilha de auditoria.</p>
+      <div class="field">
+        <label for="deleteUserMfa">Código MFA do administrador</label>
+        <input
+          id="deleteUserMfa"
+          type="text"
+          inputmode="numeric"
+          maxlength="6"
+          autocomplete="one-time-code"
+          [formControl]="deleteMfa"
+          placeholder="000000"
+        />
+        <small class="field-error" *ngIf="deleteMfa.touched && deleteMfa.invalid"
+          >Informe os 6 dígitos de um código novo.</small
+        >
+      </div>
+    </div>
+    <footer>
+      <button class="btn btn-secondary" type="button" (click)="closeDelete()">Cancelar</button>
+      <button class="danger-action" type="button" [disabled]="deleting()" (click)="confirmDelete()">
+        {{ deleting() ? 'Excluindo…' : 'Excluir usuário' }}
+      </button>
+    </footer>
+  </section>
+</div>

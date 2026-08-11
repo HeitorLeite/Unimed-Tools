@@ -26,6 +26,13 @@ class DtoSanitizationTest {
       Set.of("XML_ACESSAR"),
       "123456"
     ).toString();
+    String atualizacao = new UsuarioDtos.AtualizacaoDadosRequest(
+      "Pessoa Atualizada",
+      "atualizada@example.invalid",
+      "ADMINISTRADOR",
+      "234567"
+    ).toString();
+    String exclusao = new UsuarioDtos.ExclusaoRequest("345678").toString();
     String redefinicao = new UsuarioDtos.RedefinicaoSenhaRequest(
       "SenhaTemporaria!456",
       "123456"
@@ -42,6 +49,12 @@ class DtoSanitizationTest {
       "654321"
     );
     assertThat(permissoes).doesNotContain("XML_ACESSAR", "123456");
+    assertThat(atualizacao).doesNotContain(
+      "Pessoa Atualizada",
+      "atualizada@example.invalid",
+      "234567"
+    );
+    assertThat(exclusao).doesNotContain("345678");
     assertThat(redefinicao).doesNotContain("SenhaTemporaria!456", "123456");
   }
 

@@ -4,6 +4,10 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthStateService } from './auth-state.service';
 
+export function isUnauthenticatedError(error: HttpErrorResponse): boolean {
+  return error.status === 401 && error.error?.codigo === 'NAO_AUTENTICADO';
+}
+
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const router = inject(Router);
   const state = inject(AuthStateService);
@@ -17,7 +21,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
         request.url.endsWith('/auth/csrf') ||
         request.url.endsWith('/auth/me');
 
-      if (error.status === 401 && !publicAuthCall) {
+      if (isUnauthenticatedError(error) && !publicAuthCall) {
         state.clear();
         const returnUrl = router.url.startsWith('/login') ? '/' : router.url;
         void router.navigate(['/login'], { queryParams: { returnUrl } });

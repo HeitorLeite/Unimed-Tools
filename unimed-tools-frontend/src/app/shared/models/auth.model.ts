@@ -41,6 +41,13 @@ export interface ManagedUser extends CreatedUser {
   permissoes: string[];
 }
 
+export interface UpdateUserRequest {
+  nome: string;
+  email: string | null;
+  perfilCodigo: 'ADMINISTRADOR' | 'USUARIO';
+  codigoMfaAdministrador: string;
+}
+
 export interface AvailablePermission {
   codigo: string;
   modulo: string;

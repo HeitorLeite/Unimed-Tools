@@ -1,5 +1,5 @@
 :host { display: block; }
-.management-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.management-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .management-card { min-height: 260px; display: flex; flex-direction: column; gap: 22px; padding: 25px; border: 1px solid var(--surface-border); border-radius: var(--radius-xl); background: var(--surface); color: var(--text-primary); text-decoration: none; box-shadow: var(--shadow-sm); transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease; }
 .management-card:hover { border-color: #9eb9a7; box-shadow: var(--shadow-md); transform: translateY(-2px); }
 .management-number { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--brand-green-dark); color: #fff; font-size: 10px; font-weight: 700; }

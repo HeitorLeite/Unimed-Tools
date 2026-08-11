@@ -107,6 +107,103 @@ public class UsuarioService {
   }
 
   @Transactional(noRollbackFor = ApiException.class)
+  public UsuarioDtos.ResumoResponse atualizar(
+    UsuarioPrincipal administrador,
+    long usuarioId,
+    UsuarioDtos.AtualizacaoDadosRequest request,
+    AuthService.RequestInfo info
+  ) {
+    UsuarioRow admin = validarAdministrador(administrador);
+    UsuarioRow alvo = buscarAlvo(usuarioId);
+    String nome = normalizarNome(request.nome());
+    String email = normalizarEmail(request.email());
+    String novoPerfil = request.perfilCodigo();
+    boolean perfilAlterado = !alvo.perfil().equals(novoPerfil);
+
+    if (nome.length() < 3) {
+      throw new ApiException(
+        HttpStatus.BAD_REQUEST,
+        "NOME_INVALIDO",
+        "Informe um nome com pelo menos 3 caracteres."
+      );
+    }
+    if (alvo.id() == admin.id() && perfilAlterado) {
+      throw new ApiException(
+        HttpStatus.BAD_REQUEST,
+        "PERFIL_PROPRIO",
+        "Não é permitido alterar o tipo de acesso da própria conta."
+      );
+    }
+    if (repository.existeEmailOutroUsuario(email, alvo.id())) {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        "EMAIL_DUPLICADO",
+        "Já existe uma conta com esse e-mail."
+      );
+    }
+    if (perfilAlterado && "ADMINISTRADOR".equals(alvo.perfil())) {
+      validarAdministradorRemanescente(alvo);
+    }
+    validarStepUp(admin, request.codigoMfaAdministrador(), "USUARIO_ATUALIZAR", alvo.id(), info);
+
+    repository.atualizarDadosUsuario(alvo.id(), nome, email, novoPerfil, admin.id());
+    if (perfilAlterado) {
+      // A conta operacional volta ao estado negado por padrão e a sessão antiga
+      // não pode conservar no frontend um tipo de acesso que acabou de mudar.
+      repository.removerPermissoesUsuario(alvo.id());
+      repository.revogarSessoesDoUsuario(alvo.id(), "PERFIL_ALTERADO_ADMIN");
+    }
+    auditoria.registrar(
+      admin.id(),
+      alvo.id(),
+      "USUARIO_ATUALIZAR",
+      "SUCESSO",
+      info.ip(),
+      info.userAgent(),
+      Map.of(
+        "perfil_anterior", alvo.perfil(),
+        "perfil_atual", novoPerfil,
+        "perfil_alterado", perfilAlterado
+      )
+    );
+    return toResumo(repository.buscarUsuarioPorId(alvo.id()).orElseThrow());
+  }
+
+  @Transactional(noRollbackFor = ApiException.class)
+  public UsuarioDtos.OperacaoResponse excluir(
+    UsuarioPrincipal administrador,
+    long usuarioId,
+    UsuarioDtos.ExclusaoRequest request,
+    AuthService.RequestInfo info
+  ) {
+    UsuarioRow admin = validarAdministrador(administrador);
+    UsuarioRow alvo = buscarAlvo(usuarioId);
+    if (alvo.id() == admin.id()) {
+      throw new ApiException(
+        HttpStatus.BAD_REQUEST,
+        "EXCLUSAO_PROPRIA",
+        "Não é permitido excluir a própria conta."
+      );
+    }
+    if ("ADMINISTRADOR".equals(alvo.perfil())) validarAdministradorRemanescente(alvo);
+    validarStepUp(admin, request.codigoMfaAdministrador(), "USUARIO_EXCLUIR", alvo.id(), info);
+
+    repository.removerPermissoesUsuario(alvo.id());
+    repository.desativarUsuario(alvo.id(), admin.id());
+    repository.revogarSessoesDoUsuario(alvo.id(), "USUARIO_EXCLUIDO_ADMIN");
+    auditoria.registrar(
+      admin.id(),
+      alvo.id(),
+      "USUARIO_EXCLUIR",
+      "SUCESSO",
+      info.ip(),
+      info.userAgent(),
+      Map.of("perfil", alvo.perfil(), "sessoes_revogadas", true)
+    );
+    return new UsuarioDtos.OperacaoResponse("Usuário excluído com sucesso.");
+  }
+
+  @Transactional(noRollbackFor = ApiException.class)
   public UsuarioDtos.OperacaoResponse atualizarPermissoes(
     UsuarioPrincipal administrador,
     long usuarioId,
@@ -211,9 +308,24 @@ public class UsuarioService {
   }
 
   private UsuarioRow buscarAlvo(long usuarioId) {
-    return repository.buscarUsuarioPorId(usuarioId).orElseThrow(() ->
+    UsuarioRow alvo = repository.buscarUsuarioPorId(usuarioId).orElseThrow(() ->
       new ApiException(HttpStatus.NOT_FOUND, "USUARIO_NAO_ENCONTRADO", "Usuário não encontrado.")
     );
+    if ("INATIVO".equals(alvo.status())) {
+      throw new ApiException(HttpStatus.NOT_FOUND, "USUARIO_NAO_ENCONTRADO", "Usuário não encontrado.");
+    }
+    return alvo;
+  }
+
+  private void validarAdministradorRemanescente(UsuarioRow alvo) {
+    List<Long> administradoresAtivos = repository.bloquearAdministradoresAtivos();
+    if (administradoresAtivos.contains(alvo.id()) && administradoresAtivos.size() <= 1) {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        "ULTIMO_ADMINISTRADOR",
+        "A aplicação precisa manter pelo menos um administrador ativo."
+      );
+    }
   }
 
   private void validarStepUp(
@@ -248,5 +360,26 @@ public class UsuarioService {
 
   private UsuarioDtos.PermissaoResponse toResponse(PermissaoRow permissao) {
     return new UsuarioDtos.PermissaoResponse(permissao.codigo(), permissao.modulo(), permissao.descricao());
+  }
+
+  private UsuarioDtos.ResumoResponse toResumo(UsuarioRow usuario) {
+    return new UsuarioDtos.ResumoResponse(
+      usuario.id(),
+      usuario.nome(),
+      usuario.login(),
+      usuario.email(),
+      usuario.perfil(),
+      usuario.status(),
+      usuario.deveTrocarSenha(),
+      Set.copyOf(repository.buscarPermissoes(usuario.id()))
+    );
+  }
+
+  private String normalizarNome(String nome) {
+    return nome.trim().replaceAll("\\s+", " ");
+  }
+
+  private String normalizarEmail(String email) {
+    return email == null || email.isBlank() ? null : email.trim().toLowerCase(Locale.ROOT);
   }
 }

@@ -105,6 +105,7 @@ public class AuthRepository {
       SELECT u.*, p.codigo perfil_codigo, p.ativo perfil_ativo
       FROM usuario u
       INNER JOIN perfil_acesso p ON p.id = u.perfil_id
+      WHERE u.status <> 'INATIVO'
       ORDER BY u.nome, u.login
       """,
       (rs, rowNum) -> new UsuarioRow(
@@ -188,6 +189,17 @@ public class AuthRepository {
     return total != null && total > 0;
   }
 
+  public boolean existeEmailOutroUsuario(String email, long usuarioId) {
+    if (email == null) return false;
+    Integer total = jdbc.queryForObject(
+      "SELECT COUNT(*) FROM usuario WHERE email = ? AND id <> ?",
+      Integer.class,
+      email,
+      usuarioId
+    );
+    return total != null && total > 0;
+  }
+
   public long buscarPerfilId(String codigo) {
     List<Long> ids = jdbc.queryForList(
       "SELECT id FROM perfil_acesso WHERE codigo = ? AND ativo = TRUE",
@@ -234,6 +246,55 @@ public class AuthRepository {
     Number id = chave.getKey();
     if (id == null) throw new IllegalStateException("O banco não retornou o identificador do usuário.");
     return id.longValue();
+  }
+
+  public void atualizarDadosUsuario(
+    long usuarioId,
+    String nome,
+    String email,
+    String perfilCodigo,
+    long atualizadoPor
+  ) {
+    jdbc.update(
+      "UPDATE usuario SET nome = ?, email = ?, perfil_id = ?, atualizado_por = ? WHERE id = ?",
+      nome,
+      email,
+      buscarPerfilId(perfilCodigo),
+      atualizadoPor,
+      usuarioId
+    );
+  }
+
+  public void removerPermissoesUsuario(long usuarioId) {
+    jdbc.update("DELETE FROM usuario_permissao WHERE usuario_id = ?", usuarioId);
+  }
+
+  public void desativarUsuario(long usuarioId, long desativadoPor) {
+    jdbc.update(
+      """
+      UPDATE usuario
+      SET status = 'INATIVO', desativado_por = ?, desativado_em = CURRENT_TIMESTAMP(6),
+          atualizado_por = ?, tentativas_login = 0, bloqueado_ate = NULL
+      WHERE id = ?
+      """,
+      desativadoPor,
+      desativadoPor,
+      usuarioId
+    );
+  }
+
+  public List<Long> bloquearAdministradoresAtivos() {
+    return jdbc.queryForList(
+      """
+      SELECT u.id
+      FROM usuario u
+      INNER JOIN perfil_acesso p ON p.id = u.perfil_id
+      WHERE p.codigo = 'ADMINISTRADOR' AND p.ativo = TRUE AND u.status = 'ATIVO'
+      ORDER BY u.id
+      FOR UPDATE
+      """,
+      Long.class
+    );
   }
 
   public void registrarFalhaLogin(long usuarioId, int tentativas, LocalDateTime bloqueadoAte) {

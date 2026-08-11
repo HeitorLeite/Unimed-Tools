@@ -75,6 +75,29 @@ public final class UsuarioDtos {
     }
   }
 
+  public record AtualizacaoDadosRequest(
+    @NotBlank @Size(min = 3, max = 150) String nome,
+    @Email @Size(max = 254) String email,
+    @NotBlank
+    @Pattern(regexp = "ADMINISTRADOR|USUARIO")
+    String perfilCodigo,
+    @NotBlank @Pattern(regexp = "\\d{6}") String codigoMfaAdministrador
+  ) {
+    @Override
+    public String toString() {
+      return "AtualizacaoDadosRequest[perfilCodigo=" + perfilCodigo + ", credenciais=<protegidas>]";
+    }
+  }
+
+  public record ExclusaoRequest(
+    @NotBlank @Pattern(regexp = "\\d{6}") String codigoMfaAdministrador
+  ) {
+    @Override
+    public String toString() {
+      return "ExclusaoRequest[credenciais=<protegidas>]";
+    }
+  }
+
   public record RedefinicaoSenhaRequest(
     @NotBlank @Size(min = 8, max = 128) String senhaTemporaria,
     @NotBlank @Pattern(regexp = "\\d{6}") String codigoMfaAdministrador

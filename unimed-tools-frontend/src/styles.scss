@@ -930,14 +930,14 @@ app-relatorios-automaticos .group-card {
   &.active {
     border-color: var(--brand-green-dark);
     background: var(--brand-green-dark);
-    color: #fff;
+    color: #000;
   }
 }
 
 app-relatorios .report-card.active .report-copy small,
 app-relatorios .template-card.active .template-copy small,
 app-relatorios-automaticos .group-card.active .group-card-copy small {
-  color: #bad0c1;
+  color: #78837b;
 }
 
 app-relatorios .workspace,

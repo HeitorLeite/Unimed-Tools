@@ -115,10 +115,7 @@
             <span class="step-number">1</span>
             <div>
               <h3>Empresas</h3>
-              <p *ngIf="filtroEmpresa; else nenhumFiltroEmpresa">
-                Informe um ou vários códigos pertencentes à empresa e o nome que será usado nos
-                arquivos.
-              </p>
+              <p *ngIf="filtroEmpresa; else nenhumFiltroEmpresa">Informe os códigos da empresas.</p>
               <ng-template #nenhumFiltroEmpresa>
                 <p>Nenhum relatório deste grupo utiliza filtro de empresa.</p>
               </ng-template>

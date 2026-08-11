@@ -1019,10 +1019,16 @@ app-relatorios-automaticos .execution-card {
 }
 
 app-relatorios-automaticos .execution-card > .section-heading {
-  align-content: start;
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: flex-start;
   padding: 22px;
   border-right: 1px solid var(--surface-border);
   background: #ecebe4;
+}
+
+app-relatorios-automaticos .execution-card > .section-heading > .btn {
+  width: 100%;
 }
 
 app-relatorios-automaticos .execution-card > :not(.section-heading) {

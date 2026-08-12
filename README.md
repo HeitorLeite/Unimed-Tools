@@ -1048,7 +1048,7 @@ Instale:
 ### 1. Clonar o projeto
 
 ```bash
-git clone https://github.com/HeitorLeite/corretor-de-arquivos.git
+git clone https://github.com/HeitorLeite/Unimed-Tools.git
 cd corretor-de-arquivos
 ```
 
@@ -1846,7 +1846,8 @@ no backend.
 
 ### Recomendações para futuras melhorias
 
-- implementar autenticação e autorização;
+- implementar recuperação administrativa de conta e de MFA com procedimento aprovado;
+- adicionar revisão periódica de acessos e auditoria específica das mutações de APIs no SGU;
 - concluir o backend de Fechamento;
 - implementar suporte real a CSV no módulo de BI;
 - persistir o catálogo de relatórios no servidor;

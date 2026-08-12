@@ -272,7 +272,9 @@ com certificado aprovado, sem desativar a validação TLS.
 - O módulo BI usa `XSSFWorkbook`; seleção de CSV na interface não comprova suporte funcional a CSV.
 - O SGU/Kong pode bloquear o ambiente hospedado com HTTP 403 por regras externas de rede.
 - A API personalizada é compartilhada e o lock coordena apenas threads da mesma JVM; múltiplas réplicas exigem coordenação distribuída.
-- O indicador de coluna sensível orienta a interface, mas não substitui autorização, pois a aplicação ainda não possui login próprio.
+- O indicador de coluna sensível orienta a interface, mas não substitui a
+  autorização já aplicada pelo backend; as exportações continuam exigindo a
+  permissão do módulo e podem conter os valores originais autorizados.
 - Uploads grandes são limitados a 100 MB e exigem atenção ao consumo de memória.
 - Serviços XML em TypeScript e Java não devem ser fundidos ou removidos incidentalmente.
 - Recuperação de senha e recuperação de MFA ainda não possuem fluxo próprio;

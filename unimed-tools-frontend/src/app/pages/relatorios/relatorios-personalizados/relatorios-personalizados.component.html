@@ -62,7 +62,10 @@
               (click)="alternarSecao('filtros')"
             >
               <span>{{ secaoRecolhida('filtros') ? 'Expandir' : 'Recolher' }}</span>
-              <span class="collapse-icon" [class.collapsed]="secaoRecolhida('filtros')" aria-hidden="true"
+              <span
+                class="collapse-icon"
+                [class.collapsed]="secaoRecolhida('filtros')"
+                aria-hidden="true"
                 >⌃</span
               >
             </button>
@@ -130,7 +133,10 @@
               (click)="alternarSecao('colunas')"
             >
               <span>{{ secaoRecolhida('colunas') ? 'Expandir' : 'Recolher' }}</span>
-              <span class="collapse-icon" [class.collapsed]="secaoRecolhida('colunas')" aria-hidden="true"
+              <span
+                class="collapse-icon"
+                [class.collapsed]="secaoRecolhida('colunas')"
+                aria-hidden="true"
                 >⌃</span
               >
             </button>
@@ -140,11 +146,7 @@
           <p class="panel-help">A ordem marcada será preservada na prévia e na exportação.</p>
 
           <label class="distinct-option" [class.active]="somenteDistintos">
-            <input
-              type="checkbox"
-              [checked]="somenteDistintos"
-              (change)="alternarDistinct()"
-            />
+            <input type="checkbox" [checked]="somenteDistintos" (change)="alternarDistinct()" />
             <span>
               <strong>Remover linhas duplicadas</strong>
               <small>
@@ -154,6 +156,46 @@
             </span>
             <code>SELECT DISTINCT</code>
           </label>
+
+          <section class="selected-column-order" *ngIf="ordemColunasSelecionadas.length">
+            <div class="selected-column-order-heading">
+              <div>
+                <span>Ordem de saída</span>
+                <strong>Organize as colunas selecionadas</strong>
+              </div>
+              <small>Prévia e arquivo seguem esta sequência</small>
+            </div>
+            <ol>
+              <li
+                *ngFor="
+                  let id of ordemColunasSelecionadas;
+                  index as indice;
+                  trackBy: trackByColunaId
+                "
+              >
+                <span class="column-position">{{ indice + 1 }}</span>
+                <strong>{{ rotuloColuna(id) }}</strong>
+                <div class="column-order-actions">
+                  <button
+                    type="button"
+                    [disabled]="indice === 0"
+                    [attr.aria-label]="'Mover ' + rotuloColuna(id) + ' para cima'"
+                    (click)="moverColuna(id, -1)"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    [disabled]="indice === ordemColunasSelecionadas.length - 1"
+                    [attr.aria-label]="'Mover ' + rotuloColuna(id) + ' para baixo'"
+                    (click)="moverColuna(id, 1)"
+                  >
+                    ↓
+                  </button>
+                </div>
+              </li>
+            </ol>
+          </section>
 
           <div class="column-groups">
             <div class="column-group" *ngFor="let grupo of gruposColunas; trackBy: trackByGrupo">
@@ -195,34 +237,34 @@
         </div>
         <div class="result-toolbar-actions">
           <div class="export-controls" [hidden]="secaoRecolhida('resultado')">
-          <label>
-            <span>Nome do arquivo</span>
-            <input type="text" [(ngModel)]="nomeArquivo" maxlength="100" />
-          </label>
-          <label>
-            <span>Formato</span>
-            <select [(ngModel)]="formatoSelecionado">
-              <option value="xlsx">XLSX</option>
-              <option value="csv">CSV</option>
-              <option value="txt">TXT</option>
-            </select>
-          </label>
-          <button
-            class="secondary-button"
-            type="button"
-            [disabled]="exportando || gerando"
-            (click)="exportar()"
-          >
-            {{ exportando ? 'Exportando…' : 'Exportar arquivo' }}
-          </button>
-          <button
-            class="primary-button"
-            type="button"
-            [disabled]="gerando || exportando"
-            (click)="gerar(1)"
-          >
-            {{ gerando ? 'Consultando…' : 'Gerar prévia' }}
-          </button>
+            <label>
+              <span>Nome do arquivo</span>
+              <input type="text" [(ngModel)]="nomeArquivo" maxlength="100" />
+            </label>
+            <label>
+              <span>Formato</span>
+              <select [(ngModel)]="formatoSelecionado">
+                <option value="xlsx">XLSX</option>
+                <option value="csv">CSV</option>
+                <option value="txt">TXT</option>
+              </select>
+            </label>
+            <button
+              class="secondary-button"
+              type="button"
+              [disabled]="exportando || gerando"
+              (click)="exportar()"
+            >
+              {{ exportando ? 'Exportando…' : 'Exportar arquivo' }}
+            </button>
+            <button
+              class="primary-button"
+              type="button"
+              [disabled]="gerando || exportando"
+              (click)="gerar(1)"
+            >
+              {{ gerando ? 'Consultando…' : 'Gerar prévia' }}
+            </button>
           </div>
           <button
             type="button"
@@ -232,7 +274,10 @@
             (click)="alternarSecao('resultado')"
           >
             <span>{{ secaoRecolhida('resultado') ? 'Expandir' : 'Recolher' }}</span>
-            <span class="collapse-icon" [class.collapsed]="secaoRecolhida('resultado')" aria-hidden="true"
+            <span
+              class="collapse-icon"
+              [class.collapsed]="secaoRecolhida('resultado')"
+              aria-hidden="true"
               >⌃</span
             >
           </button>
@@ -256,7 +301,9 @@
         <div class="empty-result" *ngIf="!registros.length && !gerando">
           <span aria-hidden="true">⌁</span>
           <strong>A prévia aparecerá aqui</strong>
-          <p>Revise filtros e colunas antes de executar. Nenhum dado é carregado automaticamente.</p>
+          <p>
+            Revise filtros e colunas antes de executar. Nenhum dado é carregado automaticamente.
+          </p>
         </div>
 
         <div class="preview-summary" *ngIf="registros.length">
@@ -266,7 +313,7 @@
           </div>
           <div>
             <span>Total encontrado</span>
-            <strong>{{ totalRegistros === null ? 'Calculando…' : totalRegistros }}</strong>
+            <strong>{{ totalRegistros === null ? 'Não informado' : totalRegistros }}</strong>
           </div>
           <div>
             <span>Colunas exibidas</span>
@@ -296,9 +343,14 @@
                 <td class="row-number">{{ indiceLinha(indice) }}</td>
                 <td
                   *ngFor="let coluna of colunasResultado"
-                  [title]="valorCelula(registro[coluna])"
+                  [class.preview-sensitive-cell]="colunaProtegida(coluna)"
+                  [attr.title]="
+                    colunaProtegida(coluna)
+                      ? 'Informação protegida somente na prévia'
+                      : valorCelula(coluna, registro[coluna])
+                  "
                 >
-                  <span>{{ valorCelula(registro[coluna]) }}</span>
+                  <span>{{ valorCelula(coluna, registro[coluna]) }}</span>
                 </td>
               </tr>
             </tbody>

@@ -62,21 +62,39 @@ describe('RelatoriosPersonalizadosComponent', () => {
 
     expect(component.gerando).toBe(true);
     expect(relatorioService.executarPersonalizado).toHaveBeenCalledWith(
-      expect.objectContaining({ distinct: true }),
+      expect.objectContaining({ colunas: ['COD_BENEFICIARIO'], distinct: true }),
     );
     expect(cdr.detectChanges).toHaveBeenCalledTimes(1);
 
     resposta$.next({
       content: [{ COD_BENEFICIARIO: '000.0000.000000.00' }],
       colunas: ['COD_BENEFICIARIO'],
-      last: true,
+      numberOfElements: 148,
+      last: false,
     });
     resposta$.complete();
 
     expect(component.gerando).toBe(false);
     expect(component.registros).toHaveLength(1);
     expect(component.colunasResultado).toEqual(['COD_BENEFICIARIO']);
-    expect(component.totalRegistros).toBe(1);
+    expect(component.totalRegistros).toBe(148);
+    expect(component.totalPaginas).toBe(3);
+    expect(component.ultimaPagina).toBe(false);
     expect(cdr.detectChanges).toHaveBeenCalledTimes(2);
+  });
+
+  it('altera explicitamente a ordem das colunas selecionadas', () => {
+    const component = new RelatoriosPersonalizadosComponent(
+      {} as RelatorioService,
+      { detectChanges: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.colunasSelecionadas = new Set(['CPF', 'NOME_BENEFICIARIO', 'NUMERO_GUIA']);
+    component.ordemColunasSelecionadas = ['CPF', 'NOME_BENEFICIARIO', 'NUMERO_GUIA'];
+
+    component.moverColuna('NUMERO_GUIA', -1);
+    component.moverColuna('NUMERO_GUIA', -1);
+
+    expect(component.ordemColunasSelecionadas).toEqual(['NUMERO_GUIA', 'CPF', 'NOME_BENEFICIARIO']);
+    expect(component.colunasResultado).toEqual(component.ordemColunasSelecionadas);
   });
 });

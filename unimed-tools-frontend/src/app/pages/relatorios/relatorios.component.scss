@@ -297,6 +297,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.preview-sensitive-cell span {
+  display: inline-block;
+  color: var(--text-secondary);
+  filter: blur(2px);
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  user-select: none;
+}
 .pagination {
   display: flex;
   align-items: center;

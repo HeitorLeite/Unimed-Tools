@@ -24,6 +24,10 @@ import {
   SguResultado,
 } from '../../../shared/models/relatorio.model';
 import { RelatorioService } from '../../../shared/services/relatorio.service';
+import {
+  formatReportPreviewValue,
+  isProtectedBeneficiaryColumn,
+} from '../../../shared/utils/report-preview.utils';
 
 interface Grupo<T> {
   nome: string;
@@ -47,6 +51,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
   gruposColunas: Grupo<RelatorioPersonalizadoColuna>[] = [];
   valoresFiltro: Record<string, string> = {};
   colunasSelecionadas = new Set<string>();
+  ordemColunasSelecionadas: string[] = [];
 
   registros: Record<string, unknown>[] = [];
   colunasResultado: string[] = [];
@@ -152,12 +157,11 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
 
           const totalCabecalho = resposta.headers.get('X-Total-Registros');
           const totalConvertido = totalCabecalho === null ? Number.NaN : Number(totalCabecalho);
-          this.totalRegistrosExportados = Number.isFinite(totalConvertido)
-            ? totalConvertido
-            : null;
-          this.sucesso = this.totalRegistrosExportados !== null
-            ? `Arquivo gerado com ${this.totalRegistrosExportados} linha(s).`
-            : 'Arquivo gerado com as colunas selecionadas.';
+          this.totalRegistrosExportados = Number.isFinite(totalConvertido) ? totalConvertido : null;
+          this.sucesso =
+            this.totalRegistrosExportados !== null
+              ? `Arquivo gerado com ${this.totalRegistrosExportados} linha(s).`
+              : 'Arquivo gerado com as colunas selecionadas.';
         },
         error: (erro) => (this.erro = this.mensagemErro(erro)),
       });
@@ -166,10 +170,14 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
   alternarColuna(coluna: RelatorioPersonalizadoColuna): void {
     if (this.colunasSelecionadas.has(coluna.id)) {
       this.colunasSelecionadas.delete(coluna.id);
+      this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
+        (id) => id !== coluna.id,
+      );
     } else if (this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)) {
       this.colunasSelecionadas.add(coluna.id);
+      this.ordemColunasSelecionadas.push(coluna.id);
     }
-    this.colunasResultado = [...this.colunasSelecionadas];
+    this.colunasResultado = [...this.ordemColunasSelecionadas];
     this.limparPrevia();
   }
 
@@ -177,14 +185,37 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     const todosSelecionados = grupo.itens.every((item) => this.colunasSelecionadas.has(item.id));
     if (todosSelecionados) {
       grupo.itens.forEach((item) => this.colunasSelecionadas.delete(item.id));
+      const idsGrupo = new Set(grupo.itens.map((item) => item.id));
+      this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
+        (id) => !idsGrupo.has(id),
+      );
     } else {
       grupo.itens.forEach((item) => {
-        if (this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)) {
+        if (
+          !this.colunasSelecionadas.has(item.id) &&
+          this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)
+        ) {
           this.colunasSelecionadas.add(item.id);
+          this.ordemColunasSelecionadas.push(item.id);
         }
       });
     }
-    this.colunasResultado = [...this.colunasSelecionadas];
+    this.colunasResultado = [...this.ordemColunasSelecionadas];
+    this.limparPrevia();
+  }
+
+  moverColuna(id: string, deslocamento: -1 | 1): void {
+    this.sincronizarOrdemColunas();
+    const indiceAtual = this.ordemColunasSelecionadas.indexOf(id);
+    const novoIndice = indiceAtual + deslocamento;
+    if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length) {
+      return;
+    }
+
+    const ordem = [...this.ordemColunasSelecionadas];
+    [ordem[indiceAtual], ordem[novoIndice]] = [ordem[novoIndice], ordem[indiceAtual]];
+    this.ordemColunasSelecionadas = ordem;
+    this.colunasResultado = [...ordem];
     this.limparPrevia();
   }
 
@@ -243,10 +274,12 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     return this.configuracao?.colunas.find((coluna) => coluna.id === id)?.rotulo ?? id;
   }
 
-  valorCelula(valor: unknown): string {
-    if (valor === null || valor === undefined || valor === '') return '—';
-    if (typeof valor === 'object') return JSON.stringify(valor);
-    return String(valor);
+  valorCelula(coluna: string, valor: unknown): string {
+    return formatReportPreviewValue(coluna, valor);
+  }
+
+  colunaProtegida(coluna: string): boolean {
+    return isProtectedBeneficiaryColumn(coluna);
   }
 
   indiceLinha(indice: number): number {
@@ -275,8 +308,14 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     return grupo.nome;
   }
 
+  trackByColunaId(_: number, id: string): string {
+    return id;
+  }
+
   private prepararConfiguracao(configuracao: RelatorioPersonalizadoConfiguracao): void {
     this.configuracao = configuracao;
+    this.colunasSelecionadas.clear();
+    this.ordemColunasSelecionadas = [];
     this.gruposFiltros = this.agrupar(configuracao.filtros);
     this.gruposColunas = this.agrupar(configuracao.colunas);
     this.valoresFiltro = Object.fromEntries(configuracao.filtros.map((filtro) => [filtro.id, '']));
@@ -286,8 +325,11 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     this.valoresFiltro['competencia_fim'] = competenciaAtual;
     configuracao.colunas
       .filter((coluna) => coluna.selecionadaPorPadrao)
-      .forEach((coluna) => this.colunasSelecionadas.add(coluna.id));
-    this.colunasResultado = [...this.colunasSelecionadas];
+      .forEach((coluna) => {
+        this.colunasSelecionadas.add(coluna.id);
+        this.ordemColunasSelecionadas.push(coluna.id);
+      });
+    this.colunasResultado = [...this.ordemColunasSelecionadas];
   }
 
   private montarRequest(pagina: number): RelatorioPersonalizadoRequest | null {
@@ -309,8 +351,9 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
         .map(([id, valor]) => [id, id.startsWith('competencia_') ? valor.replace('-', '') : valor]),
     );
 
+    this.sincronizarOrdemColunas();
     return {
-      colunas: [...this.colunasSelecionadas],
+      colunas: [...this.ordemColunasSelecionadas],
       filtros,
       distinct: this.somenteDistintos,
       pagina,
@@ -320,22 +363,33 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
   }
 
   private aplicarResultado(resposta: SguResultado, paginaSolicitada: number): void {
-    this.registros = Array.isArray(resposta?.content) ? resposta.content : [];
-    const colunasResposta = Array.isArray(resposta?.['colunas'])
-      ? (resposta['colunas'] as string[])
-      : [...this.colunasSelecionadas];
+    const respostaGenerica = resposta as any;
+    const paginacao = respostaGenerica?.data ?? respostaGenerica;
+    this.registros = Array.isArray(respostaGenerica?.content)
+      ? respostaGenerica.content
+      : Array.isArray(paginacao?.content)
+        ? paginacao.content
+        : [];
+    const colunasResposta = Array.isArray(respostaGenerica?.colunas)
+      ? (respostaGenerica.colunas as string[])
+      : [...this.ordemColunasSelecionadas];
     this.colunasResultado = colunasResposta;
     this.pagina = paginaSolicitada;
-    this.ultimaPagina = resposta.last ?? this.registros.length < this.tamanhoPagina;
+    this.ultimaPagina =
+      typeof paginacao?.last === 'boolean'
+        ? paginacao.last
+        : this.registros.length < this.tamanhoPagina;
+    const totalBruto =
+      respostaGenerica?.totalElements ??
+      paginacao?.totalElements ??
+      respostaGenerica?.numberOfElements ??
+      paginacao?.numberOfElements ??
+      null;
     const totalInformado =
-      resposta.totalElements === null ||
-      resposta.totalElements === undefined ||
-      resposta.totalElements === ''
-        ? Number.NaN
-        : Number(resposta.totalElements);
+      totalBruto === null || totalBruto === '' ? Number.NaN : Number(totalBruto);
     this.totalRegistros = Number.isFinite(totalInformado)
       ? totalInformado
-      : resposta.last
+      : this.ultimaPagina
         ? (paginaSolicitada - 1) * this.tamanhoPagina + this.registros.length
         : null;
     this.sucesso = this.registros.length
@@ -350,6 +404,15 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     this.pagina = 1;
     this.ultimaPagina = false;
     this.sucesso = '';
+  }
+
+  private sincronizarOrdemColunas(): void {
+    const selecionadas = this.colunasSelecionadas;
+    const ordemValida = this.ordemColunasSelecionadas.filter((id) => selecionadas.has(id));
+    selecionadas.forEach((id) => {
+      if (!ordemValida.includes(id)) ordemValida.push(id);
+    });
+    this.ordemColunasSelecionadas = ordemValida;
   }
 
   private agrupar<T extends { grupo: string }>(itens: T[]): Grupo<T>[] {

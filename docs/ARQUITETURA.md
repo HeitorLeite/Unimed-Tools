@@ -112,6 +112,17 @@ A rota `/relatorios` agrega quatro componentes de tela:
 `localStorage`. O modo personalizado não persiste filtros digitados: eles ficam
 somente no estado da página atual.
 
+**Status: Atual.** `NotificationService` expõe o histórico estático de versões
+do frontend e persiste no `localStorage` apenas os identificadores já lidos. O
+painel fica no cabeçalho do `main-layout`; não armazena dados de autenticação nem
+depende do backend.
+
+**Status: Atual.** O utilitário compartilhado `report-preview.utils` reconhece
+aliases de Nome e CPF do beneficiário e devolve uma máscara para as tabelas de
+prévia Manual e Personalizada. Os registros originais permanecem no fluxo de
+exportação. O modo Automático não possui prévia tabular de registros e gera os
+arquivos diretamente.
+
 ## Backend
 
 Diretório: `unimed-tools-backend/`
@@ -193,8 +204,13 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
   e ordena pelas próprias colunas projetadas para preservar compatibilidade com
   o Oracle;
 - a resposta e a exportação contêm apenas as colunas solicitadas e validadas;
-- a prévia apresenta o total informado pelo SGU e a exportação devolve a
-  quantidade materializada no header CORS `X-Total-Registros`;
+- a ordem das colunas enviada pelo Angular é preservada pelo backend na prévia e
+  na exportação;
+- a prévia apresenta o total informado pelo SGU em `totalElements` ou
+  `numberOfElements`; quando nenhum total é recebido, a interface deixa a
+  indisponibilidade explícita em vez de manter um cálculo indefinido;
+- a exportação devolve a quantidade materializada no header CORS
+  `X-Total-Registros`;
 - o XLSX grava datas, números e textos em células tipadas; identificadores são
   preservados como texto, enquanto CSV e TXT recebem representação compatível
   com a importação no Excel sem alterar sua natureza textual;
@@ -211,6 +227,8 @@ Os endpoints específicos são:
 ## Estado e persistência
 
 - Catálogo, templates e grupos de relatórios permanecem no `localStorage`.
+- O estado de leitura das notificações também fica no `localStorage` e contém
+  somente identificadores públicos das versões.
 - As chaves são centralizadas e versionadas; qualquer mudança exige migração explícita.
 - Filtros do relatório personalizado não são persistidos; o catálogo autorizado vem do backend.
 - O cache da última definição personalizada publicada existe apenas na memória da instância Spring Boot.

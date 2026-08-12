@@ -108,6 +108,13 @@ Principais responsabilidades:
 - gerar downloads;
 - montar dinamicamente filtros e tabelas de relatórios;
 - armazenar o catálogo pessoal de relatórios no navegador.
+- exibir no topo o histórico de versões e manter localmente o estado de leitura
+  das notificações.
+
+**Atual:** o botão de notificações do cabeçalho lista as entregas da aplicação
+com versão, data e resumo. Cada nova entrega funcional deve acrescentar uma
+entrada ao histórico; abrir o painel marca as entradas atuais como lidas somente
+naquele navegador.
 
 Em desenvolvimento, o frontend usa um proxy:
 
@@ -487,6 +494,12 @@ A página oferece três modos:
 - **Automático:** execução e exportação em lote dos grupos salvos no navegador;
 - **Personalizado:** construtor guiado com filtros e colunas previamente autorizados pelo backend.
 
+**Atual:** nas prévias tabulares dos modos Manual e Personalizado, colunas que
+representam Nome ou CPF do beneficiário são substituídas visualmente por uma
+máscara. O modo Automático gera o lote diretamente e não apresenta prévia de
+registros. A proteção é exclusiva da interface: os arquivos CSV, TXT, XLSX e ZIP
+continuam recebendo os valores originais devolvidos pelo backend.
+
 No modo automático, a interface exibe uma evolução estimada enquanto o backend
 consulta os itens e monta o ZIP. Como a exportação é uma única resposta HTTP e o
 backend não envia eventos intermediários, o percentual fica limitado a 94% até a
@@ -507,16 +520,18 @@ A fonte atual é **Despesas por item de guia**. O catálogo controlado pelo
 backend contém 50 colunas e 23 filtros, organizados nos grupos Beneficiário,
 Contrato e empresa, Prestador, Guia, Procedimento, Valores e Período. As
 competências inicial e final são obrigatórias e o intervalo aceita no máximo 12
-meses. A prévia permite 25, 50 ou 100 linhas por página, mostra a quantidade
-total informada pelo SGU, possui cabeçalho fixo, numeração das linhas e modo
-ampliado; a exportação percorre todas as páginas e gera CSV, TXT ou XLSX apenas
-com as colunas selecionadas.
+meses. A prévia permite 25, 50 ou 100 linhas por página, aceita os metadados de
+contagem `totalElements` ou `numberOfElements` informados pelo SGU, possui
+cabeçalho fixo, numeração das linhas e modo ampliado; a exportação percorre todas
+as páginas e gera CSV, TXT ou XLSX apenas com as colunas selecionadas e na ordem
+definida pelo usuário.
 
 Fluxo atual:
 
 1. o frontend solicita ao backend os rótulos, tipos, grupos, limites e marcações
    de dados sensíveis;
-2. o usuário informa os filtros e escolhe ao menos uma coluna;
+2. o usuário informa os filtros, escolhe ao menos uma coluna e organiza a ordem
+   de saída;
 3. o backend valida a allowlist de campos, tipos, intervalos e paginação;
 4. o SQL é montado somente com expressões aprovadas no código;
 5. a definição é publicada na API reservada e executada no SGU;

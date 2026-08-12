@@ -16,6 +16,10 @@ import {
   SguResultado,
 } from '../../shared/models/relatorio.model';
 import { RelatorioService } from '../../shared/services/relatorio.service';
+import {
+  formatReportPreviewValue,
+  isProtectedBeneficiaryColumn,
+} from '../../shared/utils/report-preview.utils';
 import { RelatoriosAutomaticosComponent } from './relatorios-automaticos/relatorios-automaticos.component';
 import { RelatoriosInicioComponent } from './relatorios-inicio/relatorios-inicio.component';
 import { RelatoriosPersonalizadosComponent } from './relatorios-personalizados/relatorios-personalizados.component';
@@ -1202,10 +1206,12 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       .replace(/\b\w/g, (letra) => letra.toUpperCase());
   }
 
-  formatarValor(valor: unknown): string {
-    if (valor === null || valor === undefined) return '';
-    if (typeof valor === 'object') return JSON.stringify(valor);
-    return String(valor);
+  formatarValorPrevia(coluna: string, valor: unknown): string {
+    return formatReportPreviewValue(coluna, valor);
+  }
+
+  colunaProtegidaPrevia(coluna: string): boolean {
+    return isProtectedBeneficiaryColumn(coluna);
   }
 
   formatarDuracao(ms: number | null): string {

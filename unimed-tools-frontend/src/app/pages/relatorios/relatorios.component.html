@@ -422,9 +422,14 @@
                   <tr *ngFor="let registro of registros; trackBy: trackByRegistro">
                     <td
                       *ngFor="let coluna of colunas; trackBy: trackByColuna"
-                      [title]="formatarValor(registro[coluna])"
+                      [class.preview-sensitive-cell]="colunaProtegidaPrevia(coluna)"
+                      [attr.title]="
+                        colunaProtegidaPrevia(coluna)
+                          ? 'Informação protegida somente na prévia'
+                          : formatarValorPrevia(coluna, registro[coluna])
+                      "
                     >
-                      {{ formatarValor(registro[coluna]) }}
+                      <span>{{ formatarValorPrevia(coluna, registro[coluna]) }}</span>
                     </td>
                   </tr>
                 </tbody>

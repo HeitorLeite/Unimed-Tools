@@ -19,23 +19,18 @@ class DtoSanitizationTest {
       "pessoa.teste",
       "pessoa@example.invalid",
       "SenhaTemporaria!123",
-      "USUARIO",
-      "654321"
+      "USUARIO"
     ).toString();
     String permissoes = new UsuarioDtos.AtualizacaoPermissoesRequest(
-      Set.of("XML_ACESSAR"),
-      "123456"
+      Set.of("XML_ACESSAR")
     ).toString();
     String atualizacao = new UsuarioDtos.AtualizacaoDadosRequest(
       "Pessoa Atualizada",
       "atualizada@example.invalid",
-      "ADMINISTRADOR",
-      "234567"
+      "ADMINISTRADOR"
     ).toString();
-    String exclusao = new UsuarioDtos.ExclusaoRequest("345678").toString();
     String redefinicao = new UsuarioDtos.RedefinicaoSenhaRequest(
-      "SenhaTemporaria!456",
-      "123456"
+      "SenhaTemporaria!456"
     ).toString();
 
     assertThat(login).doesNotContain("pessoa.teste", "SenhaSecreta!123");
@@ -45,8 +40,7 @@ class DtoSanitizationTest {
       "Pessoa Teste",
       "pessoa.teste",
       "pessoa@example.invalid",
-      "SenhaTemporaria!123",
-      "654321"
+      "SenhaTemporaria!123"
     );
     assertThat(permissoes).doesNotContain("XML_ACESSAR", "123456");
     assertThat(atualizacao).doesNotContain(
@@ -54,8 +48,7 @@ class DtoSanitizationTest {
       "atualizada@example.invalid",
       "234567"
     );
-    assertThat(exclusao).doesNotContain("345678");
-    assertThat(redefinicao).doesNotContain("SenhaTemporaria!456", "123456");
+    assertThat(redefinicao).doesNotContain("SenhaTemporaria!456");
   }
 
   @Test

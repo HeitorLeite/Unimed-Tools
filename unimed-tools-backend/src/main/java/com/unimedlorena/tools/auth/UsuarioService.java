@@ -15,30 +15,24 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Gerencia contas e exige step-up TOTP nas alterações administrativas sensíveis. */
+/** Gerencia contas administrativas após autenticação forte no login. */
 @Service
 public class UsuarioService {
 
   private final AuthRepository repository;
   private final PasswordEncoder passwordEncoder;
   private final PoliticaSenhaService politicaSenha;
-  private final CriptografiaMfaService criptografiaMfa;
-  private final TotpService totpService;
   private final AuditoriaService auditoria;
 
   public UsuarioService(
     AuthRepository repository,
     PasswordEncoder passwordEncoder,
     PoliticaSenhaService politicaSenha,
-    CriptografiaMfaService criptografiaMfa,
-    TotpService totpService,
     AuditoriaService auditoria
   ) {
     this.repository = repository;
     this.passwordEncoder = passwordEncoder;
     this.politicaSenha = politicaSenha;
-    this.criptografiaMfa = criptografiaMfa;
-    this.totpService = totpService;
     this.auditoria = auditoria;
   }
 
@@ -58,8 +52,6 @@ public class UsuarioService {
       throw new ApiException(HttpStatus.CONFLICT, "USUARIO_DUPLICADO", "Já existe uma conta com esse login ou e-mail.");
     }
     politicaSenha.validar(request.senhaTemporaria(), login, email);
-    validarStepUp(admin, request.codigoMfaAdministrador(), "USUARIO_CRIAR", null, info);
-
     long id = repository.criarUsuario(
       nome,
       login,
@@ -144,8 +136,6 @@ public class UsuarioService {
     if (perfilAlterado && "ADMINISTRADOR".equals(alvo.perfil())) {
       validarAdministradorRemanescente(alvo);
     }
-    validarStepUp(admin, request.codigoMfaAdministrador(), "USUARIO_ATUALIZAR", alvo.id(), info);
-
     repository.atualizarDadosUsuario(alvo.id(), nome, email, novoPerfil, admin.id());
     if (perfilAlterado) {
       // A conta operacional volta ao estado negado por padrão e a sessão antiga
@@ -173,7 +163,6 @@ public class UsuarioService {
   public UsuarioDtos.OperacaoResponse excluir(
     UsuarioPrincipal administrador,
     long usuarioId,
-    UsuarioDtos.ExclusaoRequest request,
     AuthService.RequestInfo info
   ) {
     UsuarioRow admin = validarAdministrador(administrador);
@@ -186,8 +175,6 @@ public class UsuarioService {
       );
     }
     if ("ADMINISTRADOR".equals(alvo.perfil())) validarAdministradorRemanescente(alvo);
-    validarStepUp(admin, request.codigoMfaAdministrador(), "USUARIO_EXCLUIR", alvo.id(), info);
-
     repository.removerPermissoesUsuario(alvo.id());
     repository.desativarUsuario(alvo.id(), admin.id());
     repository.revogarSessoesDoUsuario(alvo.id(), "USUARIO_EXCLUIDO_ADMIN");
@@ -229,8 +216,6 @@ public class UsuarioService {
         "Uma ou mais permissões informadas não podem ser concedidas."
       );
     }
-    validarStepUp(admin, request.codigoMfaAdministrador(), "USUARIO_PERMISSOES_ALTERAR", alvo.id(), info);
-
     Set<String> persistidas = new HashSet<>(permitidas);
     if (!persistidas.isEmpty()) persistidas.add("APLICACAO_ACESSAR");
     repository.substituirPermissoesUsuario(alvo.id(), persistidas, admin.id());
@@ -263,8 +248,6 @@ public class UsuarioService {
       );
     }
     politicaSenha.validar(request.senhaTemporaria(), alvo.login(), alvo.email());
-    validarStepUp(admin, request.codigoMfaAdministrador(), "USUARIO_SENHA_REDEFINIR", alvo.id(), info);
-
     repository.redefinirSenha(
       alvo.id(),
       passwordEncoder.encode(request.senhaTemporaria()),
@@ -324,36 +307,6 @@ public class UsuarioService {
         HttpStatus.CONFLICT,
         "ULTIMO_ADMINISTRADOR",
         "A aplicação precisa manter pelo menos um administrador ativo."
-      );
-    }
-  }
-
-  private void validarStepUp(
-    UsuarioRow admin,
-    String codigo,
-    String evento,
-    Long alvoId,
-    AuthService.RequestInfo info
-  ) {
-    if (!admin.mfaAtivado() || admin.mfaSegredoCriptografado() == null) {
-      throw new ApiException(HttpStatus.FORBIDDEN, "MFA_OBRIGATORIO", "O administrador precisa ativar o MFA.");
-    }
-    String segredo = criptografiaMfa.descriptografar(admin.mfaSegredoCriptografado());
-    Long passo = totpService.validar(segredo, codigo, admin.ultimoPassoMfa());
-    if (passo == null || !repository.atualizarPassoMfa(admin.id(), passo)) {
-      auditoria.registrar(
-        admin.id(),
-        alvoId,
-        evento,
-        "FALHA",
-        info.ip(),
-        info.userAgent(),
-        Map.of("motivo", "STEP_UP_INVALIDO")
-      );
-      throw new ApiException(
-        HttpStatus.UNAUTHORIZED,
-        "MFA_INVALIDO",
-        "Use um código novo e válido do autenticador."
       );
     }
   }

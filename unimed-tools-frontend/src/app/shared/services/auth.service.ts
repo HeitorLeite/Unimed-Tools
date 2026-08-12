@@ -77,10 +77,8 @@ export class AuthService {
     );
   }
 
-  deleteUser(userId: number, codigoMfaAdministrador: string): Observable<OperationResponse> {
-    return this.http.delete<OperationResponse>(`${environment.apiUrl}/usuarios/${userId}`, {
-      body: { codigoMfaAdministrador },
-    });
+  deleteUser(userId: number): Observable<OperationResponse> {
+    return this.http.delete<OperationResponse>(`${environment.apiUrl}/usuarios/${userId}`);
   }
 
   listAvailablePermissions(): Observable<AvailablePermission[]> {
@@ -89,25 +87,16 @@ export class AuthService {
     );
   }
 
-  updateUserPermissions(
-    userId: number,
-    permissoes: string[],
-    codigoMfaAdministrador: string,
-  ): Observable<OperationResponse> {
+  updateUserPermissions(userId: number, permissoes: string[]): Observable<OperationResponse> {
     return this.http.put<OperationResponse>(`${environment.apiUrl}/usuarios/${userId}/permissoes`, {
       permissoes,
-      codigoMfaAdministrador,
     });
   }
 
-  resetUserPassword(
-    userId: number,
-    senhaTemporaria: string,
-    codigoMfaAdministrador: string,
-  ): Observable<OperationResponse> {
+  resetUserPassword(userId: number, senhaTemporaria: string): Observable<OperationResponse> {
     return this.http.post<OperationResponse>(
       `${environment.apiUrl}/usuarios/${userId}/resetar-senha`,
-      { senhaTemporaria, codigoMfaAdministrador },
+      { senhaTemporaria },
     );
   }
 

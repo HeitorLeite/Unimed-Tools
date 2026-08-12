@@ -38,20 +38,18 @@ Administradores precisam configurar e validar TOTP. O segredo compartilhado é
 criptografado com AES-256-GCM antes de chegar ao banco, usando
 `AUTH_MFA_ENCRYPTION_KEY`. O primeiro administrador é criado por bootstrap
 somente quando `usuario` está vazia; os próximos usuários são cadastrados em
-`POST /api/usuarios` por uma sessão com `USUARIOS_CRIAR` e um novo código TOTP.
+`POST /api/usuarios` por uma sessão administrativa com `USUARIOS_CRIAR`.
 
 O perfil `USUARIO` não herda permissões operacionais. As concessões individuais
 ficam em `usuario_permissao` e são combinadas às permissões do perfil a cada
 requisição. A interface administrativa permite somente a allowlist de módulos;
 permissões de administração e dados sensíveis permanecem fora desse fluxo.
-Alterações de cadastro, perfil, acesso, exclusões e redefinições de senha exigem
-step-up TOTP e são auditadas. Mudanças de perfil removem concessões individuais
-e revogam as sessões do usuário para que o novo nível de acesso seja aplicado
-imediatamente.
-
-O Angular distingue falha de step-up (`MFA_INVALIDO`) de ausência de sessão
-(`NAO_AUTENTICADO`). Somente a segunda limpa o estado local e redireciona para
-`/login`; um TOTP administrativo rejeitado mantém a sessão para nova tentativa.
+O MFA é confirmado ao criar a sessão administrativa. Alterações de cadastro,
+perfil, acesso, exclusões e redefinições de senha não pedem outro TOTP, mas
+continuam exigindo sessão válida, CSRF, permissão administrativa e auditoria.
+Mudanças de perfil removem concessões individuais e revogam as sessões do
+usuário para que o novo nível de acesso seja aplicado imediatamente. Uma
+resposta `NAO_AUTENTICADO` limpa o estado local e redireciona para `/login`.
 
 A exclusão de usuário é uma desativação lógica. O backend marca a conta como
 `INATIVO`, remove concessões e revoga sessões, mas mantém o registro necessário
@@ -118,10 +116,13 @@ painel fica no cabeçalho do `main-layout`; não armazena dados de autenticaçã
 depende do backend.
 
 **Status: Atual.** O utilitário compartilhado `report-preview.utils` reconhece
-aliases de Nome e CPF do beneficiário e devolve uma máscara para as tabelas de
-prévia Manual e Personalizada. Os registros originais permanecem no fluxo de
-exportação. O modo Automático não possui prévia tabular de registros e gera os
-arquivos diretamente.
+aliases de Nome e CPF do beneficiário, inclusive nomes legados como
+`PES_NOM_COMP`, `NM_PACIENTE`, `BENEFICIARIO`, `NOME_COMP` e `NOME_COMPLETO`, e
+devolve uma máscara para as tabelas de prévia Manual e Personalizada. A
+identificação ocorre durante a renderização, inclusive para relatórios manuais
+já cadastrados. Os
+registros originais permanecem no fluxo de exportação. O modo Automático não
+possui prévia tabular de registros e gera os arquivos diretamente.
 
 ## Backend
 

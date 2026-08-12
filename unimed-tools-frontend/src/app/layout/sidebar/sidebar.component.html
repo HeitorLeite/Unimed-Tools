@@ -83,7 +83,9 @@
         [routerLinkActive]="item.ready ? 'active' : ''"
         [title]="item.label + (item.ready ? '' : ' — Em desenvolvimento')"
       >
-        <span class="nav-icon" [innerHTML]="item.icon" aria-hidden="true"></span>
+        <span class="nav-icon" aria-hidden="true">
+          <app-tool-icon [name]="item.icon" />
+        </span>
         <span class="nav-item-text" *ngIf="open">
           <span class="nav-label">{{ item.label }}</span>
           <span class="nav-tag">{{ item.tag }}</span>

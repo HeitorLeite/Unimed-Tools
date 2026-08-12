@@ -26,15 +26,12 @@
         <small class="validation-message" *ngIf="form.touched && form.hasError('passwordMismatch')">As senhas temporárias são diferentes.</small>
       </div>
 
-      <div class="form-section-heading section-border"><span>03</span><div><h2>Confirmação administrativa</h2><p>Esta operação exige um novo código do seu autenticador.</p></div></div>
-      <div class="field mfa-field"><label for="adminMfa">Código MFA do administrador</label><input id="adminMfa" class="mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" formControlName="codigoMfaAdministrador" placeholder="000000" /><small>Se você acabou de entrar, aguarde o próximo código de 30 segundos.</small></div>
-
       <div class="form-error" role="alert" *ngIf="error()">{{ error() }}</div>
       <button class="btn btn-primary btn-lg submit-button" type="submit" [disabled]="loading()">{{ loading() ? 'Cadastrando…' : 'Cadastrar usuário' }}</button>
     </form>
 
     <aside class="context-rail">
-      <div class="context-card context-card-strong"><span>Controles aplicados</span><h2>Cadastro protegido</h2><ul class="context-list"><li>Somente administradores autorizados</li><li>Confirmação adicional por MFA</li><li>Senha armazenada somente com hash</li><li>Evento registrado na auditoria</li></ul></div>
+      <div class="context-card context-card-strong"><span>Controles aplicados</span><h2>Cadastro protegido</h2><ul class="context-list"><li>Sessão administrativa validada com MFA no login</li><li>Permissão conferida novamente pelo backend</li><li>Senha armazenada somente com hash</li><li>Evento registrado na auditoria</li></ul></div>
       <div class="context-card success-card" *ngIf="created() as user"><span>Conta criada</span><h3>{{ user.nome }}</h3><div class="context-summary"><div><span>Login</span><strong>{{ user.login }}</strong></div><div><span>Perfil</span><strong>{{ user.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Usuário' }}</strong></div><div><span>Próxima etapa</span><strong>Trocar senha</strong></div></div></div>
     </aside>
   </div>

@@ -1,6 +1,6 @@
 const MASCARA_PREVIA = '••••••••';
 
-/** Identifica apenas Nome e CPF de beneficiário por aliases comuns dos relatórios. */
+/** Identifica Nome e CPF de beneficiário, inclusive em aliases legados do SGU. */
 export function isProtectedBeneficiaryColumn(column: string): boolean {
   const normalized = String(column ?? '')
     .normalize('NFD')
@@ -12,11 +12,20 @@ export function isProtectedBeneficiaryColumn(column: string): boolean {
     return true;
   }
 
-  const isName = normalized === 'nome' || normalized === 'nm';
+  const isName = ['nome', 'nm', 'nomecomp', 'nomecompleto', 'nomcompleto'].includes(normalized);
   const isBeneficiaryName =
     (normalized.includes('nome') || normalized.startsWith('nm')) &&
-    (normalized.includes('beneficiario') || normalized.includes('benef'));
-  return isName || isBeneficiaryName;
+    (normalized.includes('benef') ||
+      normalized.includes('paciente') ||
+      normalized.includes('pessoa'));
+  const isLegacyPersonName =
+    normalized.startsWith('pesnom') ||
+    normalized.startsWith('nompes') ||
+    normalized.startsWith('benefnom') ||
+    normalized.startsWith('pacnom');
+  const isBareBeneficiaryName = ['beneficiario', 'benef', 'paciente'].includes(normalized);
+
+  return isName || isBeneficiaryName || isLegacyPersonName || isBareBeneficiaryName;
 }
 
 export function formatReportPreviewValue(column: string, value: unknown): string {

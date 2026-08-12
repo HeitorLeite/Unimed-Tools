@@ -76,13 +76,11 @@ public class UsuarioController {
   public UsuarioDtos.OperacaoResponse excluir(
     @AuthenticationPrincipal UsuarioPrincipal administrador,
     @PathVariable long usuarioId,
-    @Valid @RequestBody UsuarioDtos.ExclusaoRequest request,
     HttpServletRequest httpRequest
   ) {
     return usuarioService.excluir(
       administrador,
       usuarioId,
-      request,
       requestInfo(httpRequest)
     );
   }

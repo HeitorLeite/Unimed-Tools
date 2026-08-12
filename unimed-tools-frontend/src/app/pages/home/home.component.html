@@ -10,7 +10,12 @@
       </p>
 
       <div class="masthead-actions">
-        <button class="hero-action" type="button" [disabled]="availableCategories === 0" (click)="navigateFirstAvailable()">
+        <button
+          class="hero-action"
+          type="button"
+          [disabled]="availableCategories === 0"
+          (click)="navigateFirstAvailable()"
+        >
           Abrir primeira ferramenta
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <path
@@ -22,7 +27,10 @@
             />
           </svg>
         </button>
-        <span>{{ availableCategories }} de {{ accessibleCategories.length }} módulos autorizados disponíveis</span>
+        <span
+          >{{ availableCategories }} de {{ accessibleCategories.length }} módulos autorizados
+          disponíveis</span
+        >
       </div>
     </div>
 
@@ -89,7 +97,9 @@
           <span class="module-format">{{ cat.accepts }}</span>
         </span>
 
-        <span class="module-icon" [innerHTML]="cat.icon" aria-hidden="true"></span>
+        <span class="module-icon" aria-hidden="true">
+          <app-tool-icon [name]="cat.icon" />
+        </span>
 
         <span class="module-copy">
           <small>{{ cat.label }}</small>

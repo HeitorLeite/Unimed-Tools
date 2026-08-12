@@ -4,6 +4,10 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { NgFor, NgIf } from '@angular/common';
+import {
+  ToolIconComponent,
+  ToolIconName,
+} from '../../shared/components/tool-icon/tool-icon.component';
 import { AuthService } from '../../shared/services/auth.service';
 
 interface Category {
@@ -13,7 +17,7 @@ interface Category {
   desc: string;
   route: string;
   accepts: string;
-  icon: string;
+  icon: ToolIconName;
   ready: boolean;
   permission?: string;
 }
@@ -21,7 +25,7 @@ interface Category {
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [NgFor, NgIf],
+  imports: [NgFor, NgIf, ToolIconComponent],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.scss'],
 })
@@ -41,7 +45,7 @@ export class HomeComponent {
       accepts: 'CSV · TXT · XLSX',
       ready: true,
       permission: 'RELATORIOS_ACESSAR',
-      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 4h12l4 4v16H6V4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18 4v5h5M10 14h8M10 18h8M10 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+      icon: 'relatorios',
     },
     {
       id: 'xml',
@@ -52,7 +56,7 @@ export class HomeComponent {
       accepts: '.xml',
       ready: true,
       permission: 'XML_ACESSAR',
-      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M10 8L5 14l5 6M18 8l5 6-5 6M15 5l-3 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      icon: 'xml',
     },
     {
       id: 'bi',
@@ -63,7 +67,7 @@ export class HomeComponent {
       accepts: '.xlsx recomendado',
       ready: true,
       permission: 'BI_ACESSAR',
-      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M8 18v-4M13 18v-8M18 18v-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+      icon: 'bi',
     },
     {
       id: 'ans',
@@ -74,7 +78,7 @@ export class HomeComponent {
       accepts: '.txt + .xlsx',
       ready: true,
       permission: 'ANS_ACESSAR',
-      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M7 10h14M7 14h9M7 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+      icon: 'ans',
     },
     {
       id: 'fechamento',
@@ -85,7 +89,7 @@ export class HomeComponent {
       accepts: '.xlsx → .csv',
       ready: false,
       permission: 'APLICACAO_ACESSAR',
-      icon: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M5 5h12l6 6v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M17 5v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 16h12M8 20h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+      icon: 'fechamento',
     },
   ];
 

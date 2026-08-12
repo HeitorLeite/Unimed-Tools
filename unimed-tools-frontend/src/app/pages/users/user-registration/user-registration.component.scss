@@ -13,10 +13,8 @@
 .show-password { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: 10px; }
 .show-password input { accent-color: var(--brand-green); }
 .validation-message { align-self: center; color: var(--error); font-size: 10px; }
-.mfa-field { padding: 0 25px 21px 72px; }
-.mfa-code { max-width: 230px; font-family: var(--font-mono); font-size: 19px; letter-spacing: .28em; text-align: center; }
 .form-error { margin: 0 25px 17px 72px; padding: 10px 12px; border: 1px solid #ecc5c2; border-radius: 6px; background: var(--error-bg); color: var(--error); font-size: 11px; }
 .submit-button { margin: 0 25px 25px 72px; }
 .success-card { border-color: #b9d9c3; background: var(--success-bg); }
 @media (max-width: 900px) { .registration-layout { grid-template-columns: 1fr; } .context-rail { display: grid; grid-template-columns: 1fr 1fr; } }
-@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; padding-left: 25px; } .field-wide { grid-column: auto; } .mfa-field { padding-left: 25px; } .form-error { margin-left: 25px; } .submit-button { width: calc(100% - 50px); margin-left: 25px; } .context-rail { display: flex; } }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; padding-left: 25px; } .field-wide { grid-column: auto; } .form-error { margin-left: 25px; } .submit-button { width: calc(100% - 50px); margin-left: 25px; } .context-rail { display: flex; } }

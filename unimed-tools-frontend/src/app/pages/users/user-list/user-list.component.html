@@ -163,26 +163,6 @@
             >Ao alterar o tipo, as sessões e permissões individuais atuais serão encerradas.</small
           >
         </div>
-        <div class="field full-field">
-          <label for="editUserMfa">Código MFA do administrador</label>
-          <input
-            id="editUserMfa"
-            type="text"
-            inputmode="numeric"
-            maxlength="6"
-            autocomplete="one-time-code"
-            formControlName="codigoMfaAdministrador"
-            placeholder="000000"
-          />
-          <small
-            class="field-error"
-            *ngIf="
-              editForm.controls.codigoMfaAdministrador.touched &&
-              editForm.controls.codigoMfaAdministrador.invalid
-            "
-            >Informe os 6 dígitos de um código novo.</small
-          >
-        </div>
       </div>
       <footer>
         <button class="btn btn-secondary" type="button" (click)="closeEdit()">Cancelar</button>
@@ -215,21 +195,6 @@
         abertas serão encerradas.
       </p>
       <p>O registro mínimo será preservado somente para manter a trilha de auditoria.</p>
-      <div class="field">
-        <label for="deleteUserMfa">Código MFA do administrador</label>
-        <input
-          id="deleteUserMfa"
-          type="text"
-          inputmode="numeric"
-          maxlength="6"
-          autocomplete="one-time-code"
-          [formControl]="deleteMfa"
-          placeholder="000000"
-        />
-        <small class="field-error" *ngIf="deleteMfa.touched && deleteMfa.invalid"
-          >Informe os 6 dígitos de um código novo.</small
-        >
-      </div>
     </div>
     <footer>
       <button class="btn btn-secondary" type="button" (click)="closeDelete()">Cancelar</button>

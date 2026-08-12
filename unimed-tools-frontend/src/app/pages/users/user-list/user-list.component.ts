@@ -49,15 +49,6 @@ export class UserListComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
-    codigoMfaAdministrador: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^\d{6}$/)],
-    }),
-  });
-
-  readonly deleteMfa = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.required, Validators.pattern(/^\d{6}$/)],
   });
 
   constructor(private readonly auth: AuthService) {
@@ -73,7 +64,6 @@ export class UserListComponent {
       nome: user.nome,
       email: user.email ?? '',
       perfilCodigo: user.perfil,
-      codigoMfaAdministrador: '',
     });
     if (user.id === this.currentUserId) this.editForm.controls.perfilCodigo.disable();
     else this.editForm.controls.perfilCodigo.enable();
@@ -96,7 +86,6 @@ export class UserListComponent {
       nome: value.nome,
       email: value.email || null,
       perfilCodigo: value.perfilCodigo,
-      codigoMfaAdministrador: value.codigoMfaAdministrador,
     };
     this.saving.set(true);
     this.error.set('');
@@ -119,7 +108,6 @@ export class UserListComponent {
   openDelete(user: ManagedUser): void {
     if (user.id === this.currentUserId) return;
     this.deletingUser.set(user);
-    this.deleteMfa.reset();
     this.error.set('');
     this.success.set('');
   }
@@ -127,25 +115,20 @@ export class UserListComponent {
   closeDelete(): void {
     if (this.deleting()) return;
     this.deletingUser.set(null);
-    this.deleteMfa.reset();
   }
 
   confirmDelete(): void {
     const user = this.deletingUser();
-    if (!user || this.deleteMfa.invalid || this.deleting()) {
-      this.deleteMfa.markAsTouched();
-      return;
-    }
+    if (!user || this.deleting()) return;
     this.deleting.set(true);
     this.error.set('');
     this.auth
-      .deleteUser(user.id, this.deleteMfa.value)
+      .deleteUser(user.id)
       .pipe(finalize(() => this.deleting.set(false)))
       .subscribe({
         next: (response) => {
           this.users.update((users) => users.filter((item) => item.id !== user.id));
           this.deletingUser.set(null);
-          this.deleteMfa.reset();
           this.success.set(response.mensagem);
         },
         error: (error: HttpErrorResponse) =>

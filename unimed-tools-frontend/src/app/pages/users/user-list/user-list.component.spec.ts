@@ -37,7 +37,7 @@ describe('UserListComponent', () => {
     expect(component.filteredUsers()).toEqual([operacional]);
   });
 
-  it('envia dados editáveis e o MFA ao atualizar uma conta', () => {
+  it('envia dados editáveis sem novo MFA após o login administrativo', () => {
     const atualizado = {
       ...operacional,
       nome: 'Nome Atualizado',
@@ -55,7 +55,6 @@ describe('UserListComponent', () => {
       nome: 'Nome Atualizado',
       email: 'NOVO@EXEMPLO.COM',
       perfilCodigo: 'ADMINISTRADOR',
-      codigoMfaAdministrador: '123456',
     });
 
     component.saveEdit();
@@ -64,7 +63,6 @@ describe('UserListComponent', () => {
       nome: 'Nome Atualizado',
       email: 'NOVO@EXEMPLO.COM',
       perfilCodigo: 'ADMINISTRADOR',
-      codigoMfaAdministrador: '123456',
     });
     expect(component.users().find((user) => user.id === 2)).toEqual(atualizado);
   });

@@ -24,9 +24,6 @@
         </label>
       </div>
 
-      <div class="section-heading section-border"><span>03</span><div><h2>Confirmação administrativa</h2><p>Informe um código novo do seu autenticador para salvar.</p></div></div>
-      <div class="field mfa-field"><label for="permissionMfa">Código MFA do administrador</label><input id="permissionMfa" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" formControlName="codigoMfaAdministrador" placeholder="000000" /></div>
-
       <div class="form-message error" role="alert" *ngIf="error()">{{ error() }}</div>
       <div class="form-message success" role="status" *ngIf="success()">{{ success() }}</div>
       <button class="btn btn-primary btn-lg submit-button" type="submit" [disabled]="loading() || saving() || !form.controls.usuarioId.value">{{ saving() ? 'Salvando…' : 'Salvar permissões' }}</button>

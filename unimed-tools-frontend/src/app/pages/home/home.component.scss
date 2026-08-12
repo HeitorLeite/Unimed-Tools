@@ -321,7 +321,7 @@
   color: var(--brand-green);
 }
 
-:host ::ng-deep .module-icon svg {
+.module-icon app-tool-icon {
   width: 25px;
   height: 25px;
 }

@@ -196,8 +196,8 @@
   }
 }
 
-/* SVGs internos são dados estáticos do componente; o seletor atravessa o innerHTML sanitizado. */
-:host ::ng-deep .nav-icon svg {
+/* O componente de ícone ocupa a mesma área tanto no menu aberto quanto recolhido. */
+.nav-icon app-tool-icon {
   width: 20px;
   height: 20px;
 }
@@ -341,9 +341,11 @@
 
 .sidebar.collapsed {
   .brand {
-    justify-content: center;
-    padding-right: 10px;
-    padding-left: 10px;
+    min-height: 112px;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 13px 10px 10px;
   }
 
   .brand-link {
@@ -351,16 +353,14 @@
   }
 
   .toggle-btn {
-    position: absolute;
-    top: 61px;
-    left: 21px;
+    position: static;
     border-color: rgba(255, 255, 255, 0.12);
     background: #173c2b;
   }
 
   .nav-divider {
     min-height: 15px;
-    padding: 12px 0 3px;
+    padding: 9px 0 3px;
   }
 
   .tools-divider {
@@ -373,6 +373,7 @@
   }
 
   .nav-item {
+    min-height: 46px;
     justify-content: center;
     padding-right: 0;
     padding-left: 0;
@@ -380,6 +381,11 @@
     &::before {
       left: -9px;
     }
+  }
+
+  .nav-icon {
+    width: 24px;
+    height: 24px;
   }
 
   .sidebar-footer { padding-right: 9px; padding-left: 9px; }

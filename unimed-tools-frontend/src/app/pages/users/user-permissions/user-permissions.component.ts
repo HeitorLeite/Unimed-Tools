@@ -25,10 +25,6 @@ export class UserPermissionsComponent {
 
   readonly form = new FormGroup({
     usuarioId: new FormControl<number | null>(null, { validators: [Validators.required] }),
-    codigoMfaAdministrador: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^\d{6}$/)],
-    }),
   });
 
   constructor(private readonly auth: AuthService) {
@@ -42,7 +38,8 @@ export class UserPermissionsComponent {
 
   toggle(code: string): void {
     const next = new Set(this.selectedPermissions());
-    if (next.has(code)) next.delete(code); else next.add(code);
+    if (next.has(code)) next.delete(code);
+    else next.add(code);
     this.selectedPermissions.set(next);
     this.success.set('');
   }
@@ -57,21 +54,18 @@ export class UserPermissionsComponent {
     this.error.set('');
     this.success.set('');
     this.auth
-      .updateUserPermissions(
-        userId,
-        [...this.selectedPermissions()],
-        this.form.controls.codigoMfaAdministrador.value,
-      )
+      .updateUserPermissions(userId, [...this.selectedPermissions()])
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({
         next: (response) => {
           const selected = [...this.selectedPermissions()];
-          this.users.update((users) => users.map((user) =>
-            user.id === userId
-              ? { ...user, permissoes: selected.length ? ['APLICACAO_ACESSAR', ...selected] : [] }
-              : user,
-          ));
-          this.form.controls.codigoMfaAdministrador.reset();
+          this.users.update((users) =>
+            users.map((user) =>
+              user.id === userId
+                ? { ...user, permissoes: selected.length ? ['APLICACAO_ACESSAR', ...selected] : [] }
+                : user,
+            ),
+          );
           this.success.set(response.mensagem);
         },
         error: (error: HttpErrorResponse) =>
@@ -98,7 +92,6 @@ export class UserPermissionsComponent {
     this.selectedPermissions.set(
       new Set((user?.permissoes ?? []).filter((code) => availableCodes.has(code))),
     );
-    this.form.controls.codigoMfaAdministrador.reset();
     this.error.set('');
     this.success.set('');
   }

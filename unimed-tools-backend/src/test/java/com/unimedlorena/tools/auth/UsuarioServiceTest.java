@@ -25,15 +25,11 @@ class UsuarioServiceTest {
   private final AuthRepository repository = mock(AuthRepository.class);
   private final PasswordEncoder encoder = mock(PasswordEncoder.class);
   private final PoliticaSenhaService politicaSenha = mock(PoliticaSenhaService.class);
-  private final CriptografiaMfaService criptografia = mock(CriptografiaMfaService.class);
-  private final TotpService totp = mock(TotpService.class);
   private final AuditoriaService auditoria = mock(AuditoriaService.class);
   private final UsuarioService service = new UsuarioService(
     repository,
     encoder,
     politicaSenha,
-    criptografia,
-    totp,
     auditoria
   );
   private final UsuarioPrincipal principalAdmin = new UsuarioPrincipal(
@@ -50,9 +46,6 @@ class UsuarioServiceTest {
   @BeforeEach
   void configurarAdministrador() {
     when(repository.buscarUsuarioPorId(1)).thenReturn(Optional.of(usuario(1, "ADMINISTRADOR", "segredo")));
-    when(criptografia.descriptografar("segredo")).thenReturn("TOTP");
-    when(totp.validar(eq("TOTP"), any(), any())).thenReturn(100L);
-    when(repository.atualizarPassoMfa(1, 100L)).thenReturn(true);
   }
 
   @Test
@@ -80,7 +73,7 @@ class UsuarioServiceTest {
     service.atualizarPermissoes(
       principalAdmin,
       2,
-      new UsuarioDtos.AtualizacaoPermissoesRequest(Set.of("XML_ACESSAR"), "123456"),
+      new UsuarioDtos.AtualizacaoPermissoesRequest(Set.of("XML_ACESSAR")),
       info
     );
 
@@ -98,7 +91,7 @@ class UsuarioServiceTest {
     service.redefinirSenha(
       principalAdmin,
       2,
-      new UsuarioDtos.RedefinicaoSenhaRequest("Caju#804", "123456"),
+      new UsuarioDtos.RedefinicaoSenhaRequest("Caju#804"),
       info
     );
 
@@ -120,8 +113,7 @@ class UsuarioServiceTest {
       new UsuarioDtos.AtualizacaoDadosRequest(
         "Usuário Atualizado",
         "USUARIO@EXEMPLO.COM",
-        "ADMINISTRADOR",
-        "123456"
+        "ADMINISTRADOR"
       ),
       info
     );
@@ -145,7 +137,6 @@ class UsuarioServiceTest {
     service.excluir(
       principalAdmin,
       2,
-      new UsuarioDtos.ExclusaoRequest("123456"),
       info
     );
 
@@ -161,7 +152,6 @@ class UsuarioServiceTest {
       () -> service.excluir(
         principalAdmin,
         1,
-        new UsuarioDtos.ExclusaoRequest("123456"),
         info
       )
     );

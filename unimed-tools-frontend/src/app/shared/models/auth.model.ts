@@ -24,7 +24,6 @@ export interface NewUserRequest {
   email: string | null;
   senhaTemporaria: string;
   perfilCodigo: 'ADMINISTRADOR' | 'USUARIO';
-  codigoMfaAdministrador: string;
 }
 
 export interface CreatedUser {
@@ -45,7 +44,6 @@ export interface UpdateUserRequest {
   nome: string;
   email: string | null;
   perfilCodigo: 'ADMINISTRADOR' | 'USUARIO';
-  codigoMfaAdministrador: string;
 }
 
 export interface AvailablePermission {

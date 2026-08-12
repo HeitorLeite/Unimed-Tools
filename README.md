@@ -500,6 +500,12 @@ máscara. O modo Automático gera o lote diretamente e não apresenta prévia de
 registros. A proteção é exclusiva da interface: os arquivos CSV, TXT, XLSX e ZIP
 continuam recebendo os valores originais devolvidos pelo backend.
 
+No modo Manual, a identificação é feita dinamicamente pelo nome da coluna e
+também contempla aliases legados, como `PES_NOM_COMP`, `NM_PACIENTE`,
+`BENEFICIARIO`, `NOME_COMP`, `NOME_COMPLETO` e qualquer coluna que contenha
+`CPF`. Por isso, relatórios cadastrados antes desta versão recebem a proteção
+sem precisar ser importados novamente.
+
 No modo automático, a interface exibe uma evolução estimada enquanto o backend
 consulta os itens e monta o ZIP. Como a exportação é uma única resposta HTTP e o
 backend não envia eventos intermediários, o percentual fica limitado a 94% até a
@@ -1224,6 +1230,29 @@ Copy-Item `
 Não é necessário executar `npm start` nem reiniciar o Apache após copiar um
 novo build. Nos demais computadores, atualize a página com `Ctrl + F5`.
 
+#### Iniciador local para Windows
+
+O arquivo `Iniciar Unimed Tools.cmd`, na raiz do projeto, automatiza o fluxo
+local: inicia Apache e MariaDB pelo XAMPP quando necessário, testa e publica o
+frontend em `C:\xampp\htdocs\unimed-tools`, executa os testes e o pacote Maven,
+encerra somente uma instância anterior deste backend e inicia o novo JAR no
+perfil `local`. O backend fica oculto e grava logs em
+`%LOCALAPPDATA%\UnimedTools`.
+
+Antes do primeiro uso, grave as duas credenciais como variáveis do usuário. Não
+coloque os valores no `.cmd`, no script ou em arquivos versionados:
+
+```powershell
+[Environment]::SetEnvironmentVariable('AUTH_MFA_ENCRYPTION_KEY', '<chave-base64>', 'User')
+[Environment]::SetEnvironmentVariable('SGU_API_KEY', '<chave-sgu>', 'User')
+```
+
+Depois, dê duplo clique no iniciador. Ele usa `root` e senha vazia como padrão
+local do MariaDB; se o banco
+tiver outras credenciais, configure também `DB_USERNAME` e `DB_PASSWORD` como
+variáveis do usuário. A janela permanece aberta ao final para mostrar sucesso ou
+o erro encontrado.
+
 ### Build do frontend
 
 ```bash
@@ -1345,13 +1374,13 @@ Nunca salve a chave no:
 | GET    | `/api/auth/me`           | Sessão válida                  | Retorna usuário e permissões           |
 | POST   | `/api/auth/senha`        | Sessão válida + CSRF           | Troca a senha e rotaciona a sessão     |
 | POST   | `/api/auth/logout`       | Sessão válida + CSRF           | Revoga a sessão atual                  |
-| POST   | `/api/usuarios`          | `USUARIOS_CRIAR` + step-up MFA | Cadastra conta com senha temporária    |
+| POST   | `/api/usuarios`          | `USUARIOS_CRIAR` + administrador autenticado | Cadastra conta com senha temporária    |
 | GET    | `/api/usuarios`          | `USUARIOS_VISUALIZAR` + administrador | Lista contas para gerenciamento |
-| PUT    | `/api/usuarios/{id}`     | `USUARIOS_EDITAR` + step-up MFA | Altera nome, e-mail ou tipo de acesso |
-| DELETE | `/api/usuarios/{id}`     | `USUARIOS_EDITAR` + step-up MFA | Desativa a conta e revoga suas sessões |
+| PUT    | `/api/usuarios/{id}`     | `USUARIOS_EDITAR` + administrador autenticado | Altera nome, e-mail ou tipo de acesso |
+| DELETE | `/api/usuarios/{id}`     | `USUARIOS_EDITAR` + administrador autenticado | Desativa a conta e revoga suas sessões |
 | GET    | `/api/usuarios/permissoes-disponiveis` | `USUARIOS_VISUALIZAR` + administrador | Lista permissões operacionais concedíveis |
-| PUT    | `/api/usuarios/{id}/permissoes` | `USUARIOS_EDITAR` + step-up MFA | Substitui as permissões individuais |
-| POST   | `/api/usuarios/{id}/resetar-senha` | `USUARIOS_EDITAR` + step-up MFA | Define senha temporária e revoga sessões |
+| PUT    | `/api/usuarios/{id}/permissoes` | `USUARIOS_EDITAR` + administrador autenticado | Substitui as permissões individuais |
+| POST   | `/api/usuarios/{id}/resetar-senha` | `USUARIOS_EDITAR` + administrador autenticado | Define senha temporária e revoga sessões |
 
 Todos os endpoints operacionais em `/api` exigem sessão e a permissão do
 módulo. `POST /api/relatorios/sgu/criar` e a exclusão de APIs exigem também
@@ -1574,16 +1603,16 @@ login/e-mail.
 
 Usuários operacionais são criados sem acesso a módulos. Um administrador define
 as permissões individuais em `/usuarios/permissoes`; permissões administrativas
-e acesso a dados sensíveis não são delegáveis por essa tela. Alterações de
-cadastro, tipo de acesso, permissão, exclusão e reset de senha exigem um novo
-código TOTP e geram auditoria. A tela `/usuarios/cadastrados` permite editar
-nome, e-mail e tipo de acesso. Uma mudança de perfil revoga as sessões atuais e
-remove permissões individuais; ao se tornar operacional, a conta volta ao
-estado sem acesso a módulos.
+e acesso a dados sensíveis não são delegáveis por essa tela. O TOTP é exigido ao
+entrar em uma sessão administrativa e não é solicitado novamente nas ações de
+cadastro, tipo de acesso, permissão, exclusão e reset de senha, que continuam
+protegidas por sessão, CSRF, permissão e auditoria. A tela
+`/usuarios/cadastrados` permite editar nome, e-mail e tipo de acesso. Uma mudança
+de perfil revoga as sessões atuais e remove permissões individuais; ao se tornar
+operacional, a conta volta ao estado sem acesso a módulos.
 
-Um código TOTP administrativo inválido ou já utilizado é apresentado como erro
-da operação e não encerra a sessão atual. O frontend redireciona para `/login`
-somente quando o backend responde com o código `NAO_AUTENTICADO`.
+O frontend redireciona para `/login` quando o backend responde com o código
+`NAO_AUTENTICADO`; nesse caso, o administrador refaz login, senha e TOTP.
 
 A exclusão administrativa é lógica: a conta fica `INATIVO`, perde permissões e
 sessões e deixa de aparecer nas listas ativas. O registro mínimo permanece no

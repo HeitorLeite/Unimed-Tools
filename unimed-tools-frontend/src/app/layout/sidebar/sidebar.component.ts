@@ -1,16 +1,31 @@
 /**
  * Menu lateral e metadados de navegação dos módulos disponíveis.
  */
-import { Component, ElementRef, EventEmitter, HostListener, inject, Input, OnChanges, Output, signal, SimpleChanges } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  HostListener,
+  inject,
+  Input,
+  OnChanges,
+  Output,
+  signal,
+  SimpleChanges,
+} from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NgFor, NgIf } from '@angular/common';
 import { AuthService } from '../../shared/services/auth.service';
+import {
+  ToolIconComponent,
+  ToolIconName,
+} from '../../shared/components/tool-icon/tool-icon.component';
 
 interface NavItem {
   label: string;
   route: string;
   tag: string;
-  icon: string;
+  icon: ToolIconName;
   ready: boolean;
   permission?: string;
 }
@@ -18,7 +33,7 @@ interface NavItem {
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, NgFor, NgIf],
+  imports: [RouterLink, RouterLinkActive, NgFor, NgIf, ToolIconComponent],
   templateUrl: './sidebar.component.html',
   styleUrls: ['./sidebar.component.scss'],
 })
@@ -42,7 +57,7 @@ export class SidebarComponent implements OnChanges {
       route: '/relatorios',
       ready: true,
       permission: 'RELATORIOS_ACESSAR',
-      icon: '<svg viewBox="0 0 20 20" fill="none"><path d="M5 2.5h7l3 3v12H5v-15Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 2.5V6h3M7.5 9.5h5M7.5 12.5h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+      icon: 'relatorios',
     },
     {
       label: 'XML TISS',
@@ -50,7 +65,7 @@ export class SidebarComponent implements OnChanges {
       route: '/xml/ferramentas',
       ready: true,
       permission: 'XML_ACESSAR',
-      icon: '<svg viewBox="0 0 20 20" fill="none"><path d="M7 5 3 10l4 5M13 5l4 5-4 5M11.5 3 8.5 17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      icon: 'xml',
     },
     {
       label: 'Especialidade médica',
@@ -58,7 +73,7 @@ export class SidebarComponent implements OnChanges {
       route: '/bi/especialidade-medica',
       ready: true,
       permission: 'BI_ACESSAR',
-      icon: '<svg viewBox="0 0 20 20" fill="none"><path d="M4 16V9m4 7V5m4 11v-6m4 6V3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+      icon: 'bi',
     },
     {
       label: 'Corretor de rede ANS',
@@ -66,7 +81,7 @@ export class SidebarComponent implements OnChanges {
       route: '/ans/corretor-rede',
       ready: true,
       permission: 'ANS_ACESSAR',
-      icon: '<svg viewBox="0 0 20 20" fill="none"><path d="M3 5.5h14M3 10h9M3 14.5h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="15" cy="13" r="2.5" stroke="currentColor" stroke-width="1.3"/></svg>',
+      icon: 'ans',
     },
     {
       label: 'Fechamento',
@@ -74,12 +89,14 @@ export class SidebarComponent implements OnChanges {
       route: '/fechamento/corretor',
       ready: false,
       permission: 'APLICACAO_ACESSAR',
-      icon: '<svg viewBox="0 0 20 20" fill="none"><path d="M5 2.5h7l3 3v12H5v-15Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 2.5V6h3M7.5 11h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+      icon: 'fechamento',
     },
   ];
 
   get visibleItems(): NavItem[] {
-    return this.items.filter((item) => !item.permission || this.auth.hasPermission(item.permission));
+    return this.items.filter(
+      (item) => !item.permission || this.auth.hasPermission(item.permission),
+    );
   }
 
   ngOnChanges(changes: SimpleChanges): void {

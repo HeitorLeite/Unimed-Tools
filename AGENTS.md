@@ -149,11 +149,12 @@ Tecnologias e características atuais:
 
 - A aplicação possui autenticação própria com sessão opaca em cookie `HttpOnly`,
   CSRF, autorização por permissão, auditoria e persistência JDBC no MariaDB.
-- Administradores exigem MFA TOTP; cadastro de usuário exige
-  `USUARIOS_CRIAR` e confirmação TOTP adicional no backend.
+- Administradores exigem MFA TOTP no login; o cadastro de usuário exige uma
+  sessão administrativa válida com `USUARIOS_CRIAR`, sem novo código TOTP.
 - Usuários operacionais são criados sem permissões de módulo; concessões ficam
-  em `usuario_permissao` e somente administradores podem alterá-las com step-up
-  TOTP. A tela não concede permissões administrativas ou de dados sensíveis.
+  em `usuario_permissao` e somente administradores autenticados com MFA no login
+  podem alterá-las. A tela não concede permissões administrativas ou de dados
+  sensíveis.
 - Reset administrativo de senha cria credencial temporária de 24 horas, exige
   troca no próximo acesso, revoga as sessões do usuário e gera auditoria.
 - Senhas usam BCrypt, tokens de sessão são persistidos somente por hash e o

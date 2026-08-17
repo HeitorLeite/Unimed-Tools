@@ -6,6 +6,22 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
+    id: '7.3.0-filtros-cte-importacao-sql',
+    versao: '7.3.0',
+    titulo: 'Filtros de CTE na importação SQL',
+    resumo:
+      'Reconhece datas compartilhadas e listas vazias de empresas ou itens dentro de CTEs importadas.',
+    publicadaEm: '2026-08-17',
+  },
+  {
+    id: '7.2.2-acesso-completo-relatorios',
+    versao: '7.2.2',
+    titulo: 'Acesso completo à Central de Relatórios',
+    resumo:
+      'Permite que usuários autorizados no módulo importem SQL e realizem todas as operações dos relatórios.',
+    publicadaEm: '2026-08-17',
+  },
+  {
     id: '7.2.1-protecao-nome-comp',
     versao: '7.2.1',
     titulo: 'Proteção ampliada nas prévias manuais',

@@ -575,7 +575,8 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     if (this.criandoApisEmLote) return;
 
     const parametrosConvertidos = this.converterParametrosFixosSql(arquivo.consultaSQL);
-    const bindsNormalizados = this.normalizarVariaveisBindSql(parametrosConvertidos.sql);
+    const filtrosCteConvertidos = this.converterFiltrosFixosCteSql(parametrosConvertidos.sql);
+    const bindsNormalizados = this.normalizarVariaveisBindSql(filtrosCteConvertidos.sql);
 
     const nomesExistentes = new Set(
       arquivo.filtros.map((filtro) => filtro.nomeFiltro.trim().toLowerCase()),
@@ -613,6 +614,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       new Set([
         ...arquivo.ajustesAplicados,
         ...parametrosConvertidos.ajustes,
+        ...filtrosCteConvertidos.ajustes,
         ...filtrosSimples.ajustes,
         ...resultado.ajustes,
       ]),
@@ -1834,6 +1836,107 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       );
 
       break;
+    }
+
+    return { sql, ajustes };
+  }
+
+  /**
+   * Converte filtros que precisam permanecer dentro da CTE porque utilizam
+   * aliases locais. Datas repetidas só compartilham um bind quando todas as
+   * ocorrências literais da CTE possuem o mesmo valor.
+   */
+  private converterFiltrosFixosCteSql(sqlOriginal: string): {
+    sql: string;
+    ajustes: string[];
+  } {
+    let sql = sqlOriginal;
+    const ajustes: string[] = [];
+    const nomesBindReservados = new Set(this.normalizarVariaveisBindSql(sqlOriginal).variaveis);
+    const bindsPorFiltro = new Map<string, string>();
+
+    const bindPara = (nomeBase: string): string => {
+      const existente = bindsPorFiltro.get(nomeBase);
+      if (existente) return existente;
+
+      let nome = nomeBase;
+      let sufixo = 2;
+
+      while (nomesBindReservados.has(nome)) {
+        nome = `${nomeBase}_${sufixo}`;
+        sufixo += 1;
+      }
+
+      nomesBindReservados.add(nome);
+      bindsPorFiltro.set(nomeBase, nome);
+      return nome;
+    };
+
+    const sqlMascarado = this.mascaraSqlSemTextosEComentarios(sqlOriginal);
+    const regexCte =
+      /\bWITH\s+([A-Za-z_][A-Za-z0-9_$#]*)\s+AS\s*\(|,\s*([A-Za-z_][A-Za-z0-9_$#]*)\s+AS\s*\(/gi;
+    const blocos: Array<{
+      nome: string;
+      inicioConteudo: number;
+      fimConteudo: number;
+    }> = [];
+    let correspondencia: RegExpExecArray | null;
+
+    while ((correspondencia = regexCte.exec(sqlMascarado)) !== null) {
+      const inicioAbertura = correspondencia.index + correspondencia[0].lastIndexOf('(');
+      const fimAbertura = this.encontrarFechamentoParentesesSql(sqlOriginal, inicioAbertura);
+
+      if (fimAbertura < 0) continue;
+
+      blocos.push({
+        nome: (correspondencia[1] ?? correspondencia[2]).toUpperCase(),
+        inicioConteudo: inicioAbertura + 1,
+        fimConteudo: fimAbertura,
+      });
+    }
+
+    for (const bloco of blocos.sort((a, b) => b.inicioConteudo - a.inicioConteudo)) {
+      const conteudoOriginal = sql.slice(bloco.inicioConteudo, bloco.fimConteudo);
+      let conteudoAjustado = conteudoOriginal;
+
+      const regexData = /TO_DATE\s*\(\s*'(\d{2}\/\d{2}\/\d{4})'\s*,\s*'DD\/MM\/YYYY'\s*\)/gi;
+      const datas = Array.from(conteudoOriginal.matchAll(regexData), (item) => item[1]);
+      const datasUnicas = new Set(datas);
+
+      if (datas.length > 1 && datasUnicas.size === 1) {
+        const dataOriginal = datas[0];
+        const nomeBindData = bindPara('data_referencia');
+
+        conteudoAjustado = conteudoAjustado.replace(regexData, `:${nomeBindData}`);
+        ajustes.push(
+          `As ${datas.length} ocorrências da data fixa ${dataOriginal} na CTE ${bloco.nome} foram vinculadas ao filtro :${nomeBindData}.`,
+        );
+      }
+
+      const regexListaVazia =
+        /\b((?:[A-Za-z_][A-Za-z0-9_$#]*\.)?[A-Za-z_][A-Za-z0-9_$#]*)\s+IN\s*\(\s*\)/gi;
+
+      conteudoAjustado = conteudoAjustado.replace(
+        regexListaVazia,
+        (predicadoOriginal: string, coluna: string) => {
+          const nomeFiltro = this.nomeFiltroPorColunaSql(coluna);
+
+          if (nomeFiltro !== 'empresas' && nomeFiltro !== 'itens') {
+            return predicadoOriginal;
+          }
+
+          const nomeBind = bindPara(nomeFiltro);
+          ajustes.push(
+            `A lista vazia “${predicadoOriginal.trim()}” da CTE ${bloco.nome} foi transformada no filtro :${nomeBind}.`,
+          );
+
+          return `instr(',' || replace(:${nomeBind}, ' ', '') || ',', ',' || to_char(${coluna}) || ',') > 0`;
+        },
+      );
+
+      if (conteudoAjustado !== conteudoOriginal) {
+        sql = sql.slice(0, bloco.inicioConteudo) + conteudoAjustado + sql.slice(bloco.fimConteudo);
+      }
     }
 
     return { sql, ajustes };

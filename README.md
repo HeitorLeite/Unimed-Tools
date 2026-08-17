@@ -494,6 +494,11 @@ A página oferece três modos:
 - **Automático:** execução e exportação em lote dos grupos salvos no navegador;
 - **Personalizado:** construtor guiado com filtros e colunas previamente autorizados pelo backend.
 
+**Atual:** a permissão `RELATORIOS_ACESSAR` libera todos os modos e operações
+da Central de Relatórios, inclusive importar SQL, criar, editar e excluir APIs
+no SGU. Usuários sem essa permissão continuam sem acesso aos endpoints do
+módulo.
+
 **Atual:** nas prévias tabulares dos modos Manual e Personalizado, colunas que
 representam Nome ou CPF do beneficiário são substituídas visualmente por uma
 máscara. O modo Automático gera o lote diretamente e não apresenta prévia de
@@ -658,6 +663,14 @@ São informados:
 - SQL;
 - ordenação;
 - filtros.
+
+Na importação de arquivos `.sql` ou `.txt`, a aplicação também reconhece
+filtros dentro de CTEs. Quando uma CTE usa duas ou mais ocorrências da mesma
+data no formato `TO_DATE('DD/MM/AAAA', 'DD/MM/YYYY')`, todas são substituídas
+por um único filtro obrigatório `data_referencia`. Listas vazias de empresas ou
+itens, como `emp.empcn_cod_pessoa IN ()`, são convertidas em filtros de lista
+obrigatórios dentro da própria CTE. Datas diferentes permanecem fixas para que a
+aplicação não altere silenciosamente o intervalo da consulta.
 
 A criação utiliza:
 
@@ -1383,8 +1396,8 @@ Nunca salve a chave no:
 | POST   | `/api/usuarios/{id}/resetar-senha` | `USUARIOS_EDITAR` + administrador autenticado | Define senha temporária e revoga sessões |
 
 Todos os endpoints operacionais em `/api` exigem sessão e a permissão do
-módulo. `POST /api/relatorios/sgu/criar` e a exclusão de APIs exigem também
-`RELATORIOS_ADMINISTRAR`.
+módulo. Na Central de Relatórios, `RELATORIOS_ACESSAR` autoriza todos os modos e
+operações, inclusive criação, edição e exclusão de APIs no SGU.
 
 ### XML
 

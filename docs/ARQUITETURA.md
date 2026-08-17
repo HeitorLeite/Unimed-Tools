@@ -43,7 +43,11 @@ somente quando `usuario` está vazia; os próximos usuários são cadastrados em
 O perfil `USUARIO` não herda permissões operacionais. As concessões individuais
 ficam em `usuario_permissao` e são combinadas às permissões do perfil a cada
 requisição. A interface administrativa permite somente a allowlist de módulos;
-permissões de administração e dados sensíveis permanecem fora desse fluxo.
+permissões de administração de usuários e dados sensíveis permanecem fora
+desse fluxo. A concessão `RELATORIOS_ACESSAR` representa o acesso funcional
+completo à Central de Relatórios: os mesmos endpoints protegidos por ela atendem
+consulta, importação de SQL, criação, edição, execução, exportação e exclusão
+de APIs no SGU.
 O MFA é confirmado ao criar a sessão administrativa. Alterações de cadastro,
 perfil, acesso, exclusões e redefinições de senha não pedem outro TOTP, mas
 continuam exigindo sessão válida, CSRF, permissão administrativa e auditoria.
@@ -109,6 +113,13 @@ A rota `/relatorios` agrega quatro componentes de tela:
 `RelatorioService` concentra a comunicação HTTP e o acesso aos catálogos do
 `localStorage`. O modo personalizado não persiste filtros digitados: eles ficam
 somente no estado da página atual.
+
+**Status: Atual.** Na importação manual de SQL, o componente preserva o escopo
+dos aliases de CTE. Datas literais repetidas e iguais dentro de uma CTE usam um
+único bind `data_referencia`; listas vazias de empresas ou itens são convertidas
+em binds de lista no mesmo bloco. O filtro registrado no SGU valida somente o
+bind no `WHERE` externo, enquanto a condição efetiva permanece dentro da CTE.
+Datas diferentes não são unificadas automaticamente.
 
 **Status: Atual.** `NotificationService` expõe o histórico estático de versões
 do frontend e persiste no `localStorage` apenas os identificadores já lidos. O

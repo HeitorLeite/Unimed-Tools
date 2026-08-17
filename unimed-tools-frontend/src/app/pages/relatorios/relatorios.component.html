@@ -716,7 +716,9 @@
             O nome da API e o nome de exibição são preenchidos a partir do nome do arquivo.
             Variáveis como <code>:competencia</code> são detectadas automaticamente. Competências
             fixas em CTEs <code>PARAM</code> ou <code>PARAMETROS</code> também são convertidas para
-            filtro. A aplicação também inclui <code>WHERE 1 = 1</code> e
+            filtro. Em outras CTEs, datas repetidas com o mesmo valor e listas vazias conhecidas,
+            como <code>emp.empcn_cod_pessoa IN ()</code>, são transformadas em filtros
+            compartilhados. A aplicação também inclui <code>WHERE 1 = 1</code> e
             <code>/*FILTROS*/</code> quando necessário.
           </p>
         </div>

@@ -31,6 +31,15 @@ public class GlobalExceptionHandler {
     return ResponseEntity.badRequest().body(Map.of("codigo", "DADOS_INVALIDOS", "message", message));
   }
 
+  @ExceptionHandler(IllegalArgumentException.class)
+  public ResponseEntity<Map<String, String>> handleIllegalArgument(
+    IllegalArgumentException ex
+  ) {
+    return ResponseEntity.badRequest().body(
+      Map.of("codigo", "SOLICITACAO_INVALIDA", "message", ex.getMessage())
+    );
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<Map<String, String>> handle(Exception ex) {
     String correlationId = UUID.randomUUID().toString();

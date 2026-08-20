@@ -3,12 +3,13 @@
  * e apresenta somente a projeção devolvida pelo backend.
  */
 import { CommonModule } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import {
   ChangeDetectorRef,
   Component,
   EventEmitter,
   HostListener,
+  OnDestroy,
   OnInit,
   Output,
 } from '@angular/core';
@@ -43,7 +44,7 @@ type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
   templateUrl: './relatorios-personalizados.component.html',
   styleUrls: ['./relatorios-personalizados.component.scss'],
 })
-export class RelatoriosPersonalizadosComponent implements OnInit {
+export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   @Output() voltar = new EventEmitter<void>();
 
   configuracao: RelatorioPersonalizadoConfiguracao | null = null;
@@ -68,9 +69,13 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
   carregandoConfiguracao = true;
   gerando = false;
   exportando = false;
+  progressoOperacao = 0;
+  segundosOperacao = 0;
+  mensagemOperacao = '';
   erro = '';
   sucesso = '';
   secoesRecolhidas = new Set<SecaoRelatorio>();
+  private intervaloOperacao?: ReturnType<typeof setInterval>;
 
   constructor(
     private readonly relatorioService: RelatorioService,
@@ -92,6 +97,10 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
       });
   }
 
+  ngOnDestroy(): void {
+    this.pararProgresso();
+  }
+
   gerar(pagina = 1): void {
     if (this.gerando || !this.configuracao) return;
 
@@ -99,6 +108,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     if (!request) return;
 
     this.gerando = true;
+    this.iniciarProgresso('consulta');
     this.erro = '';
     this.sucesso = '';
     this.cdr.detectChanges();
@@ -108,12 +118,17 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
       .pipe(
         finalize(() => {
           this.gerando = false;
+          this.pararProgresso();
           // HttpClient não agenda a atualização desta view no modo zoneless.
           this.cdr.detectChanges();
         }),
       )
       .subscribe({
-        next: (resposta) => this.aplicarResultado(resposta, pagina),
+        next: (resposta) => {
+          this.progressoOperacao = 100;
+          this.mensagemOperacao = 'Prévia concluída.';
+          this.aplicarResultado(resposta, pagina);
+        },
         error: (erro) => {
           this.registros = [];
           this.erro = this.mensagemErro(erro);
@@ -128,6 +143,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
     if (!request) return;
 
     this.exportando = true;
+    this.iniciarProgresso('exportacao');
     this.erro = '';
     this.sucesso = '';
     this.cdr.detectChanges();
@@ -137,16 +153,35 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
       .pipe(
         finalize(() => {
           this.exportando = false;
+          this.pararProgresso();
           this.cdr.detectChanges();
         }),
       )
       .subscribe({
-        next: (resposta) => {
+        next: (evento) => {
+          if (evento.type === HttpEventType.DownloadProgress) {
+            this.mensagemOperacao = 'Transferindo o arquivo pronto para o navegador…';
+            if (evento.total && evento.total > 0) {
+              this.progressoOperacao = Math.max(
+                this.progressoOperacao,
+                Math.min(99, Math.round((evento.loaded / evento.total) * 100)),
+              );
+            }
+            this.cdr.detectChanges();
+            return;
+          }
+
+          if (evento.type !== HttpEventType.Response) return;
+
+          const resposta = evento;
           const arquivo = resposta.body;
           if (!arquivo) {
             this.erro = 'O backend não devolveu o arquivo solicitado.';
             return;
           }
+
+          this.progressoOperacao = 100;
+          this.mensagemOperacao = 'Arquivo concluído. Iniciando o download…';
 
           const url = URL.createObjectURL(arquivo);
           const link = document.createElement('a');
@@ -443,5 +478,40 @@ export class RelatoriosPersonalizadosComponent implements OnInit {
       return erro.error?.message ?? erro.error?.error ?? `A operação falhou (HTTP ${erro.status}).`;
     }
     return erro instanceof Error ? erro.message : 'Não foi possível concluir a operação.';
+  }
+
+  private iniciarProgresso(tipo: 'consulta' | 'exportacao'): void {
+    this.pararProgresso();
+    this.segundosOperacao = 0;
+    this.progressoOperacao = 5;
+    this.mensagemOperacao =
+      tipo === 'consulta'
+        ? 'Consultando os dados e preparando a prévia…'
+        : 'Consultando todas as páginas do relatório…';
+
+    const referenciaSegundos = tipo === 'consulta' ? 30 : 90;
+    this.intervaloOperacao = setInterval(() => {
+      this.segundosOperacao += 1;
+      const aproximacao = 1 - Math.exp(-this.segundosOperacao / referenciaSegundos);
+      this.progressoOperacao = Math.min(94, Math.round(5 + aproximacao * 89));
+      this.mensagemOperacao =
+        tipo === 'consulta'
+          ? this.progressoOperacao < 65
+            ? 'Consultando os dados no SGU…'
+            : 'Preparando a prévia do relatório…'
+          : this.progressoOperacao < 45
+            ? 'Consultando todas as páginas do relatório…'
+            : this.progressoOperacao < 80
+              ? 'Processando os registros do arquivo…'
+              : 'Finalizando o arquivo para download…';
+      this.cdr.detectChanges();
+    }, 1000);
+  }
+
+  private pararProgresso(): void {
+    if (this.intervaloOperacao) {
+      clearInterval(this.intervaloOperacao);
+      this.intervaloOperacao = undefined;
+    }
   }
 }

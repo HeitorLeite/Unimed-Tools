@@ -36,11 +36,17 @@ import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ExportacaoRelatorioService {
+
+  private static final Logger log = LoggerFactory.getLogger(
+    ExportacaoRelatorioService.class
+  );
 
   private enum TipoColuna {
     TEXTO,
@@ -48,6 +54,19 @@ public class ExportacaoRelatorioService {
     DECIMAL,
     DATA,
     BOOLEANO,
+  }
+
+  private static class EstadoColunas {
+
+    protected boolean inicializado;
+    protected List<String> colunas = List.of();
+    protected Map<String, TipoColuna> tipos = Map.of();
+  }
+
+  private static final class EstadoXlsx extends EstadoColunas {
+
+    private int indiceLinha = 1;
+    private int[] larguras = new int[0];
   }
 
   private static final DateTimeFormatter DATA_BRASILEIRA =
@@ -60,6 +79,14 @@ public class ExportacaoRelatorioService {
     int quantidadeRegistros
   ) {}
 
+  public record DescricaoArquivo(String contentType, String extensao) {}
+
+  @FunctionalInterface
+  private interface ConsumidorPagina {
+    void aceitar(List<LinkedHashMap<String, Object>> registros)
+      throws IOException;
+  }
+
   private final SguRelatorioService sgu;
   private final int tamanhoLote;
   private final int maximoPaginas;
@@ -67,11 +94,11 @@ public class ExportacaoRelatorioService {
   public ExportacaoRelatorioService(
     SguRelatorioService sgu,
     @Value("${sgu.api.export.page-size:1000}") int tamanhoLote,
-    @Value("${sgu.api.export.max-pages:1000}") int maximoPaginas
+    @Value("${sgu.api.export.max-pages:0}") int maximoPaginas
   ) {
     this.sgu = sgu;
     this.tamanhoLote = Math.max(1, tamanhoLote);
-    this.maximoPaginas = Math.max(1, maximoPaginas);
+    this.maximoPaginas = Math.max(0, maximoPaginas);
   }
 
   public Arquivo exportar(
@@ -86,6 +113,58 @@ public class ExportacaoRelatorioService {
     return gerarArquivo(formato, registros);
   }
 
+  public DescricaoArquivo descreverArquivo(String formato) {
+    String tipo = formato == null ? "xlsx" : formato.toLowerCase(Locale.ROOT);
+    return switch (tipo) {
+      case "csv" -> new DescricaoArquivo("text/csv; charset=UTF-8", "csv");
+      case "txt" -> new DescricaoArquivo("text/plain; charset=UTF-8", "txt");
+      case "xlsx" -> new DescricaoArquivo(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "xlsx"
+      );
+      default -> throw new IllegalArgumentException(
+        "Formato inválido. Use csv, txt ou xlsx."
+      );
+    };
+  }
+
+  /**
+   * Exporta o relatório manual sem materializar todas as páginas nem criar uma
+   * segunda cópia integral do arquivo em memória.
+   */
+  public void exportarPara(
+    String apiNome,
+    String formato,
+    RelatorioExportacaoRequest request,
+    OutputStream destino
+  ) throws IOException {
+    DescricaoArquivo descricao = descreverArquivo(formato);
+    Map<String, Object> filtros = request == null ? null : request.filtros();
+
+    log.info(
+      "Iniciando exportação paginada. api={}, formato={}, lote={}",
+      apiNome,
+      descricao.extensao(),
+      tamanhoLote
+    );
+
+    long inicio = System.nanoTime();
+    int quantidade = switch (descricao.extensao()) {
+      case "csv" -> escreverCsvPaginado(apiNome, filtros, destino, ';');
+      case "txt" -> escreverCsvPaginado(apiNome, filtros, destino, ';');
+      case "xlsx" -> escreverXlsxPaginado(apiNome, filtros, destino);
+      default -> throw new IllegalStateException("Formato de exportação não suportado.");
+    };
+
+    log.info(
+      "Exportação paginada concluída. api={}, formato={}, registros={}, duracaoMs={}",
+      apiNome,
+      descricao.extensao(),
+      quantidade,
+      (System.nanoTime() - inicio) / 1_000_000
+    );
+  }
+
   /**
    * Carrega todas as páginas de uma API do SGU. O método é público para que
    * a exportação em lote possa reunir vários valores do mesmo filtro em um
@@ -96,9 +175,30 @@ public class ExportacaoRelatorioService {
     Map<String, Object> filtros
   ) {
     List<LinkedHashMap<String, Object>> todos = new ArrayList<>();
-    String assinaturaAnterior = null;
+    try {
+      percorrerPaginas(apiNome, filtros, todos::addAll);
+    } catch (IOException ex) {
+      // ArrayList.addAll não realiza I/O; esta exceção só existe pelo contrato
+      // compartilhado com os escritores paginados.
+      throw new IllegalStateException("Falha inesperada ao reunir as páginas.", ex);
+    }
+    return todos;
+  }
 
-    for (int pagina = 1; pagina <= maximoPaginas; pagina++) {
+  private int percorrerPaginas(
+    String apiNome,
+    Map<String, Object> filtros,
+    ConsumidorPagina consumidor
+  ) throws IOException {
+    String assinaturaAnterior = null;
+    boolean ultimaPaginaEncontrada = false;
+    int quantidade = 0;
+
+    for (
+      int pagina = 1;
+      maximoPaginas == 0 || pagina <= maximoPaginas;
+      pagina++
+    ) {
       Map<String, Object> parametros = new LinkedHashMap<>();
       if (filtros != null) parametros.putAll(filtros);
       parametros.put("page", pagina);
@@ -109,7 +209,10 @@ public class ExportacaoRelatorioService {
         resposta.get("content")
       );
 
-      if (lote.isEmpty()) break;
+      if (lote.isEmpty()) {
+        ultimaPaginaEncontrada = true;
+        break;
+      }
 
       String assinatura = assinatura(lote);
       // Protege contra endpoints que ignoram page/size e repetem eternamente.
@@ -121,22 +224,33 @@ public class ExportacaoRelatorioService {
       }
 
       assinaturaAnterior = assinatura;
-      todos.addAll(lote);
+      consumidor.aceitar(lote);
+      quantidade += lote.size();
+
+      if (pagina == 1 || pagina % 10 == 0) {
+        log.info(
+          "Exportação em andamento. api={}, pagina={}, registros={}",
+          apiNome,
+          pagina,
+          quantidade
+        );
+      }
 
       if (
         Boolean.TRUE.equals(resposta.get("last")) || lote.size() < tamanhoLote
       ) {
+        ultimaPaginaEncontrada = true;
         break;
       }
     }
 
-    if (todos.size() >= (long) tamanhoLote * maximoPaginas) {
+    if (maximoPaginas > 0 && !ultimaPaginaEncontrada) {
       throw new IllegalStateException(
         "O relatório atingiu o limite de páginas configurado no backend."
       );
     }
 
-    return todos;
+    return quantidade;
   }
 
   /**
@@ -183,9 +297,12 @@ public class ExportacaoRelatorioService {
     for (Object item : lista) {
       if (item instanceof Map<?, ?> mapa) {
         LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
-        mapa.forEach((chave, valor) ->
-          registro.put(String.valueOf(chave), valor)
-        );
+        mapa.forEach((chave, valor) -> {
+          String nomeColuna = String.valueOf(chave);
+          if (!ehColunaTecnicaPaginacao(nomeColuna)) {
+            registro.put(nomeColuna, valor);
+          }
+        });
         registros.add(registro);
       }
     }
@@ -194,6 +311,194 @@ public class ExportacaoRelatorioService {
 
   private String assinatura(List<LinkedHashMap<String, Object>> lote) {
     return lote.size() + "|" + lote.get(0) + "|" + lote.get(lote.size() - 1);
+  }
+
+  private int escreverCsvPaginado(
+    String apiNome,
+    Map<String, Object> filtros,
+    OutputStream destino,
+    char delimitador
+  ) throws IOException {
+    escreverBom(destino);
+    EstadoColunas estado = new EstadoColunas();
+
+    try (
+      Writer writer = new OutputStreamWriter(destino, StandardCharsets.UTF_8);
+      CSVPrinter printer = new CSVPrinter(
+        writer,
+        CSVFormat.DEFAULT.builder()
+          .setDelimiter(delimitador)
+          .setRecordSeparator("\r\n")
+          .build()
+      )
+    ) {
+      int quantidade = percorrerPaginas(apiNome, filtros, lote -> {
+        if (!estado.inicializado) {
+          inicializarColunas(estado, lote);
+          for (String coluna : estado.colunas) {
+            printer.print(neutralizarFormula(coluna));
+          }
+          printer.println();
+        }
+
+        for (Map<String, Object> registro : lote) {
+          for (String coluna : estado.colunas) {
+            printer.print(
+              formatarTextoSeguro(registro.get(coluna), estado.tipos.get(coluna))
+            );
+          }
+          printer.println();
+        }
+
+        // Cada lote enviado mantém a conexão ativa e libera memória cedo.
+        printer.flush();
+      });
+      printer.flush();
+      return quantidade;
+    }
+  }
+
+  private int escreverXlsxPaginado(
+    String apiNome,
+    Map<String, Object> filtros,
+    OutputStream destino
+  ) throws IOException {
+    try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) {
+      workbook.setCompressTempFiles(true);
+      Sheet sheet = workbook.createSheet("Relatório");
+      sheet.createFreezePane(0, 1);
+
+      CellStyle cabecalho = workbook.createCellStyle();
+      Font fonte = workbook.createFont();
+      fonte.setBold(true);
+      cabecalho.setFont(fonte);
+      cabecalho.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+      cabecalho.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+      DataFormat formato = workbook.createDataFormat();
+      CellStyle texto = workbook.createCellStyle();
+      texto.setDataFormat(formato.getFormat("@"));
+      CellStyle inteiro = workbook.createCellStyle();
+      inteiro.setDataFormat(formato.getFormat("#,##0"));
+      CellStyle decimal = workbook.createCellStyle();
+      decimal.setDataFormat(formato.getFormat("#,##0.00########"));
+      CellStyle data = workbook.createCellStyle();
+      data.setDataFormat(formato.getFormat("dd/mm/yyyy"));
+      Map<TipoColuna, CellStyle> estilos = Map.of(
+        TipoColuna.TEXTO,
+        texto,
+        TipoColuna.INTEIRO,
+        inteiro,
+        TipoColuna.DECIMAL,
+        decimal,
+        TipoColuna.DATA,
+        data,
+        TipoColuna.BOOLEANO,
+        texto
+      );
+
+      EstadoXlsx estado = new EstadoXlsx();
+      int quantidade = percorrerPaginas(apiNome, filtros, lote -> {
+        if (!estado.inicializado) {
+          inicializarColunas(estado, lote);
+          estado.larguras = new int[estado.colunas.size()];
+          Row header = sheet.createRow(0);
+          for (int i = 0; i < estado.colunas.size(); i++) {
+            String coluna = estado.colunas.get(i);
+            Cell cell = header.createCell(i);
+            cell.setCellValue(coluna);
+            cell.setCellStyle(cabecalho);
+            estado.larguras[i] = Math.max(12, coluna.length() + 3);
+            sheet.setDefaultColumnStyle(i, estilos.get(estado.tipos.get(coluna)));
+          }
+        }
+
+        for (Map<String, Object> registro : lote) {
+          if (estado.indiceLinha >= 1_048_576) {
+            throw new IllegalStateException(
+              "O relatório ultrapassou o limite de linhas de uma planilha XLSX. " +
+                "Exporte em CSV ou TXT."
+            );
+          }
+
+          Row row = sheet.createRow(estado.indiceLinha++);
+          for (int i = 0; i < estado.colunas.size(); i++) {
+            String coluna = estado.colunas.get(i);
+            Object valor = registro.get(coluna);
+            TipoColuna tipo = estado.tipos.get(coluna);
+            preencherCelulaSeguro(
+              row.createCell(i),
+              valor,
+              tipo,
+              estilos.get(tipo),
+              texto
+            );
+            estado.larguras[i] = Math.max(
+              estado.larguras[i],
+              Math.min(60, formatarTextoSeguro(valor, tipo).length() + 2)
+            );
+          }
+        }
+      });
+
+      if (!estado.inicializado) {
+        sheet.createRow(0);
+      }
+
+      for (int i = 0; i < estado.colunas.size(); i++) {
+        sheet.setColumnWidth(i, Math.min(60, estado.larguras[i]) * 256);
+      }
+
+      if (!estado.colunas.isEmpty()) {
+        sheet.setAutoFilter(
+          new org.apache.poi.ss.util.CellRangeAddress(
+            0,
+            Math.max(0, estado.indiceLinha - 1),
+            0,
+            estado.colunas.size() - 1
+          )
+        );
+      }
+
+      workbook.write(destino);
+      destino.flush();
+      workbook.dispose();
+      return quantidade;
+    }
+  }
+
+  private void inicializarColunas(
+    EstadoColunas estado,
+    List<LinkedHashMap<String, Object>> lote
+  ) {
+    estado.colunas = colunas(lote);
+    estado.tipos = inferirTipos(lote, estado.colunas);
+    estado.inicializado = true;
+  }
+
+  private void preencherCelulaSeguro(
+    Cell cell,
+    Object valor,
+    TipoColuna tipo,
+    CellStyle estilo,
+    CellStyle estiloTexto
+  ) {
+    try {
+      preencherCelula(cell, valor, tipo, estilo);
+    } catch (IllegalArgumentException ex) {
+      // Uma página posterior pode conter texto em uma coluna inicialmente
+      // numérica ou de data; preservar o valor é melhor que abortar o arquivo.
+      cell.setCellStyle(estiloTexto);
+      cell.setCellValue(neutralizarFormula(texto(valor)));
+    }
+  }
+
+  private String formatarTextoSeguro(Object valor, TipoColuna tipo) {
+    try {
+      return formatarTexto(valor, tipo);
+    } catch (IllegalArgumentException ex) {
+      return neutralizarFormula(texto(valor));
+    }
   }
 
   private byte[] gerarCsv(
@@ -217,20 +522,15 @@ public class ExportacaoRelatorioService {
       List<String> colunas = colunas(registros);
       Map<String, TipoColuna> tipos = inferirTipos(registros, colunas);
       if (!colunas.isEmpty()) {
-        printer.printRecord(
-          colunas.stream().map(this::neutralizarFormula).toList()
-        );
+        for (String coluna : colunas) printer.print(neutralizarFormula(coluna));
+        printer.println();
       }
 
       for (Map<String, Object> registro : registros) {
-        printer.printRecord(
-          colunas
-            .stream()
-            .map(coluna ->
-              formatarTexto(registro.get(coluna), tipos.get(coluna))
-            )
-            .toList()
-        );
+        for (String coluna : colunas) {
+          printer.print(formatarTexto(registro.get(coluna), tipos.get(coluna)));
+        }
+        printer.println();
       }
     }
 
@@ -239,38 +539,9 @@ public class ExportacaoRelatorioService {
 
   private byte[] gerarTxt(List<LinkedHashMap<String, Object>> registros)
     throws IOException {
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    escreverBom(out);
-
-    try (Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-      List<String> colunas = colunas(registros);
-      Map<String, TipoColuna> tipos = inferirTipos(registros, colunas);
-      writer.write(
-        String.join(
-          "\t",
-          colunas.stream().map(this::neutralizarFormula).toList()
-        )
-      );
-      writer.write("\r\n");
-
-      for (Map<String, Object> registro : registros) {
-        for (int i = 0; i < colunas.size(); i++) {
-          if (i > 0) writer.write('\t');
-          writer.write(
-            formatarTexto(
-              registro.get(colunas.get(i)),
-              tipos.get(colunas.get(i))
-            )
-              .replace('\t', ' ')
-              .replace('\n', ' ')
-              .replace('\r', ' ')
-          );
-        }
-        writer.write("\r\n");
-      }
-    }
-
-    return out.toByteArray();
+    // TXT e CSV compartilham o contrato delimitado por ponto e vírgula. O
+    // CSVPrinter também protege campos que já contêm o próprio delimitador.
+    return gerarCsv(registros, ';');
   }
 
   private byte[] gerarXlsx(List<LinkedHashMap<String, Object>> registros)
@@ -591,8 +862,18 @@ public class ExportacaoRelatorioService {
     if (registros.isEmpty()) return List.of();
 
     LinkedHashSet<String> colunas = new LinkedHashSet<>();
-    registros.forEach(registro -> colunas.addAll(registro.keySet()));
+    registros.forEach(registro ->
+      registro
+        .keySet()
+        .stream()
+        .filter(coluna -> !ehColunaTecnicaPaginacao(coluna))
+        .forEach(colunas::add)
+    );
     return new ArrayList<>(colunas);
+  }
+
+  private boolean ehColunaTecnicaPaginacao(String coluna) {
+    return "RNUM".equalsIgnoreCase(texto(coluna).trim());
   }
 
   private String texto(Object valor) {

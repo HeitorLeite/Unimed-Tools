@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/api/relatorios")
@@ -124,27 +125,27 @@ public class RelatorioController {
     return sgu.executar(nome, parametros == null ? Map.of() : parametros);
   }
 
-  /**
-   * Materializa todas as páginas do relatório e devolve o arquivo com nome e
-   * tipo de conteúdo compatíveis com o formato solicitado.
-   */
+  /** Processa e transmite cada página sem manter o relatório inteiro em memória. */
   @PostMapping("/sgu/exportar/{nome}")
-  public ResponseEntity<byte[]> exportar(
+  public ResponseEntity<StreamingResponseBody> exportar(
     @PathVariable String nome,
     @RequestParam(defaultValue = "xlsx") String formato,
     @RequestBody(required = false) RelatorioExportacaoRequest request
-  ) throws Exception {
+  ) {
     validarApiNaoReservada(nome);
-    var arquivo = exportacao.exportar(nome, formato, request);
+    var descricao = exportacao.descreverArquivo(formato);
     String nomeBase = sanitizarNome(
       request == null || request.nomeArquivo() == null
         ? nome
         : request.nomeArquivo()
     );
-    String nomeCompleto = nomeBase + "." + arquivo.extensao();
+    String nomeCompleto = nomeBase + "." + descricao.extensao();
+    StreamingResponseBody corpo = destino ->
+      exportacao.exportarPara(nome, formato, request, destino);
 
     return ResponseEntity.ok()
-      .contentType(MediaType.parseMediaType(arquivo.contentType()))
+      .contentType(MediaType.parseMediaType(descricao.contentType()))
+      .header(HttpHeaders.CACHE_CONTROL, "no-store")
       .header(
         HttpHeaders.CONTENT_DISPOSITION,
         ContentDisposition.attachment()
@@ -152,8 +153,7 @@ public class RelatorioController {
           .build()
           .toString()
       )
-      .header("X-Total-Registros", String.valueOf(arquivo.quantidadeRegistros()))
-      .body(arquivo.conteudo());
+      .body(corpo);
   }
 
   /**

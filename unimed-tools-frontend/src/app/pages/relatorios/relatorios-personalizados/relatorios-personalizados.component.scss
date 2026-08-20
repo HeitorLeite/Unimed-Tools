@@ -665,15 +665,59 @@ button:disabled {
   margin: 0;
 }
 
-.preview-loading {
-  align-items: center;
+.operation-progress {
+  background: rgba(0, 107, 95, 0.07);
   border-top: 1px solid #edf2ef;
   color: #355347;
+  min-height: 86px;
+  padding: 16px 20px;
+}
+
+.operation-progress-copy {
+  align-items: center;
   display: flex;
   gap: 10px;
-  justify-content: center;
-  min-height: 86px;
-  padding: 18px;
+}
+
+.operation-progress-copy div {
+  display: grid;
+  gap: 3px;
+}
+
+.operation-progress-copy small {
+  color: #6d7c75;
+  font-size: 11px;
+}
+
+.progress-line {
+  background: rgba(0, 107, 95, 0.14);
+  border-radius: 999px;
+  height: 5px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.progress-line span {
+  background: #006b5f;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 0.8s ease;
+  width: 0;
+}
+
+.progress-meta {
+  align-items: center;
+  color: #6d7c75;
+  display: flex;
+  font-size: 11px;
+  justify-content: space-between;
+  margin-top: 7px;
+}
+
+.progress-meta strong {
+  color: #006b5f;
+  font-size: 12px;
 }
 
 .preview-summary {

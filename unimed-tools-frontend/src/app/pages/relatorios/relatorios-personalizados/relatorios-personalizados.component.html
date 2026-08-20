@@ -293,9 +293,39 @@
       </div>
 
       <div id="conteudo-resultado" [hidden]="secaoRecolhida('resultado')">
-        <div class="preview-loading" *ngIf="gerando" role="status">
-          <span class="spinner"></span>
-          <strong>Consultando e preparando a prévia…</strong>
+        <div
+          class="operation-progress"
+          *ngIf="gerando || exportando"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div class="operation-progress-copy">
+            <span class="spinner"></span>
+            <div>
+              <strong>{{ mensagemOperacao }}</strong>
+              <small>
+                Progresso estimado · {{ segundosOperacao }} segundo(s) decorrido(s). Não feche esta
+                página.
+              </small>
+            </div>
+          </div>
+          <div
+            class="progress-line"
+            role="progressbar"
+            [attr.aria-label]="
+              gerando ? 'Progresso estimado da consulta' : 'Progresso estimado da exportação'
+            "
+            aria-valuemin="0"
+            aria-valuemax="100"
+            [attr.aria-valuenow]="progressoOperacao"
+          >
+            <span [style.width.%]="progressoOperacao"></span>
+          </div>
+          <div class="progress-meta">
+            <strong>{{ progressoOperacao }}%</strong>
+            <span>{{ gerando ? 'Preparando prévia' : 'O download começará ao concluir' }}</span>
+          </div>
         </div>
 
         <div class="empty-result" *ngIf="!registros.length && !gerando">

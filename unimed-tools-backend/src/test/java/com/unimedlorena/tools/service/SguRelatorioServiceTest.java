@@ -79,4 +79,34 @@ class SguRelatorioServiceTest {
       .hasMessageNotContaining("conteudoFiltro");
     server.verify();
   }
+
+  @Test
+  void devePreservarCodigoOracleSemExporSqlRetornadoPeloSgu() {
+    RestClient.Builder builder = RestClient.builder();
+    MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+    SguRelatorioService service = new SguRelatorioService(
+      builder,
+      new ObjectMapper(),
+      "https://sgu.example.com",
+      "segredo-teste",
+      "apikey",
+      "/api/procedure",
+      "/api/procedure"
+    );
+
+    server
+      .expect(requestTo("https://sgu.example.com/api/procedure/ins_atu_query_api"))
+      .andRespond(
+        withBadRequest()
+          .contentType(MediaType.APPLICATION_JSON)
+          .body("{\"message\":\"consultaSQL inválida: ORA-00918; SELECT segredo\"}")
+      );
+
+    assertThatThrownBy(() -> service.criarOuAtualizar(Map.of("nome", "api-teste")))
+      .isInstanceOf(IllegalArgumentException.class)
+      .hasMessage("O SGU rejeitou a definição SQL da API de relatório. Código retornado: ORA-00918.")
+      .hasMessageNotContaining("SELECT")
+      .hasMessageNotContaining("segredo");
+    server.verify();
+  }
 }

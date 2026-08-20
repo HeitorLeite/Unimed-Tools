@@ -121,6 +121,31 @@ em binds de lista no mesmo bloco. O filtro registrado no SGU valida somente o
 bind no `WHERE` externo, enquanto a condição efetiva permanece dentro da CTE.
 Datas diferentes não são unificadas automaticamente.
 
+**Status: Atual.** Listas literais simples com `IN` são detectadas no `WHERE`
+principal e no `WHERE` de CTEs para identificadores de coluna genéricos.
+Igualdades somente são convertidas para a allowlist de colunas conhecidas;
+constantes técnicas como `RN = 1` e indicadores de status permanecem fixas.
+Condições internas de CTE continuam no próprio bloco e recebem binds locais,
+preservando o escopo dos aliases. O leitor também limita a importação à primeira
+instrução terminada por ponto e vírgula fora de textos e comentários.
+
+**Status: Atual.** A validação anterior ao cadastro identifica aliases de tabela
+duplicados dentro do mesmo bloco `SELECT`, sem impedir a reutilização em CTEs e
+subconsultas independentes. Rejeições esperadas da integração SGU são devolvidas
+como erro de solicitação sanitizado em vez de `500`; códigos Oracle podem ser
+preservados para diagnóstico sem devolver a definição SQL ao navegador.
+
+**Status: Atual.** Aliases de colunas projetadas também são verificados por
+bloco `SELECT`. A unicidade é necessária porque a paginação do SGU envolve a
+consulta em um `SELECT` externo; colunas homônimas nesse resultado provocam
+`ORA-00918` durante a execução, embora o cadastro da definição seja aceito.
+
+**Status: Atual.** Na fronteira de cadastro manual, nomes de filtro com underscore
+ou hífen são compactados para caracteres alfanuméricos. A mesma substituição é
+aplicada aos binds do SQL-base e de `conteudoFiltro`, mantendo a correspondência
+exigida pelo SGU e a sintaxe válida do Oracle. Identificadores internos continuam
+legíveis e colisões produzidas pela compactação são rejeitadas localmente.
+
 **Status: Atual.** `NotificationService` expõe o histórico estático de versões
 do frontend e persiste no `localStorage` apenas os identificadores já lidos. O
 painel fica no cabeçalho do `main-layout`; não armazena dados de autenticação nem
@@ -161,7 +186,32 @@ Controllers não devem incorporar parsing de arquivos ou regras de negócio. Ser
 | `RelatorioPersonalizadoService`       | Valida entradas, coordena publicação/execução e projeta a resposta.    |
 | `RelatorioPersonalizadoSqlBuilder`    | Mantém a allowlist e monta SQL somente com fragmentos aprovados.       |
 | `SguRelatorioService`                 | Envia a definição e os parâmetros ao SGU sem expor a chave ao cliente. |
-| `ExportacaoRelatorioService`          | Percorre páginas, infere tipos e gera CSV, TXT ou XLSX.                 |
+| `ExportacaoRelatorioService`          | Percorre páginas, infere tipos e gera ou transmite CSV, TXT e XLSX.     |
+| `RelatorioAsyncConfig`                | Limita concorrência e timeout das respostas manuais de longa duração.  |
+
+**Status: Atual.** A paginação da exportação termina pela indicação `last`, por
+um lote vazio ou menor que o solicitado. `SGU_EXPORT_MAX_PAGES=0` não impõe um
+teto fixo, mas a repetição da mesma página continua sendo rejeitada para impedir
+laços sem fim. O serviço remove a coluna técnica `RNUM` antes de gerar qualquer
+formato, inclusive os arquivos do ZIP automático. Manual e Personalizado exibem
+progresso estimado enquanto o backend processa e progresso de transferência
+quando o navegador recebe tamanho total da resposta.
+
+Na exportação Manual, a resposta usa processamento assíncrono e o serviço
+mantém somente o lote corrente em memória. CSV e TXT são enviados a cada página;
+XLSX usa `SXSSFWorkbook`, conserva uma janela de linhas em memória e escreve o
+arquivo diretamente na resposta. Como o total só é conhecido depois que os
+headers já foram enviados, esse endpoint não inclui `X-Total-Registros`; o
+relatório Personalizado preserva o header no contrato atual.
+
+CSV e TXT compartilham o contrato textual delimitado por `;`, incluindo escape
+de campos que contenham o próprio separador. XLSX representa a mesma separação
+por células e colunas, pois o formato de planilha não utiliza delimitador textual.
+
+Como o frontend funciona em modo zoneless, os componentes dos modos Manual,
+Personalizado e Automático solicitam explicitamente a detecção de mudanças ao
+concluir callbacks HTTP, temporizadores e continuações assíncronas. Isso inclui
+as rotinas administrativas das APIs e a leitura de mensagens de erro em `Blob`.
 
 A API `0090-relatorio-personalizado` é reservada ao construtor. Ela é ocultada
 da listagem do catálogo manual e os endpoints genéricos impedem sua criação,

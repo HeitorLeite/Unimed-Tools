@@ -325,8 +325,19 @@
                   >
                 </div>
               </div>
-              <div class="generation-progress" aria-hidden="true">
-                <span></span>
+              <div
+                class="generation-progress"
+                role="progressbar"
+                aria-label="Progresso estimado da consulta"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-valuenow]="progressoGeracao"
+              >
+                <span [style.width.%]="progressoGeracao"></span>
+              </div>
+              <div class="generation-progress-meta">
+                <strong>{{ progressoGeracao }}%</strong>
+                <span>Progresso estimado</span>
               </div>
             </div>
           </section>
@@ -408,6 +419,38 @@
                   <span class="spinner" *ngIf="exportando"></span>
                   {{ exportando ? 'Preparando…' : 'Baixar relatório' }}
                 </button>
+              </div>
+            </div>
+
+            <div
+              class="generation-status export-progress-status"
+              *ngIf="exportando"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <div class="generation-status-copy">
+                <span class="generation-pulse" aria-hidden="true"></span>
+                <div>
+                  <strong>{{ mensagemExportacao }}</strong>
+                  <small>
+                    {{ segundosExportacao }} segundo(s) decorrido(s). Relatórios grandes podem
+                    continuar em processamento sem limite fixo no navegador.
+                  </small>
+                </div>
+              </div>
+              <div
+                class="generation-progress"
+                role="progressbar"
+                aria-label="Progresso estimado da exportação"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-valuenow]="progressoExportacao"
+              >
+                <span [style.width.%]="progressoExportacao"></span>
+              </div>
+              <div class="generation-progress-meta">
+                <strong>{{ progressoExportacao }}%</strong>
+                <span>O download começará assim que o arquivo estiver pronto</span>
               </div>
             </div>
 

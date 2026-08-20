@@ -122,7 +122,8 @@ Em desenvolvimento, o frontend usa um proxy:
 /api → http://localhost:8080
 ```
 
-O proxy possui tempo limite de 120 segundos e é carregado pelo comando `npm start`.
+O proxy possui tempo limite de duas horas para permitir exportações extensas e é
+carregado pelo comando `npm start`.
 
 ### Backend
 
@@ -672,6 +673,32 @@ itens, como `emp.empcn_cod_pessoa IN ()`, são convertidas em filtros de lista
 obrigatórios dentro da própria CTE. Datas diferentes permanecem fixas para que a
 aplicação não altere silenciosamente o intervalo da consulta.
 
+Listas `IN` simples no `WHERE`, tanto externo quanto de CTE, são reconhecidas
+para identificadores de coluna genéricos. Igualdades só são promovidas a filtro
+quando a coluna pertence ao conjunto conhecido de competência, grupo, empresa,
+Unimed ou item. Assim, `GRBNF_COD IN (1)` e
+`GUIA_NRO_COMPET IN (202605)` viram filtros editáveis, enquanto constantes
+técnicas como `RN = 1` e `GUITE_IND_STATUS = 'I'` permanecem fixas no SQL.
+Expressões, subconsultas e operadores ambíguos também não são reescritos
+automaticamente.
+
+Quando o arquivo contém anotações ou consultas auxiliares depois do ponto e
+vírgula da consulta principal, somente a primeira instrução é importada. Pontos
+e vírgulas dentro de textos ou comentários são preservados e não encerram a
+leitura.
+
+Antes do cadastro, a aplicação também verifica aliases de tabela repetidos no
+mesmo bloco `SELECT` e informa o alias e as linhas conflitantes. O mesmo nome
+pode continuar sendo reutilizado em CTEs ou subconsultas diferentes. Rejeições
+de validação devolvidas pelo SGU são apresentadas como erro de solicitação; se o
+retorno contiver um código Oracle, somente o código é preservado, sem expor o
+SQL enviado.
+
+Aliases de colunas de saída também precisam ser únicos dentro de cada `SELECT`.
+O SGU envolve a consulta para aplicar paginação, e nomes repetidos podem causar
+`ORA-00918` somente durante a execução. A importação identifica esse conflito
+antes do cadastro e informa as linhas que precisam ser renomeadas.
+
 A criação utiliza:
 
 ```text
@@ -684,7 +711,14 @@ O nome do filtro deve:
 
 - estar em minúsculo;
 - não conter espaços;
-- usar apenas letras, números ou underscore.
+- usar apenas letras, números, underscore ou hífen na edição interna da aplicação.
+
+Antes do envio ao SGU, underscores e hífens são removidos do `nomeFiltro` e do
+bind correspondente no SQL. Por exemplo, `data_referencia` é enviado como
+`datareferencia` e `:datareferencia`. A compactação evita o underscore rejeitado
+pelo SGU sem criar binds Oracle inválidos com hífen. Colisões entre dois nomes
+que resultariam no mesmo identificador compactado são rejeitadas antes do
+cadastro.
 
 Exemplo:
 
@@ -754,7 +788,29 @@ Formatos disponíveis:
 - TXT;
 - XLSX.
 
-A exportação não utiliza somente a página visível. O backend percorre as páginas do SGU até obter o relatório completo ou atingir o limite configurado.
+A exportação não utiliza somente a página visível. O backend percorre as páginas
+do SGU até obter o relatório completo. Por padrão não existe teto fixo de
+páginas; ainda são interrompidas APIs que repetem a mesma página indefinidamente.
+Se a operação precisar de um limite operacional, ele pode ser definido pela
+variável `SGU_EXPORT_MAX_PAGES`.
+
+**Status: Atual.** No modo Manual, o backend processa uma página do SGU por vez
+e transmite o arquivo diretamente na resposta, sem manter todas as linhas e uma
+cópia integral do arquivo simultaneamente na memória. CSV e TXT são liberados a
+cada página; XLSX utiliza a escrita temporária em disco do Apache POI e grava o
+arquivo final diretamente na resposta. A operação assíncrona aceita por padrão
+até duas horas, configuráveis por `REPORT_EXPORT_ASYNC_TIMEOUT_MS`.
+
+Nos modos Manual e Personalizado, uma barra apresenta o progresso estimado da
+consulta ou da montagem do arquivo e passa a acompanhar a transferência HTTP
+quando o tamanho total é informado. A coluna técnica `RNUM`, usada pelo SGU na
+paginação, é descartada pelo gerador comum e não aparece em CSV, TXT, XLSX ou
+arquivos incluídos no ZIP automático.
+
+**Status: Atual.** As conclusões assíncronas dos modos Manual, Personalizado e
+Automático notificam explicitamente a detecção de mudanças do Angular. Listagem,
+cadastro, edição, exclusão, consulta, exportação, progresso, sucesso e erro são
+refletidos imediatamente na tela, sem depender de um clique posterior do usuário.
 
 #### CSV
 
@@ -769,7 +825,8 @@ A exportação não utiliza somente a página visível. O backend percorre as p�
 
 - codificação UTF-8;
 - BOM;
-- colunas separadas por tabulação.
+- colunas separadas por `;`, com proteção para valores que contenham o próprio
+  separador;
 - datas e valores decimais seguem a mesma representação do CSV;
 - campos textuais potencialmente interpretados como fórmula são neutralizados.
 
@@ -1200,7 +1257,7 @@ npm run build:lan
 
 ```apache
 ProxyRequests Off
-ProxyTimeout 3600
+ProxyTimeout 7200
 ProxyPass        /api http://127.0.0.1:8080/api
 ProxyPassReverse /api http://127.0.0.1:8080/api
 ```
@@ -1336,7 +1393,11 @@ linha única.
 | `SGU_API_PROCEDURE_PATH` |             Não | `/api/procedure/p_prcssa_dados`      | Caminho das rotinas administrativas                 |
 | `SGU_API_EXECUTION_PATH` |             Não | `/api/procedure/p_prcssa_dados`      | Caminho de execução dos relatórios                  |
 | `SGU_EXPORT_PAGE_SIZE`   |             Não | `1000`                               | Registros solicitados por página durante exportação |
-| `SGU_EXPORT_MAX_PAGES`   |             Não | `1000`                               | Limite de páginas de uma exportação                 |
+| `SGU_EXPORT_MAX_PAGES`   |             Não | `0`                                  | Limite opcional de páginas; `0` exporta até o fim   |
+| `REPORT_EXPORT_ASYNC_TIMEOUT_MS` |      Não | `7200000`                            | Tempo máximo da exportação manual assíncrona, em ms |
+| `REPORT_EXPORT_ASYNC_CORE_POOL_SIZE` |   Não | `2`                                  | Threads mantidas para exportações manuais           |
+| `REPORT_EXPORT_ASYNC_MAX_POOL_SIZE` |    Não | `4`                                  | Máximo de exportações manuais executadas em paralelo |
+| `REPORT_EXPORT_ASYNC_QUEUE_CAPACITY` |    Não | `20`                                 | Exportações manuais que podem aguardar execução     |
 
 ### Regras para `SGU_API_KEY`
 
@@ -1443,7 +1504,7 @@ Multipart:
 | POST   | `/api/relatorios/sgu/criar`                                 | Cria ou atualiza API no SGU                |
 | DELETE | `/api/relatorios/sgu/{nome}`                                | Apaga API no SGU                           |
 | POST   | `/api/relatorios/sgu/executar/{nome}`                       | Executa relatório do catálogo manual       |
-| POST   | `/api/relatorios/sgu/exportar/{nome}?formato=xlsx`          | Exporta um relatório completo              |
+| POST   | `/api/relatorios/sgu/exportar/{nome}?formato=xlsx`          | Transmite o relatório manual por páginas   |
 | POST   | `/api/relatorios/sgu/exportar-lote`                         | Exporta grupo automático em arquivo ZIP    |
 
 Contrato do relatório personalizado:

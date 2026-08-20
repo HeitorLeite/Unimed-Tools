@@ -1,12 +1,21 @@
 package com.unimedlorena.tools.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import com.unimedlorena.tools.dto.RelatorioExportacaoRequest;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
@@ -104,22 +113,23 @@ class ExportacaoRelatorioServiceTest {
   }
 
   @Test
-  void deveFormatarTxtComTabulacaoEValoresNormalizados() throws Exception {
+  void deveFormatarTxtComPontoEVirgulaEValoresNormalizados() throws Exception {
     LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
     registro.put("codigoBeneficiario", "001234");
     registro.put("valorTotal", "1.234,56");
     registro.put("dataPagamento", "2026-08-10 00:00:00");
     registro.put("@OBSERVACAO", "  =2+2");
+    registro.put("DESCRICAO", "texto; separado");
 
     var arquivo = service.gerarArquivo("txt", List.of(registro));
     String conteudo = new String(arquivo.conteudo(), StandardCharsets.UTF_8);
 
     assertThat(conteudo).startsWith("\uFEFF");
     assertThat(conteudo).contains(
-      "codigoBeneficiario\tvalorTotal\tdataPagamento\t'@OBSERVACAO\r\n"
+      "codigoBeneficiario;valorTotal;dataPagamento;'@OBSERVACAO;DESCRICAO\r\n"
     );
     assertThat(conteudo).contains(
-      "001234\t1234,56\t10/08/2026\t'  =2+2\r\n"
+      "001234;1234,56;10/08/2026;'  =2+2;\"texto; separado\"\r\n"
     );
   }
 
@@ -171,5 +181,141 @@ class ExportacaoRelatorioServiceTest {
       var arquivo = service.gerarArquivo(formato, registros);
       assertThat(arquivo.conteudo()).isNotEmpty();
     }
+  }
+
+  @Test
+  void deveRemoverRnumDeTodosOsFormatos() throws Exception {
+    LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
+    registro.put("NOME", "Linha válida");
+    registro.put("rnum", 1);
+
+    for (String formato : List.of("xlsx", "csv", "txt")) {
+      var arquivo = service.gerarArquivo(formato, List.of(registro));
+
+      if (formato.equals("xlsx")) {
+        try (
+          XSSFWorkbook workbook = new XSSFWorkbook(
+            new ByteArrayInputStream(arquivo.conteudo())
+          )
+        ) {
+          var cabecalho = workbook.getSheetAt(0).getRow(0);
+          assertThat(cabecalho.getLastCellNum()).isEqualTo((short) 1);
+          assertThat(cabecalho.getCell(0).getStringCellValue()).isEqualTo("NOME");
+        }
+      } else {
+        String conteudo = new String(arquivo.conteudo(), StandardCharsets.UTF_8);
+        assertThat(conteudo).doesNotContainIgnoringCase("rnum");
+      }
+    }
+  }
+
+  @Test
+  void deveEncerrarSemTetoQuandoSguInformarUltimaPagina() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
+    registro.put("NOME", "Teste");
+    registro.put("RNUM", 1);
+
+    when(sgu.executar(anyString(), anyMap()))
+      .thenReturn(Map.of("content", List.of(registro), "last", true));
+
+    var semTeto = new ExportacaoRelatorioService(sgu, 1, 0);
+    var registros = semTeto.carregarRegistros("api-teste", Map.of());
+
+    assertThat(registros).hasSize(1);
+    assertThat(registros.get(0)).containsOnlyKeys("NOME");
+  }
+
+  @Test
+  void naoAcusaLimiteQuandoUltimaPaginaCoincideComTetoConfigurado() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
+    registro.put("NOME", "Teste");
+
+    when(sgu.executar(anyString(), anyMap()))
+      .thenReturn(Map.of("content", List.of(registro), "last", true));
+
+    var limitado = new ExportacaoRelatorioService(sgu, 1, 1);
+
+    assertThat(limitado.carregarRegistros("api-teste", Map.of())).hasSize(1);
+  }
+
+  @Test
+  void deveTransmitirCsvPaginaPorPaginaSemRnum() throws Exception {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    LinkedHashMap<String, Object> primeiro = new LinkedHashMap<>();
+    primeiro.put("NOME", "Primeiro");
+    primeiro.put("RNUM", 1);
+    LinkedHashMap<String, Object> segundo = new LinkedHashMap<>();
+    segundo.put("NOME", "Segundo");
+    segundo.put("RNUM", 2);
+    LinkedHashMap<String, Object> terceiro = new LinkedHashMap<>();
+    terceiro.put("NOME", "Terceiro");
+    terceiro.put("RNUM", 3);
+
+    when(sgu.executar(anyString(), anyMap()))
+      .thenReturn(
+        Map.of("content", List.of(primeiro, segundo), "last", false),
+        Map.of("content", List.of(terceiro), "last", true)
+      );
+
+    var paginado = new ExportacaoRelatorioService(sgu, 2, 0);
+    ByteArrayOutputStream destino = new ByteArrayOutputStream();
+    paginado.exportarPara(
+      "api-teste",
+      "csv",
+      new RelatorioExportacaoRequest(Map.of("competencia", 202607), "teste"),
+      destino
+    );
+
+    String conteudo = destino.toString(StandardCharsets.UTF_8);
+    assertThat(conteudo).contains("NOME\r\n");
+    assertThat(conteudo).contains("Primeiro\r\n", "Segundo\r\n", "Terceiro\r\n");
+    assertThat(conteudo).doesNotContainIgnoringCase("rnum");
+    verify(sgu, times(2)).executar(anyString(), anyMap());
+  }
+
+  @Test
+  void deveGerarXlsxPaginadoSemManterTodasAsPaginas() throws Exception {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    LinkedHashMap<String, Object> primeiro = new LinkedHashMap<>();
+    primeiro.put("NOME", "Primeiro");
+    primeiro.put("RNUM", 1);
+    LinkedHashMap<String, Object> segundo = new LinkedHashMap<>();
+    segundo.put("NOME", "Segundo");
+    segundo.put("RNUM", 2);
+    LinkedHashMap<String, Object> terceiro = new LinkedHashMap<>();
+    terceiro.put("NOME", "Terceiro");
+    terceiro.put("RNUM", 3);
+
+    when(sgu.executar(anyString(), anyMap()))
+      .thenReturn(
+        Map.of("content", List.of(primeiro, segundo), "last", false),
+        Map.of("content", List.of(terceiro), "last", true)
+      );
+
+    var paginado = new ExportacaoRelatorioService(sgu, 2, 0);
+    ByteArrayOutputStream destino = new ByteArrayOutputStream();
+    paginado.exportarPara(
+      "api-teste",
+      "xlsx",
+      new RelatorioExportacaoRequest(Map.of(), "teste"),
+      destino
+    );
+
+    try (
+      XSSFWorkbook workbook = new XSSFWorkbook(
+        new ByteArrayInputStream(destino.toByteArray())
+      )
+    ) {
+      var planilha = workbook.getSheetAt(0);
+      assertThat(planilha.getLastRowNum()).isEqualTo(3);
+      assertThat(planilha.getRow(0).getLastCellNum()).isEqualTo((short) 1);
+      assertThat(planilha.getRow(0).getCell(0).getStringCellValue())
+        .isEqualTo("NOME");
+      assertThat(planilha.getRow(3).getCell(0).getStringCellValue())
+        .isEqualTo("Terceiro");
+    }
+    verify(sgu, times(2)).executar(anyString(), anyMap());
   }
 }

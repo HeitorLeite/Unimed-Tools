@@ -1,7 +1,7 @@
 /**
  * Camada de acesso ao backend de relatórios e ao catálogo mantido no localStorage.
  */
-import { HttpClient, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpEvent, HttpResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, catchError, concatMap, map, throwError } from 'rxjs';
 
@@ -201,9 +201,10 @@ export class RelatorioService {
   exportarPersonalizado(
     formato: FormatoExportacao,
     request: RelatorioPersonalizadoRequest,
-  ): Observable<HttpResponse<Blob>> {
+  ): Observable<HttpEvent<Blob>> {
     return this.http.post(`${this.baseUrl}/personalizado/exportar?formato=${formato}`, request, {
-      observe: 'response',
+      observe: 'events',
+      reportProgress: true,
       responseType: 'blob',
     });
   }
@@ -215,11 +216,11 @@ export class RelatorioService {
     formato: FormatoExportacao,
     filtros: Record<string, unknown>,
     nomeArquivo: string,
-  ): Observable<Blob> {
+  ): Observable<HttpEvent<Blob>> {
     return this.http.post(
       `${this.baseUrl}/sgu/exportar/${encodeURIComponent(nome)}?formato=${formato}`,
       { filtros, nomeArquivo },
-      { responseType: 'blob' },
+      { observe: 'events', reportProgress: true, responseType: 'blob' },
     );
   }
 

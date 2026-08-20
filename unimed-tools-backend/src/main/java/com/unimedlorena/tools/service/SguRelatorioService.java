@@ -12,6 +12,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +28,11 @@ import org.springframework.web.util.UriUtils;
 
 @Service
 public class SguRelatorioService {
+
+  private static final Pattern CODIGO_ORACLE = Pattern.compile(
+    "\\bORA-\\d{5}\\b",
+    Pattern.CASE_INSENSITIVE
+  );
 
   private static final Logger log = LoggerFactory.getLogger(
     SguRelatorioService.class
@@ -301,7 +308,11 @@ public class SguRelatorioService {
       normalizada.contains("conteudofiltro") ||
       normalizada.contains("consultasql")
     ) {
-      return "O SGU rejeitou a definição SQL da API de relatório.";
+      Matcher codigoOracle = CODIGO_ORACLE.matcher(mensagem);
+      String sufixo = codigoOracle.find()
+        ? " Código retornado: " + codigoOracle.group().toUpperCase(Locale.ROOT) + "."
+        : "";
+      return "O SGU rejeitou a definição SQL da API de relatório." + sufixo;
     }
     return mensagem;
   }

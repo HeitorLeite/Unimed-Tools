@@ -6,6 +6,14 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
+    id: '7.4.0-exportacoes-e-filtros-sql',
+    versao: '7.4.0',
+    titulo: 'Exportações extensas e filtros SQL ampliados',
+    resumo:
+      'Adiciona progresso, remove RNUM, libera relatórios extensos e reconhece filtros SQL sem transformar constantes técnicas.',
+    publicadaEm: '2026-08-20',
+  },
+  {
     id: '7.3.0-filtros-cte-importacao-sql',
     versao: '7.3.0',
     titulo: 'Filtros de CTE na importação SQL',

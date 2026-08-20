@@ -1,7 +1,7 @@
 /**
  * Coordena catálogo, APIs SGU, SQL importado, execução manual, templates e exportações.
  */
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -102,10 +102,14 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
 
   carregando = false;
   segundosGeracao = 0;
+  progressoGeracao = 0;
   mensagemGeracao = '';
   duracaoUltimaConsultaMs: number | null = null;
 
   exportando: FormatoExportacao | null = null;
+  segundosExportacao = 0;
+  progressoExportacao = 0;
+  mensagemExportacao = '';
   formatoSelecionado: FormatoExportacao = 'xlsx';
   nomeArquivoDownload = '';
   erro = '';
@@ -163,9 +167,9 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   excluindo = false;
 
   private intervaloGeracao?: ReturnType<typeof setInterval>;
+  private intervaloExportacao?: ReturnType<typeof setInterval>;
   private inicioGeracao = 0;
   private readonly timeoutGeracaoMs = 120_000;
-  private readonly timeoutExportacaoMs = 600_000;
   private readonly nomeFiltroTecnicoSemFiltros = 'filtrotecnico';
   private readonly valoresFiltroPorRelatorio: Record<string, Record<string, string | number>> = {};
 
@@ -208,6 +212,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.salvarFiltrosSelecionadoAtual();
     this.pararCronometroGeracao();
+    this.pararCronometroExportacao();
   }
 
   aplicarPesquisa(): void {
@@ -317,7 +322,10 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       .buscarApi(nome)
       .pipe(
         timeout(this.timeoutGeracaoMs),
-        finalize(() => (this.buscandoApi = false)),
+        finalize(() => {
+          this.buscandoApi = false;
+          this.cdr.detectChanges();
+        }),
       )
       .subscribe({
         next: (api) => {
@@ -357,7 +365,10 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       .listarApis()
       .pipe(
         timeout(this.timeoutGeracaoMs),
-        finalize(() => (this.carregandoListaApis = false)),
+        finalize(() => {
+          this.carregandoListaApis = false;
+          this.cdr.detectChanges();
+        }),
       )
       .subscribe({
         next: (apis) => {
@@ -468,11 +479,14 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       .criarApi(definicaoSgu)
       .pipe(
         timeout(this.timeoutGeracaoMs),
-        finalize(() => (this.salvandoApi = false)),
+        finalize(() => {
+          this.salvandoApi = false;
+          this.cdr.detectChanges();
+        }),
       )
       .subscribe({
         next: () => {
-          this.adicionarAoCatalogo(definicaoNegocio);
+          this.adicionarAoCatalogo(definicaoSgu);
           this.modalNovoAberto = false;
           this.listaApisCarregada = false;
           this.sucesso = `A API ${definicaoNegocio.nome} foi cadastrada e adicionada aos relatórios.`;
@@ -647,7 +661,15 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       return `A API “${arquivo.apiNome.trim()}” já está no catálogo. Use a opção Editar API.`;
     }
 
-    return this.validarDefinicaoApi(this.definicaoDoArquivoSql(arquivo), arquivo.nomeExibicao);
+    return this.validarDefinicaoApi(
+      {
+        nome: arquivo.apiNome.trim(),
+        consultaSQL: arquivo.consultaSQL,
+        ordenacao: arquivo.ordenacao.trim(),
+        filtros: this.normalizarFiltros(arquivo.filtros),
+      },
+      arquivo.nomeExibicao,
+    );
   }
 
   get quantidadeArquivosProntos(): number {
@@ -777,6 +799,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
         quantidade === 1
           ? 'A API do arquivo SQL foi cadastrada e adicionada aos relatórios.'
           : `${quantidade} APIs foram cadastradas e adicionadas aos relatórios.`;
+      this.cdr.detectChanges();
       return;
     }
 
@@ -788,6 +811,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     if (criadas.length) {
       this.sucesso = `${criadas.length} API(s) foram cadastradas com sucesso.`;
     }
+    this.cdr.detectChanges();
   }
 
   abrirEdicao(relatorio: RelatorioCatalogo, evento?: Event): void {
@@ -813,7 +837,10 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       .buscarApi(relatorio.apiNome)
       .pipe(
         timeout(this.timeoutGeracaoMs),
-        finalize(() => (this.carregandoEdicao = false)),
+        finalize(() => {
+          this.carregandoEdicao = false;
+          this.cdr.detectChanges();
+        }),
       )
       .subscribe({
         next: (api) => {
@@ -882,7 +909,10 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       .substituirApi(nomeAnterior, definicaoAnterior, novaDefinicaoSgu)
       .pipe(
         timeout(this.timeoutGeracaoMs),
-        finalize(() => (this.salvandoEdicao = false)),
+        finalize(() => {
+          this.salvandoEdicao = false;
+          this.cdr.detectChanges();
+        }),
       )
       .subscribe({
         next: () => {
@@ -890,8 +920,8 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
             ...this.relatorioEmEdicao!,
             nomeExibicao: this.editarNomeExibicao.trim(),
             descricao: this.editarDescricao.trim(),
-            apiNome: novaDefinicaoNegocio.nome,
-            filtros: this.filtrosDeNegocio(novaDefinicaoNegocio.filtros),
+            apiNome: novaDefinicaoSgu.nome,
+            filtros: this.filtrosDeNegocio(novaDefinicaoSgu.filtros),
           };
 
           this.atualizarRelatorioEditado(atualizado);
@@ -1008,17 +1038,30 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     const nomeArquivo = this.nomeArquivoEscolhido();
 
     this.exportando = formato;
+    this.iniciarExportacao();
     this.erro = '';
     this.sucesso = '';
 
     this.relatorioService
       .exportar(this.selecionado.apiNome, formato, this.montarParametros(false), nomeArquivo)
-      .pipe(
-        timeout(this.timeoutExportacaoMs),
-        finalize(() => (this.exportando = null)),
-      )
+      .pipe(finalize(() => this.finalizarExportacao()))
       .subscribe({
-        next: (blob) => {
+        next: (evento) => {
+          if (evento.type === HttpEventType.DownloadProgress) {
+            this.atualizarProgressoDownload(evento.loaded, evento.total);
+            return;
+          }
+
+          if (evento.type !== HttpEventType.Response) return;
+
+          const blob = evento.body;
+          if (!blob) {
+            this.erro = 'O backend não devolveu o arquivo solicitado.';
+            return;
+          }
+
+          this.progressoExportacao = 100;
+          this.mensagemExportacao = 'Arquivo concluído. Iniciando o download…';
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
 
@@ -1033,6 +1076,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
         },
         error: async (err) => {
           this.erro = await this.mensagemErroBlob(err, 'Não foi possível exportar o relatório.');
+          this.cdr.detectChanges();
         },
       });
   }
@@ -1174,7 +1218,10 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       .apagarApi(this.relatorioParaExcluir.apiNome)
       .pipe(
         timeout(this.timeoutGeracaoMs),
-        finalize(() => (this.excluindo = false)),
+        finalize(() => {
+          this.excluindo = false;
+          this.cdr.detectChanges();
+        }),
       )
       .subscribe({
         next: () => {
@@ -1262,9 +1309,13 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
           ? respostaGenerica.data.content
           : [];
 
-    this.registros = conteudo.filter(
-      (item: unknown) => item !== null && typeof item === 'object' && !Array.isArray(item),
-    ) as Record<string, unknown>[];
+    this.registros = conteudo
+      .filter((item: unknown) => item !== null && typeof item === 'object' && !Array.isArray(item))
+      .map((item: Record<string, unknown>) =>
+        Object.fromEntries(
+          Object.entries(item).filter(([coluna]) => coluna.trim().toUpperCase() !== 'RNUM'),
+        ),
+      );
 
     const colunas = new Set<string>();
     this.registros.forEach((registro) => {
@@ -1368,7 +1419,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
         validos.map(async (arquivo) => {
           const textoOriginal = await arquivo.text();
           const textoSemBom = textoOriginal.replace(/^\uFEFF/, '').trim();
-          const consultaSemPontoVirgula = textoSemBom.replace(/;\s*$/, '');
+          const instrucaoPrincipal = this.extrairPrimeiraInstrucaoSql(textoSemBom);
           const nomeBase = arquivo.name.replace(/\.(sql|txt)$/i, '');
 
           const importado: ArquivoSqlImportado = {
@@ -1378,18 +1429,22 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
             apiNome: this.nomeApiAPartirDoArquivo(nomeBase),
             nomeExibicao: this.tituloAPartirDoNome(nomeBase),
             descricao: `Importado do arquivo ${arquivo.name}`,
-            consultaSQL: consultaSemPontoVirgula,
+            consultaSQL: instrucaoPrincipal.sql,
             ordenacao: '',
             filtros: [],
             filtrosFixosDetectados: [],
             filtrosFixosIgnorados: [],
-            ajustesAplicados: [],
+            ajustesAplicados: instrucaoPrincipal.conteudoPosteriorIgnorado
+              ? [
+                  'Foi importada somente a primeira instrução SQL; anotações ou consultas após o ponto e vírgula foram ignoradas.',
+                ]
+              : [],
             detalhesAbertos: false,
             status: 'pendente',
-            erro: textoSemBom ? '' : 'O arquivo SQL está vazio.',
+            erro: instrucaoPrincipal.sql ? '' : 'O arquivo SQL está vazio.',
           };
 
-          if (textoSemBom) {
+          if (instrucaoPrincipal.sql) {
             this.ajustarArquivoSql(importado);
           }
 
@@ -1432,6 +1487,84 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
 
     if (/^\d{4}-/.test(base)) return base;
     return `0090-${base || 'nova-api'}`;
+  }
+
+  /**
+   * Arquivos usados pela equipe podem manter consultas auxiliares ou notas
+   * depois do SELECT principal. O SGU aceita uma única instrução e rejeita o
+   * terminador `;`, por isso somente o primeiro terminador fora de textos e
+   * comentários delimita o SQL importado.
+   */
+  private extrairPrimeiraInstrucaoSql(sqlOriginal: string): {
+    sql: string;
+    conteudoPosteriorIgnorado: boolean;
+  } {
+    let indice = 0;
+    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
+
+    while (indice < sqlOriginal.length) {
+      const atual = sqlOriginal[indice];
+      const proximo = sqlOriginal[indice + 1] ?? '';
+
+      if (estado === 'texto') {
+        if (atual === "'" && proximo === "'") {
+          indice += 2;
+          continue;
+        }
+        if (atual === "'") estado = 'normal';
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'identificador') {
+        if (atual === '"' && proximo === '"') {
+          indice += 2;
+          continue;
+        }
+        if (atual === '"') estado = 'normal';
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'linha') {
+        if (atual === '\n') estado = 'normal';
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'bloco') {
+        if (atual === '*' && proximo === '/') {
+          estado = 'normal';
+          indice += 2;
+          continue;
+        }
+        indice += 1;
+        continue;
+      }
+
+      if (atual === "'") estado = 'texto';
+      else if (atual === '"') estado = 'identificador';
+      else if (atual === '-' && proximo === '-') {
+        estado = 'linha';
+        indice += 2;
+        continue;
+      } else if (atual === '/' && proximo === '*') {
+        estado = 'bloco';
+        indice += 2;
+        continue;
+      } else if (atual === ';') {
+        const sql = sqlOriginal.slice(0, indice).trim();
+        const posterior = sqlOriginal.slice(indice + 1).trim();
+        return { sql, conteudoPosteriorIgnorado: posterior.length > 0 };
+      }
+
+      indice += 1;
+    }
+
+    return {
+      sql: sqlOriginal.trim(),
+      conteudoPosteriorIgnorado: false,
+    };
   }
 
   private filtroDetectadoDoSql(nome: string): SguFiltro {
@@ -1508,17 +1641,25 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       predicadoOriginal: string;
     }> = [];
 
-    const regexIn =
-      /\b((?:[A-Za-z_][A-Za-z0-9_$#]*\.)?[A-Za-z_][A-Za-z0-9_$#]*)\s+IN\s*\(\s*(-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?)*)\s*\)/gi;
+    const identificador = '((?:[A-Za-z_][A-Za-z0-9_$#]*\\.)?[A-Za-z_][A-Za-z0-9_$#]*)';
+    const literal = "(?:-?\\d+(?:\\.\\d+)?|'(?:''|[^'])*')";
+    const regexIn = new RegExp(
+      `\\b${identificador}\\s+IN\\s*\\(\\s*(${literal}(?:\\s*,\\s*${literal})*)\\s*\\)`,
+      'gi',
+    );
     let correspondencia: RegExpExecArray | null;
 
-    while ((correspondencia = regexIn.exec(sqlMascarado)) !== null) {
+    while ((correspondencia = regexIn.exec(sqlOriginal)) !== null) {
+      if (!this.ehTrechoSqlExecutavel(sqlMascarado, correspondencia.index, correspondencia[1])) {
+        continue;
+      }
+
       candidatos.push({
         inicio: correspondencia.index,
         fim: correspondencia.index + correspondencia[0].length,
         coluna: correspondencia[1],
         operador: 'IN',
-        valores: correspondencia[2].split(',').map((valor) => valor.trim()),
+        valores: this.extrairLiteraisSql(correspondencia[2]),
         predicadoOriginal: sqlOriginal.slice(
           correspondencia.index,
           correspondencia.index + correspondencia[0].length,
@@ -1526,12 +1667,13 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       });
     }
 
-    const regexIgual =
-      /\b((?:[A-Za-z_][A-Za-z0-9_$#]*\.)?[A-Za-z_][A-Za-z0-9_$#]*)\s*=\s*(-?\d+(?:\.\d+)?)/gi;
+    const regexIgual = new RegExp(`\\b${identificador}\\s*=\\s*(${literal})`, 'gi');
 
-    while ((correspondencia = regexIgual.exec(sqlMascarado)) !== null) {
+    while ((correspondencia = regexIgual.exec(sqlOriginal)) !== null) {
       const inicio = correspondencia.index;
       const fim = correspondencia.index + correspondencia[0].length;
+
+      if (!this.ehTrechoSqlExecutavel(sqlMascarado, inicio, correspondencia[1])) continue;
 
       if (candidatos.some((candidato) => inicio >= candidato.inicio && fim <= candidato.fim)) {
         continue;
@@ -1555,6 +1697,8 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       .filter(
         (candidato) =>
           Boolean(candidato.nomeFiltro) &&
+          (candidato.operador === 'IN' ||
+            this.nomeFiltroConhecidoPorColunaSql(candidato.coluna) !== null) &&
           inicioWherePrincipal >= 0 &&
           candidato.inicio >= inicioWherePrincipal &&
           candidato.fim <= fimWherePrincipal &&
@@ -1580,6 +1724,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       const filtro = this.criarFiltroDeCondicaoFixa(
         nomeFiltro,
         candidato.coluna,
+        candidato.operador,
         candidato.valores,
       );
 
@@ -1604,9 +1749,28 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   }
 
   private nomeFiltroPorColunaSql(colunaCompleta: string): string | null {
+    const conhecido = this.nomeFiltroConhecidoPorColunaSql(colunaCompleta);
+    if (conhecido) return conhecido;
+
+    const coluna = colunaCompleta.split('.').pop()!.toUpperCase();
+
+    if (coluna === 'RNUM' || coluna === 'ROWNUM' || coluna === 'RN') return null;
+
+    const generico = coluna
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60);
+
+    return generico || null;
+  }
+
+  private nomeFiltroConhecidoPorColunaSql(colunaCompleta: string): string | null {
     const coluna = colunaCompleta.split('.').pop()!.toUpperCase();
 
     if (coluna.includes('COMPET')) return 'competencia';
+
+    if (coluna === 'GRBNF_COD') return 'grbnf_cod';
 
     if (
       coluna === 'GRUPO_COD' ||
@@ -1649,16 +1813,16 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   private criarFiltroDeCondicaoFixa(
     nomeFiltro: string,
     coluna: string,
+    operador: 'IN' | '=',
     valores: string[],
   ): SguFiltro {
-    const multiplosValores = valores.length > 1;
-    const filtroLista = nomeFiltro === 'empresas' || nomeFiltro === 'itens' || multiplosValores;
+    const filtroLista = nomeFiltro === 'empresas' || nomeFiltro === 'itens' || operador === 'IN';
 
     if (filtroLista) {
       return {
         nomeFiltro,
         conteudoFiltro: `and instr(',' || replace(:${nomeFiltro}, ' ', '') || ',', ',' || to_char(${coluna}) || ',') > 0`,
-        tipoDadoFiltro: nomeFiltro === 'itens' ? 'VARCHAR(4000)' : 'VARCHAR(1000)',
+        tipoDadoFiltro: 'VARCHAR(4000)',
         mascaraFiltro: '',
         obrigatorioFiltro: 'S',
       };
@@ -1667,7 +1831,9 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     return {
       nomeFiltro,
       conteudoFiltro: `and ${coluna} = :${nomeFiltro}`,
-      tipoDadoFiltro: 'NUMBER',
+      tipoDadoFiltro: valores.every((valor) => this.ehLiteralTextoSql(valor))
+        ? 'VARCHAR(4000)'
+        : 'NUMBER',
       mascaraFiltro: '',
       obrigatorioFiltro: 'S',
     };
@@ -1675,6 +1841,18 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
 
   private assinaturaFiltroFixo(coluna: string, operador: string, valores: string[]): string {
     return `${coluna.toUpperCase()}|${operador.toUpperCase()}|${valores.join(',')}`;
+  }
+
+  private extrairLiteraisSql(lista: string): string[] {
+    return lista.match(/'(?:''|[^'])*'|-?\d+(?:\.\d+)?/g)?.map((valor) => valor.trim()) ?? [];
+  }
+
+  private ehLiteralTextoSql(valor: string): boolean {
+    return /^'(?:''|[^'])*'$/.test(valor.trim());
+  }
+
+  private ehTrechoSqlExecutavel(sqlMascarado: string, inicio: number, coluna: string): boolean {
+    return sqlMascarado.slice(inicio, inicio + coluna.length).trim().length > 0;
   }
 
   /**
@@ -1934,9 +2112,120 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
         },
       );
 
+      const comparacoesFixas = this.converterComparacoesFixasWhereCte(
+        conteudoAjustado,
+        bloco.nome,
+        bindPara,
+      );
+      conteudoAjustado = comparacoesFixas.sql;
+      ajustes.push(...comparacoesFixas.ajustes);
+
       if (conteudoAjustado !== conteudoOriginal) {
         sql = sql.slice(0, bloco.inicioConteudo) + conteudoAjustado + sql.slice(bloco.fimConteudo);
       }
+    }
+
+    return { sql, ajustes };
+  }
+
+  /**
+   * Condições literais de uma CTE precisam manter o predicado no próprio
+   * bloco, pois seus aliases não existem no WHERE externo onde o SGU injeta
+   * filtros. Somente comparações simples no WHERE principal da CTE são
+   * convertidas; expressões, subconsultas e operadores ambíguos permanecem
+   * intactos para revisão manual.
+   */
+  private converterComparacoesFixasWhereCte(
+    conteudoOriginal: string,
+    nomeCte: string,
+    bindPara: (nomeBase: string) => string,
+  ): { sql: string; ajustes: string[] } {
+    const estrutura = this.localizarConsultaPrincipal(conteudoOriginal);
+    if (!estrutura?.where) return { sql: conteudoOriginal, ajustes: [] };
+
+    const inicioWhere = estrutura.where.fim;
+    const fimWhere = estrutura.limiteCondicoes;
+    const sqlMascarado = this.mascaraSqlSemTextosEComentarios(conteudoOriginal);
+    const identificador = '((?:[A-Za-z_][A-Za-z0-9_$#]*\\.)?[A-Za-z_][A-Za-z0-9_$#]*)';
+    const literal = "(?:-?\\d+(?:\\.\\d+)?|'(?:''|[^'])*')";
+    const candidatos: Array<{
+      inicio: number;
+      fim: number;
+      coluna: string;
+      operador: 'IN' | '=';
+      valores: string[];
+      original: string;
+    }> = [];
+
+    const adicionar = (match: RegExpExecArray, operador: 'IN' | '='): void => {
+      const inicio = match.index;
+      const fim = inicio + match[0].length;
+      if (
+        inicio < inicioWhere ||
+        fim > fimWhere ||
+        !this.ehTrechoSqlExecutavel(sqlMascarado, inicio, match[1])
+      ) {
+        return;
+      }
+
+      candidatos.push({
+        inicio,
+        fim,
+        coluna: match[1],
+        operador,
+        valores: this.extrairLiteraisSql(match[2]),
+        original: conteudoOriginal.slice(inicio, fim).trim(),
+      });
+    };
+
+    let match: RegExpExecArray | null;
+    const regexIn = new RegExp(
+      `\\b${identificador}\\s+IN\\s*\\(\\s*(${literal}(?:\\s*,\\s*${literal})*)\\s*\\)`,
+      'gi',
+    );
+    while ((match = regexIn.exec(conteudoOriginal)) !== null) adicionar(match, 'IN');
+
+    const regexIgual = new RegExp(`\\b${identificador}\\s*=\\s*(${literal})`, 'gi');
+    while ((match = regexIgual.exec(conteudoOriginal)) !== null) {
+      const fim = match.index + match[0].length;
+      if (candidatos.some((item) => match!.index >= item.inicio && fim <= item.fim)) continue;
+      adicionar(match, '=');
+    }
+
+    let sql = conteudoOriginal;
+    const ajustes: string[] = [];
+    const nomesUsados = new Set<string>();
+
+    for (const candidato of candidatos.sort((a, b) => b.inicio - a.inicio)) {
+      if (
+        candidato.operador === '=' &&
+        this.nomeFiltroConhecidoPorColunaSql(candidato.coluna) === null
+      ) {
+        continue;
+      }
+
+      let nomeBase = this.nomeFiltroPorColunaSql(candidato.coluna);
+      if (!nomeBase || !candidato.valores.length) continue;
+
+      if (candidato.operador === 'IN' && candidato.valores.length > 1) {
+        nomeBase = `${nomeBase}_lista`;
+      }
+
+      let nomeUnico = nomeBase;
+      let sufixo = 2;
+      while (nomesUsados.has(nomeUnico)) nomeUnico = `${nomeBase}_${sufixo++}`;
+      nomesUsados.add(nomeUnico);
+
+      const nomeBind = bindPara(nomeUnico);
+      const predicado =
+        candidato.operador === 'IN' && candidato.valores.length > 1
+          ? `instr(',' || replace(:${nomeBind}, ' ', '') || ',', ',' || to_char(${candidato.coluna}) || ',') > 0`
+          : `${candidato.coluna} = :${nomeBind}`;
+
+      sql = sql.slice(0, candidato.inicio) + predicado + sql.slice(candidato.fim);
+      ajustes.unshift(
+        `A condição fixa “${candidato.original}” da CTE ${nomeCte} foi transformada no filtro :${nomeBind}.`,
+      );
     }
 
     return { sql, ajustes };
@@ -2426,16 +2715,47 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
 
   private prepararDefinicaoParaSgu(api: SguApiDefinicao): SguApiDefinicao {
     const filtrosNegocio = this.filtrosDeNegocio(api.filtros);
-    const filtrosSgu = filtrosNegocio.length ? filtrosNegocio : [this.filtroTecnicoSemFiltros()];
+    const filtrosOriginais = filtrosNegocio.length
+      ? filtrosNegocio
+      : [this.filtroTecnicoSemFiltros()];
 
     const sqlAjustado = this.ajustarEstruturaSqlImportado(api.consultaSQL, true);
+    let consultaSQL = sqlAjustado.sql;
+    const filtrosSgu = filtrosOriginais.map((filtro) => {
+      const nomeOriginal = filtro.nomeFiltro.trim();
+      const nomeSgu = this.nomeFiltroSgu(nomeOriginal);
+
+      consultaSQL = this.substituirBindSql(consultaSQL, nomeOriginal, nomeSgu);
+
+      return {
+        ...filtro,
+        nomeFiltro: nomeSgu,
+        conteudoFiltro: this.substituirBindSql(filtro.conteudoFiltro, nomeOriginal, nomeSgu),
+      };
+    });
 
     return {
       nome: api.nome.trim(),
-      consultaSQL: sqlAjustado.sql,
+      consultaSQL,
       ordenacao: api.ordenacao?.trim() ?? '',
       filtros: filtrosSgu,
     };
+  }
+
+  /**
+   * O SGU rejeita underscore em nomeFiltro e recomenda hífen, mas o mesmo nome
+   * precisa ser um bind Oracle válido. Remover os separadores atende aos dois
+   * contratos: data_referencia torna-se datareferencia e :datareferencia.
+   */
+  private nomeFiltroSgu(nome: string): string {
+    return nome.trim().toLowerCase().replace(/[_-]+/g, '');
+  }
+
+  private substituirBindSql(sql: string, nomeOriginal: string, nomeSgu: string): string {
+    if (!nomeOriginal || nomeOriginal === nomeSgu) return sql;
+
+    const nomeEscapado = nomeOriginal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return sql.replace(new RegExp(`:${nomeEscapado}(?![A-Za-z0-9_])`, 'g'), `:${nomeSgu}`);
   }
 
   private clonarDefinicaoApi(api: SguApiDefinicao): SguApiDefinicao {
@@ -2557,6 +2877,24 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       return 'Informe o nome de exibição do relatório.';
     }
 
+    const aliasDuplicado = this.detectarAliasDuplicadoSql(api.consultaSQL);
+    if (aliasDuplicado) {
+      return (
+        `O alias SQL “${aliasDuplicado.alias}” foi declarado mais de uma vez no mesmo SELECT ` +
+        `(linhas ${aliasDuplicado.primeiraLinha} e ${aliasDuplicado.linhaDuplicada}). ` +
+        'Renomeie ou remova uma das associações duplicadas.'
+      );
+    }
+
+    const colunaDuplicada = this.detectarAliasColunaDuplicadoSql(api.consultaSQL);
+    if (colunaDuplicada) {
+      return (
+        `A coluna de saída “${colunaDuplicada.alias}” foi definida mais de uma vez no mesmo SELECT ` +
+        `(linhas ${colunaDuplicada.primeiraLinha} e ${colunaDuplicada.linhaDuplicada}). ` +
+        'Use nomes diferentes para evitar ORA-00918 durante a execução.'
+      );
+    }
+
     if (!api.filtros.length) {
       if (!/\bwhere\s+1\s*=\s*1\b/i.test(api.consultaSQL)) {
         return 'Consultas sem filtros devem conter WHERE 1 = 1.';
@@ -2570,8 +2908,8 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     }
 
     for (const [indice, filtro] of api.filtros.entries()) {
-      if (!filtro.nomeFiltro || !/^[a-z0-9_]+$/.test(filtro.nomeFiltro)) {
-        return `Filtro ${indice + 1}: o nome deve estar em minúsculo, sem espaços e usar apenas letras, números ou underscore.`;
+      if (!filtro.nomeFiltro || !/^[a-z0-9_-]+$/.test(filtro.nomeFiltro)) {
+        return `Filtro ${indice + 1}: o nome deve estar em minúsculo, sem espaços e usar apenas letras, números, underscore ou hífen.`;
       }
 
       if (!filtro.conteudoFiltro.startsWith('and ')) {
@@ -2586,13 +2924,175 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       }
     }
 
+    const nomesSgu = new Map<string, string>();
+    for (const filtro of api.filtros) {
+      const nomeSgu = this.nomeFiltroSgu(filtro.nomeFiltro);
+      const nomeAnterior = nomesSgu.get(nomeSgu);
+      if (!nomeSgu) {
+        return `O filtro “${filtro.nomeFiltro}” precisa conter ao menos uma letra ou um número.`;
+      }
+      if (nomeAnterior !== undefined) {
+        return (
+          `Os filtros “${nomeAnterior}” e “${filtro.nomeFiltro}” resultam no mesmo nome ` +
+          `aceito pelo SGU: “${nomeSgu}”. Renomeie um deles.`
+        );
+      }
+      nomesSgu.set(nomeSgu, filtro.nomeFiltro);
+    }
+
     return '';
+  }
+
+  /**
+   * Detecta aliases de tabela repetidos no mesmo bloco SELECT. O escopo leva
+   * em conta a profundidade dos parênteses e o SELECT mais recente, evitando
+   * confundir aliases legítimos reutilizados em CTEs e subconsultas distintas.
+   */
+  private detectarAliasDuplicadoSql(
+    sql: string,
+  ): { alias: string; primeiraLinha: number; linhaDuplicada: number } | null {
+    const mascarado = this.mascaraSqlSemTextosEComentarios(sql);
+    const profundidades = new Int32Array(mascarado.length);
+    let profundidade = 0;
+
+    for (let indice = 0; indice < mascarado.length; indice += 1) {
+      const caractere = mascarado[indice];
+      if (caractere === ')') profundidade = Math.max(0, profundidade - 1);
+      profundidades[indice] = profundidade;
+      if (caractere === '(') profundidade += 1;
+    }
+
+    const selectsPorProfundidade = new Map<number, number[]>();
+    for (const correspondencia of mascarado.matchAll(/\bselect\b/gi)) {
+      const inicio = correspondencia.index ?? 0;
+      const nivel = profundidades[inicio] ?? 0;
+      const selects = selectsPorProfundidade.get(nivel) ?? [];
+      selects.push(inicio);
+      selectsPorProfundidade.set(nivel, selects);
+    }
+
+    const palavrasReservadas = new Set([
+      'connect',
+      'cross',
+      'full',
+      'group',
+      'having',
+      'inner',
+      'join',
+      'left',
+      'on',
+      'order',
+      'outer',
+      'right',
+      'start',
+      'union',
+      'where',
+    ]);
+    const aliasesPorEscopo = new Map<string, Map<string, number>>();
+    const regexAlias =
+      /\b(?:from|join)\s+[a-z_][\w$#]*(?:\s*\.\s*[a-z_][\w$#]*){0,2}\s+(?:as\s+)?([a-z_][\w$#]*)/gi;
+
+    for (const correspondencia of mascarado.matchAll(regexAlias)) {
+      const aliasOriginal = correspondencia[1];
+      const alias = aliasOriginal.toLowerCase();
+      if (palavrasReservadas.has(alias)) continue;
+
+      const inicio = correspondencia.index ?? 0;
+      const nivel = profundidades[inicio] ?? 0;
+      const selects = selectsPorProfundidade.get(nivel) ?? [];
+      let inicioSelect = -1;
+      for (const posicaoSelect of selects) {
+        if (posicaoSelect >= inicio) break;
+        inicioSelect = posicaoSelect;
+      }
+      if (inicioSelect < 0) continue;
+
+      const chaveEscopo = `${nivel}:${inicioSelect}`;
+      const aliases = aliasesPorEscopo.get(chaveEscopo) ?? new Map<string, number>();
+      const primeiraPosicao = aliases.get(alias);
+      const linhaAtual = mascarado.slice(0, inicio).split('\n').length;
+
+      if (primeiraPosicao !== undefined) {
+        return {
+          alias: aliasOriginal.toUpperCase(),
+          primeiraLinha: mascarado.slice(0, primeiraPosicao).split('\n').length,
+          linhaDuplicada: linhaAtual,
+        };
+      }
+
+      aliases.set(alias, inicio);
+      aliasesPorEscopo.set(chaveEscopo, aliases);
+    }
+
+    return null;
+  }
+
+  /**
+   * O SGU pagina a consulta usando um SELECT externo. Nesse cenário, duas
+   * expressões com o mesmo alias de saída causam ORA-00918 mesmo que o Oracle
+   * aceite executar o SELECT isolado.
+   */
+  private detectarAliasColunaDuplicadoSql(
+    sql: string,
+  ): { alias: string; primeiraLinha: number; linhaDuplicada: number } | null {
+    const mascarado = this.mascaraSqlSemTextosEComentarios(sql);
+    const profundidades = new Int32Array(mascarado.length);
+    let profundidade = 0;
+
+    for (let indice = 0; indice < mascarado.length; indice += 1) {
+      const caractere = mascarado[indice];
+      if (caractere === ')') profundidade = Math.max(0, profundidade - 1);
+      profundidades[indice] = profundidade;
+      if (caractere === '(') profundidade += 1;
+    }
+
+    const selectsPorProfundidade = new Map<number, number[]>();
+    for (const correspondencia of mascarado.matchAll(/\bselect\b/gi)) {
+      const inicio = correspondencia.index ?? 0;
+      const nivel = profundidades[inicio] ?? 0;
+      const selects = selectsPorProfundidade.get(nivel) ?? [];
+      selects.push(inicio);
+      selectsPorProfundidade.set(nivel, selects);
+    }
+
+    const aliasesPorEscopo = new Map<string, Map<string, number>>();
+    for (const correspondencia of mascarado.matchAll(/\bas\s+([a-z_][\w$#]*)/gi)) {
+      const inicio = correspondencia.index ?? 0;
+      const nivel = profundidades[inicio] ?? 0;
+      const selects = selectsPorProfundidade.get(nivel) ?? [];
+      let inicioSelect = -1;
+      for (const posicaoSelect of selects) {
+        if (posicaoSelect >= inicio) break;
+        inicioSelect = posicaoSelect;
+      }
+      if (inicioSelect < 0) continue;
+
+      const aliasOriginal = correspondencia[1];
+      const alias = aliasOriginal.toLowerCase();
+      const chaveEscopo = `${nivel}:${inicioSelect}`;
+      const aliases = aliasesPorEscopo.get(chaveEscopo) ?? new Map<string, number>();
+      const primeiraPosicao = aliases.get(alias);
+      const linhaAtual = mascarado.slice(0, inicio).split('\n').length;
+
+      if (primeiraPosicao !== undefined) {
+        return {
+          alias: aliasOriginal.toUpperCase(),
+          primeiraLinha: mascarado.slice(0, primeiraPosicao).split('\n').length,
+          linhaDuplicada: linhaAtual,
+        };
+      }
+
+      aliases.set(alias, inicio);
+      aliasesPorEscopo.set(chaveEscopo, aliases);
+    }
+
+    return null;
   }
 
   private validarCorrespondenciaBind(filtro: SguFiltro): string {
     const nome = filtro.nomeFiltro.trim();
     const variaveis = Array.from(
-      filtro.conteudoFiltro.matchAll(/:([A-Za-z_][A-Za-z0-9_]*)/g),
+      filtro.conteudoFiltro.matchAll(/:([A-Za-z_][A-Za-z0-9_-]*)/g),
       (resultado) => resultado[1],
     );
     const variaveisUnicas = Array.from(new Set(variaveis));
@@ -2685,6 +3185,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     this.pararCronometroGeracao();
     this.carregando = true;
     this.segundosGeracao = 0;
+    this.progressoGeracao = 5;
     this.mensagemGeracao = 'Enviando a consulta para o SGU…';
     this.inicioGeracao = performance.now();
     this.erro = '';
@@ -2692,6 +3193,8 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
 
     this.intervaloGeracao = setInterval(() => {
       this.segundosGeracao += 1;
+      const aproximacao = 1 - Math.exp(-this.segundosGeracao / 30);
+      this.progressoGeracao = Math.min(94, Math.round(5 + aproximacao * 89));
 
       if (this.segundosGeracao >= 20) {
         this.mensagemGeracao = 'A consulta continua em execução. Aguarde a resposta do SGU…';
@@ -2710,6 +3213,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   private finalizarGeracao(): void {
     this.pararCronometroGeracao();
     this.carregando = false;
+    this.progressoGeracao = 0;
     this.mensagemGeracao = '';
     this.cdr.detectChanges();
   }
@@ -2718,6 +3222,53 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     if (this.intervaloGeracao) {
       clearInterval(this.intervaloGeracao);
       this.intervaloGeracao = undefined;
+    }
+  }
+
+  private iniciarExportacao(): void {
+    this.pararCronometroExportacao();
+    this.segundosExportacao = 0;
+    this.progressoExportacao = 5;
+    this.mensagemExportacao = 'Consultando todas as páginas do relatório…';
+
+    this.intervaloExportacao = setInterval(() => {
+      this.segundosExportacao += 1;
+      const aproximacao = 1 - Math.exp(-this.segundosExportacao / 90);
+      this.progressoExportacao = Math.min(94, Math.round(5 + aproximacao * 89));
+      this.mensagemExportacao =
+        this.progressoExportacao < 45
+          ? 'Consultando todas as páginas do relatório…'
+          : this.progressoExportacao < 80
+            ? 'Processando os registros do arquivo…'
+            : 'Finalizando o arquivo para download…';
+      this.cdr.detectChanges();
+    }, 1000);
+  }
+
+  private atualizarProgressoDownload(carregados: number, total?: number): void {
+    this.mensagemExportacao = 'Transferindo o arquivo pronto para o navegador…';
+    if (total && total > 0) {
+      const percentualRecebido = Math.round((carregados / total) * 100);
+      this.progressoExportacao = Math.max(
+        this.progressoExportacao,
+        Math.min(99, percentualRecebido),
+      );
+    }
+    this.cdr.detectChanges();
+  }
+
+  private finalizarExportacao(): void {
+    this.pararCronometroExportacao();
+    this.exportando = null;
+    this.progressoExportacao = 0;
+    this.mensagemExportacao = '';
+    this.cdr.detectChanges();
+  }
+
+  private pararCronometroExportacao(): void {
+    if (this.intervaloExportacao) {
+      clearInterval(this.intervaloExportacao);
+      this.intervaloExportacao = undefined;
     }
   }
 

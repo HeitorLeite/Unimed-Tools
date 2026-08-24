@@ -529,7 +529,7 @@ O modo de relatório personalizado utiliza exclusivamente a API reservada:
 ```
 
 A fonte atual é **Despesas por item de guia**. O catálogo controlado pelo
-backend contém 50 colunas e 23 filtros, organizados nos grupos Beneficiário,
+backend contém 50 colunas e 24 filtros, organizados nos grupos Beneficiário,
 Contrato e empresa, Prestador, Guia, Procedimento, Valores e Período. As
 competências inicial e final são obrigatórias e o intervalo aceita no máximo 12
 meses. A prévia permite 25, 50 ou 100 linhas por página, aceita os metadados de
@@ -537,6 +537,26 @@ contagem `totalElements` ou `numberOfElements` informados pelo SGU, possui
 cabeçalho fixo, numeração das linhas e modo ampliado; a exportação percorre todas
 as páginas e gera CSV, TXT ou XLSX apenas com as colunas selecionadas e na ordem
 definida pelo usuário.
+
+O filtro opcional **Grupo do beneficiário** aceita o código funcional
+`DBAUNIMED.GRUPO_BNFRIO.GRBNF_COD` ou parte da descrição `GRBNF_DES`, sem
+diferença entre maiúsculas e minúsculas. O campo técnico `ID` não participa da
+filtragem. As associações de
+`DBAUNIMED.GRUPO_BNFRIO_ITEM` são consolidadas pelas quatro partes da chave do
+beneficiário antes da filtragem. Cada uma dessas partes é comparada diretamente
+com a chave registrada em `DBAUNIMED.GUIA` — Unimed responsável, contrato,
+beneficiário e dependente — sem depender da associação intermediária com
+`BNFRIO`. Esse relacionamento só é incluído no SQL quando o filtro está
+preenchido e não multiplica as linhas de beneficiários que participam de mais de
+um grupo.
+
+Quando a seleção contém ao menos uma coluna de **Beneficiário**, ao menos uma
+coluna de **Valores** e nenhuma coluna dos demais grupos, os valores são
+automaticamente somados por beneficiário no período consultado. A identidade
+do beneficiário gravada na guia, com suas quatro partes, permanece como chave
+técnica do agrupamento mesmo quando o código não é exibido. Ao selecionar uma
+coluna de contrato, prestador, guia ou procedimento, a consulta preserva o
+detalhamento por item.
 
 Fluxo atual:
 
@@ -595,8 +615,8 @@ Validações atuais do construtor:
 - datas inicial e final precisam formar um intervalo válido;
 - valor máximo não pode ser menor que o mínimo;
 - filtros numéricos e decimais são convertidos no backend;
-- CPF, código de beneficiário, CID e buscas textuais são normalizados antes da
-  integração;
+- CPF, código de beneficiário, código de grupo, CID e buscas textuais são normalizados
+  antes da integração;
 - filtros desconhecidos, duplicados ou acima de 240 caracteres são rejeitados;
 - nomes de arquivo são sanitizados antes do download.
 

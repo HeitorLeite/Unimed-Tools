@@ -112,6 +112,87 @@ class RelatorioPersonalizadoSqlBuilderTest {
   }
 
   @Test
+  void deveRelacionarGruposSomenteQuandoFiltroEstiverAtivoSemMultiplicarBeneficiarios() {
+    assertThat(builder.filtro("grupo_beneficiario")).satisfies(filtro -> {
+      assertThat(filtro.rotulo()).isEqualTo("Grupo do beneficiário");
+      assertThat(filtro.grupo()).isEqualTo("Beneficiário");
+      assertThat(filtro.tipoTela()).isEqualTo("text");
+      assertThat(filtro.placeholder()).isEqualTo("Código ou parte do nome");
+      assertThat(filtro.obrigatorio()).isFalse();
+    });
+
+    RelatorioPersonalizadoSqlBuilder.ApiGerada semFiltro = builder.gerar(
+        List.of("COD_BENEFICIARIO"),
+        Set.of("competencia_inicio", "competencia_fim"));
+    RelatorioPersonalizadoSqlBuilder.ApiGerada comFiltro = builder.gerar(
+        List.of("COD_BENEFICIARIO"),
+        Set.of("competencia_inicio", "competencia_fim", "grupo_beneficiario"));
+
+    assertThat(semFiltro.consultaSql())
+        .doesNotContain("DBAUNIMED.GRUPO_BNFRIO_ITEM", "DBAUNIMED.GRUPO_BNFRIO GB");
+    assertThat(comFiltro.consultaSql())
+        .contains(
+            "FROM DBAUNIMED.GRUPO_BNFRIO_ITEM GBI",
+            "INNER JOIN DBAUNIMED.GRUPO_BNFRIO GB",
+            "GB.GRBNF_COD = GBI.GRBNF_COD",
+            "'|C:' || TO_CHAR(MEM.GRBNF_COD)",
+            "GRUPOS_BNF.GRBNI_COD_UNIMED_RESPON = G.GUIA_COD_UNIMED_BNFRIO",
+            "GRUPOS_BNF.GRBNI_COD_CNTRAT_CART = G.GUIA_COD_CNTRAT_CART_BNFRIO",
+            "GRUPOS_BNF.GRBNI_COD_BNFRIO = G.GUIA_COD_BNFRIO",
+            "GRUPOS_BNF.GRBNI_COD_DEPNTE = G.GUIA_COD_DEPNTE_BNFRIO",
+            "GRUPOS_BNF.GRUPOS_BUSCA AS F_GRUPO_BENEFICIARIO")
+        .contains("SELECT DISTINCT")
+        .contains("LISTAGG(");
+    assertThat(comFiltro.filtros())
+        .anySatisfy(filtro -> assertThat(filtro)
+            .containsEntry("nomeFiltro", "grupobeneficiario")
+            .containsEntry(
+                "conteudoFiltro",
+                "and RP.F_GRUPO_BENEFICIARIO LIKE :grupobeneficiario"));
+  }
+
+  @Test
+  void deveSomarValoresPorBeneficiarioQuandoSomenteEssesGruposForemSelecionados() {
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of(
+            "COD_BENEFICIARIO",
+            "NOME_BENEFICIARIO",
+            "VALOR_TOTAL"),
+        Set.of("competencia_inicio", "competencia_fim"),
+        true);
+
+    assertThat(api.consultaSql())
+        .contains(
+            "RP.COD_BENEFICIARIO",
+            "RP.NOME_BENEFICIARIO",
+            "SUM(RP.VALOR_TOTAL) AS VALOR_TOTAL",
+            "G.GUIA_COD_UNIMED_BNFRIO AS O_BNF_UNIMED",
+            "G.GUIA_COD_CNTRAT_CART_BNFRIO AS O_BNF_CONTRATO",
+            "G.GUIA_COD_BNFRIO AS O_BNF_CODIGO",
+            "G.GUIA_COD_DEPNTE_BNFRIO AS O_BNF_DEPENDENTE",
+            "GROUP BY\n  RP.O_BNF_UNIMED,\n  RP.O_BNF_CONTRATO,\n  RP.O_BNF_CODIGO,\n  RP.O_BNF_DEPENDENTE,\n  RP.COD_BENEFICIARIO,\n  RP.NOME_BENEFICIARIO")
+        .doesNotContain("SELECT DISTINCT");
+    assertThat(api.ordenacao())
+        .isEqualTo(
+            "RP.O_BNF_UNIMED, RP.O_BNF_CONTRATO, RP.O_BNF_CODIGO, " +
+                "RP.O_BNF_DEPENDENTE, RP.COD_BENEFICIARIO, RP.NOME_BENEFICIARIO")
+        .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
+  }
+
+  @Test
+  void deveManterDetalhamentoQuandoUmaColunaDeGuiaForSelecionada() {
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of("COD_BENEFICIARIO", "NUMERO_GUIA", "VALOR_TOTAL"),
+        Set.of("competencia_inicio", "competencia_fim"));
+
+    assertThat(api.consultaSql())
+        .contains("RP.VALOR_TOTAL")
+        .doesNotContain("SUM(RP.VALOR_TOTAL)", "GROUP BY");
+    assertThat(api.ordenacao())
+        .isEqualTo("RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ");
+  }
+
+  @Test
   void deveAplicarFiltrosNaConsultaExternaEPreservarOrdenacaoTecnica() {
     RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
         List.of("COD_BENEFICIARIO"),

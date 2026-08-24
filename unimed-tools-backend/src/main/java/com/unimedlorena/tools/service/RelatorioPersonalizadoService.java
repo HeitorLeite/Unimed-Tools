@@ -314,11 +314,26 @@ public class RelatorioPersonalizadoService {
       case "codigo_beneficiario" -> texto.replace(".", "");
       case "cpf" -> texto.replaceAll("[^0-9]", "");
       case "cid" -> texto.toUpperCase(Locale.ROOT);
+      case "grupo_beneficiario" -> normalizarGrupoBeneficiario(texto);
       case "nome_beneficiario", "nome_empresa", "nome_prestador",
           "grupo_prestador", "descricao_item", "tipo_procedimento" ->
           "%" + texto.toUpperCase(Locale.ROOT) + "%";
       default -> texto;
     };
+  }
+
+  private String normalizarGrupoBeneficiario(String texto) {
+    if (!texto.matches("\\d+")) {
+      return "%|N:%" + texto.toUpperCase(Locale.ROOT) + "%";
+    }
+
+    try {
+      return "%|C:" + Long.parseLong(texto) + "|%";
+    } catch (NumberFormatException ex) {
+      throw new IllegalArgumentException(
+          "Grupo do beneficiário deve conter um código válido ou parte do nome.",
+          ex);
+    }
   }
 
   private Integer validarCompetencia(String texto, String rotulo) {

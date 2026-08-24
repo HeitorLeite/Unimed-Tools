@@ -143,7 +143,11 @@
           </div>
         </div>
         <div id="conteudo-colunas" [hidden]="secaoRecolhida('colunas')">
-          <p class="panel-help">A ordem marcada será preservada na prévia e na exportação.</p>
+          <p class="panel-help">
+            A ordem marcada será preservada na prévia e na exportação. Quando forem escolhidas
+            somente informações do beneficiário e valores, os valores serão somados por
+            beneficiário no período.
+          </p>
 
           <label class="distinct-option" [class.active]="somenteDistintos">
             <input type="checkbox" [checked]="somenteDistintos" (change)="alternarDistinct()" />

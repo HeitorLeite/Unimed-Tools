@@ -234,7 +234,7 @@ sequenceDiagram
 
     F->>C: GET /personalizado/configuracao
     C->>R: configuracao()
-    R-->>F: 50 colunas, 23 filtros e limites
+    R-->>F: 50 colunas, 24 filtros e limites
     U->>F: informa filtros, seleciona colunas e define distinct
     F->>C: POST /personalizado/executar
     C->>R: request tipado
@@ -260,7 +260,18 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
 - fonte atual: **Despesas por item de guia**;
 - 50 colunas autorizadas, com rótulo, grupo, seleção padrão e indicador de
   sensibilidade;
-- 23 filtros autorizados; competências inicial e final são obrigatórias;
+- 24 filtros autorizados; competências inicial e final são obrigatórias;
+- o filtro opcional de grupo do beneficiário aceita `GRBNF_COD` ou parte da
+  descrição, sem utilizar o campo técnico `ID`; a associação entre
+  `GRUPO_BNFRIO_ITEM` e `GRUPO_BNFRIO` é
+  agregada pelas quatro partes da chave do beneficiário e comparada diretamente
+  com as quatro colunas correspondentes de `GUIA`; o vínculo é incluído somente
+  quando o filtro está ativo, evitando duplicar linhas e sem depender de
+  `BNFRIO` para reconhecer a associação ao grupo;
+- seleções compostas somente por colunas dos grupos **Beneficiário** e
+  **Valores** são agregadas automaticamente pela identidade técnica do
+  beneficiário, com `SUM` nas colunas de valores; qualquer coluna de contrato,
+  prestador, guia ou procedimento mantém a granularidade por item;
 - intervalo máximo de 12 meses;
 - prévia de 1 a 100 linhas por página;
 - filtros desconhecidos, repetidos ou maiores que 240 caracteres são rejeitados;

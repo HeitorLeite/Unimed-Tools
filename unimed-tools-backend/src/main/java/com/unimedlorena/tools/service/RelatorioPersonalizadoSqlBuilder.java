@@ -218,6 +218,52 @@ public class RelatorioPersonalizadoSqlBuilder {
       END
       """.strip();
 
+  private static final String FILTRO_GRUPO_BENEFICIARIO = "grupo_beneficiario";
+  private static final String GRUPO_CAMPOS_BENEFICIARIO = "Beneficiário";
+  private static final String GRUPO_CAMPOS_VALORES = "Valores";
+  private static final String MARCADOR_JOIN_GRUPO_BENEFICIARIO =
+      "/*JOIN_GRUPO_BENEFICIARIO*/";
+
+  /*
+   * Um beneficiário pode participar de mais de um grupo. A visão agrega as
+   * associações antes do JOIN para que o filtro não multiplique guias ou itens.
+   * Os prefixos C e N distinguem o código funcional da busca por descrição.
+   */
+  private static final String JOIN_GRUPO_BENEFICIARIO_SQL = """
+      INNER JOIN (
+        SELECT
+          MEM.GRBNI_COD_UNIMED_RESPON,
+          MEM.GRBNI_COD_CNTRAT_CART,
+          MEM.GRBNI_COD_BNFRIO,
+          MEM.GRBNI_COD_DEPNTE,
+          LISTAGG(
+            '|C:' || TO_CHAR(MEM.GRBNF_COD) || '|N:' || MEM.GRBNF_DES || '|',
+            ''
+          ) WITHIN GROUP (ORDER BY MEM.GRBNF_COD) AS GRUPOS_BUSCA
+        FROM (
+          SELECT DISTINCT
+            GBI.GRBNI_COD_UNIMED_RESPON,
+            GBI.GRBNI_COD_CNTRAT_CART,
+            GBI.GRBNI_COD_BNFRIO,
+            GBI.GRBNI_COD_DEPNTE,
+            GBI.GRBNF_COD,
+            UPPER(GB.GRBNF_DES) AS GRBNF_DES
+          FROM DBAUNIMED.GRUPO_BNFRIO_ITEM GBI
+          INNER JOIN DBAUNIMED.GRUPO_BNFRIO GB
+            ON GB.GRBNF_COD = GBI.GRBNF_COD
+        ) MEM
+        GROUP BY
+          MEM.GRBNI_COD_UNIMED_RESPON,
+          MEM.GRBNI_COD_CNTRAT_CART,
+          MEM.GRBNI_COD_BNFRIO,
+          MEM.GRBNI_COD_DEPNTE
+      ) GRUPOS_BNF
+        ON GRUPOS_BNF.GRBNI_COD_UNIMED_RESPON = G.GUIA_COD_UNIMED_BNFRIO
+        AND GRUPOS_BNF.GRBNI_COD_CNTRAT_CART = G.GUIA_COD_CNTRAT_CART_BNFRIO
+        AND GRUPOS_BNF.GRBNI_COD_BNFRIO = G.GUIA_COD_BNFRIO
+        AND GRUPOS_BNF.GRBNI_COD_DEPNTE = G.GUIA_COD_DEPNTE_BNFRIO
+      """.strip();
+
   private static final String CTE_SQL = """
       WITH SOLA_UNICA AS (
         SELECT *
@@ -268,6 +314,7 @@ public class RelatorioPersonalizadoSqlBuilder {
         AND G.GUIA_COD_CNTRAT_CART_BNFRIO = BF.BNF_COD_CNTRAT_CART
         AND G.GUIA_COD_BNFRIO = BF.BNF_COD
         AND G.GUIA_COD_DEPNTE_BNFRIO = BF.BNF_COD_DEPNTE
+      /*JOIN_GRUPO_BENEFICIARIO*/
       LEFT JOIN DBAUNIMED.PESSOA P ON P.PES_COD = BF.BNF_COD_PESSOA
       LEFT JOIN DBAUNIMED.PESSOA_DOC PESDOC
         ON PESDOC.PES_COD = P.PES_COD AND PESDOC.TPDOC_COD = 2
@@ -332,6 +379,8 @@ public class RelatorioPersonalizadoSqlBuilder {
         AND GI.GUITE_IND_STATUS = 'I'
       """.strip();
 
+  private static final Map<String, String> COLUNAS_IDENTIDADE_BENEFICIARIO =
+      criarColunasIdentidadeBeneficiario();
   private static final Map<String, String> COLUNAS_ORDENACAO = criarColunasOrdenacao();
 
   private static final Map<String, Campo> CAMPOS = criarCampos();
@@ -382,16 +431,25 @@ public class RelatorioPersonalizadoSqlBuilder {
       throw new IllegalArgumentException("Selecione pelo menos uma coluna.");
     }
 
-    List<String> projecoes = new ArrayList<>();
+    List<Campo> camposSelecionados = new ArrayList<>();
     Map<String, String> expressoesInternas = new LinkedHashMap<>();
     for (String id : colunas) {
       Campo campo = CAMPOS.get(id);
       if (campo == null) {
         throw new IllegalArgumentException("Coluna não permitida: " + id + ".");
       }
-      projecoes.add("RP." + campo.id());
+      camposSelecionados.add(campo);
       expressoesInternas.put(campo.id(), campo.expressaoSql());
     }
+
+    boolean consolidarPorBeneficiario =
+        deveConsolidarValoresPorBeneficiario(camposSelecionados);
+    List<String> projecoes = camposSelecionados.stream()
+        .map(campo -> consolidarPorBeneficiario
+            && GRUPO_CAMPOS_VALORES.equals(campo.grupo())
+                ? "SUM(RP." + campo.id() + ") AS " + campo.id()
+                : "RP." + campo.id())
+        .toList();
 
     Set<String> ativos = new LinkedHashSet<>();
     if (filtrosAtivos != null) {
@@ -421,7 +479,16 @@ public class RelatorioPersonalizadoSqlBuilder {
       definicoesFiltro.add(definicao);
     }
 
-    COLUNAS_ORDENACAO.forEach(expressoesInternas::putIfAbsent);
+    if (consolidarPorBeneficiario) {
+      /*
+       * Mesmo que o código não seja uma coluna visível, as quatro partes da
+       * chave gravada na guia mantêm beneficiários distintos durante a soma.
+       */
+      COLUNAS_IDENTIDADE_BENEFICIARIO.forEach(
+          expressoesInternas::putIfAbsent);
+    } else {
+      COLUNAS_ORDENACAO.forEach(expressoesInternas::putIfAbsent);
+    }
 
     List<String> colunasInternas = expressoesInternas.entrySet().stream()
         .map(coluna -> coluna.getValue() + " AS " + coluna.getKey())
@@ -431,14 +498,28 @@ public class RelatorioPersonalizadoSqlBuilder {
      * cálculos e CASE ficam na consulta interna e o marcador permanece no
      * WHERE externo, onde somente aliases simples são filtrados.
      */
+    String fromBaseSql = FROM_BASE_SQL.replace(
+        MARCADOR_JOIN_GRUPO_BENEFICIARIO,
+        ativos.contains(FILTRO_GRUPO_BENEFICIARIO)
+            ? JOIN_GRUPO_BENEFICIARIO_SQL
+            : "");
     String consultaInterna = "SELECT\n    " +
-        String.join(",\n    ", colunasInternas) + "\n" + FROM_BASE_SQL;
-    String consulta = CTE_SQL + (distinct ? "\nSELECT DISTINCT\n  " : "\nSELECT\n  ") +
+        String.join(",\n    ", colunasInternas) + "\n" + fromBaseSql;
+    String inicioSelect = distinct && !consolidarPorBeneficiario
+        ? "\nSELECT DISTINCT\n  "
+        : "\nSELECT\n  ";
+    String agrupamento = consolidarPorBeneficiario
+        ? "\nGROUP BY\n  " + String.join(",\n  ",
+            colunasAgrupamentoBeneficiario(camposSelecionados))
+        : "";
+    String consulta = CTE_SQL + inicioSelect +
         String.join(",\n  ", projecoes) +
         "\nFROM (\n" + consultaInterna.indent(2).stripTrailing() +
-        "\n) RP\nWHERE 1 = 1\n  /*FILTROS*/";
+        "\n) RP\nWHERE 1 = 1\n  /*FILTROS*/" + agrupamento;
 
-    String ordenacao = distinct
+    String ordenacao = consolidarPorBeneficiario
+        ? String.join(", ", colunasAgrupamentoBeneficiario(camposSelecionados))
+        : distinct
         ? String.join(", ", projecoes)
         : "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
 
@@ -446,6 +527,37 @@ public class RelatorioPersonalizadoSqlBuilder {
         consulta,
         ordenacao,
         List.copyOf(definicoesFiltro));
+  }
+
+  private static boolean deveConsolidarValoresPorBeneficiario(
+      List<Campo> camposSelecionados) {
+    boolean possuiBeneficiario = false;
+    boolean possuiValor = false;
+
+    for (Campo campo : camposSelecionados) {
+      if (GRUPO_CAMPOS_BENEFICIARIO.equals(campo.grupo())) {
+        possuiBeneficiario = true;
+      } else if (GRUPO_CAMPOS_VALORES.equals(campo.grupo())) {
+        possuiValor = true;
+      } else {
+        return false;
+      }
+    }
+
+    return possuiBeneficiario && possuiValor;
+  }
+
+  private static List<String> colunasAgrupamentoBeneficiario(
+      List<Campo> camposSelecionados) {
+    LinkedHashSet<String> agrupamentos = new LinkedHashSet<>();
+    COLUNAS_IDENTIDADE_BENEFICIARIO.keySet().stream()
+        .map(alias -> "RP." + alias)
+        .forEach(agrupamentos::add);
+    camposSelecionados.stream()
+        .filter(campo -> GRUPO_CAMPOS_BENEFICIARIO.equals(campo.grupo()))
+        .map(campo -> "RP." + campo.id())
+        .forEach(agrupamentos::add);
+    return List.copyOf(agrupamentos);
   }
 
   private static Map<String, Campo> criarCampos() {
@@ -549,6 +661,10 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(filtros, "cpf", "CPF", "Beneficiário", "text", "Somente números", false,
         "F_CPF", "REGEXP_REPLACE(PESDOC.DOC_NRO, '[^0-9]', '')",
         "and RP.F_CPF = :cpf", "VARCHAR(14)", "");
+    adicionar(filtros, FILTRO_GRUPO_BENEFICIARIO, "Grupo do beneficiário", "Beneficiário", "text",
+        "Código ou parte do nome", false,
+        "F_GRUPO_BENEFICIARIO", "GRUPOS_BNF.GRUPOS_BUSCA",
+        "and RP.F_GRUPO_BENEFICIARIO LIKE :grupo_beneficiario", "VARCHAR(240)", "");
     adicionar(filtros, "numero_contrato", "Número do contrato", "Contrato e empresa", "number", "", false,
         "F_NUMERO_CONTRATO", NUMERO_CONTRATO,
         "and RP.F_NUMERO_CONTRATO = :numero_contrato", "NUMBER", "");
@@ -605,6 +721,15 @@ public class RelatorioPersonalizadoSqlBuilder {
     colunas.put("O_COMPETENCIA", "G.GUIA_NRO_COMPET");
     colunas.put("O_GUIA_ID", "G.GUIA_COD_ID");
     colunas.put("O_ITEM_SEQ", "GI.GUITE_NRO_SEQ");
+    return Collections.unmodifiableMap(colunas);
+  }
+
+  private static Map<String, String> criarColunasIdentidadeBeneficiario() {
+    LinkedHashMap<String, String> colunas = new LinkedHashMap<>();
+    colunas.put("O_BNF_UNIMED", "G.GUIA_COD_UNIMED_BNFRIO");
+    colunas.put("O_BNF_CONTRATO", "G.GUIA_COD_CNTRAT_CART_BNFRIO");
+    colunas.put("O_BNF_CODIGO", "G.GUIA_COD_BNFRIO");
+    colunas.put("O_BNF_DEPENDENTE", "G.GUIA_COD_DEPNTE_BNFRIO");
     return Collections.unmodifiableMap(colunas);
   }
 

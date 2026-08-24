@@ -1436,7 +1436,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
             filtrosFixosIgnorados: [],
             ajustesAplicados: instrucaoPrincipal.conteudoPosteriorIgnorado
               ? [
-                  'Foi importada somente a primeira instrução SQL; anotações ou consultas após o ponto e vírgula foram ignoradas.',
+                  'Foi importada somente a instrução SQL executável; anotações, comentários finais ou consultas auxiliares foram ignorados.',
                 ]
               : [],
             detalhesAbertos: false,
@@ -1553,18 +1553,213 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
         indice += 2;
         continue;
       } else if (atual === ';') {
-        const sql = sqlOriginal.slice(0, indice).trim();
+        const trechoPrincipal = sqlOriginal.slice(0, indice).trim();
+        const semComentariosFinais = this.removerComentariosFinaisSql(trechoPrincipal);
         const posterior = sqlOriginal.slice(indice + 1).trim();
-        return { sql, conteudoPosteriorIgnorado: posterior.length > 0 };
+        return {
+          sql: semComentariosFinais.sql,
+          conteudoPosteriorIgnorado:
+            posterior.length > 0 || semComentariosFinais.comentariosRemovidos,
+        };
       }
 
       indice += 1;
     }
 
+    const semComentariosFinais = this.removerComentariosFinaisSql(sqlOriginal.trim());
+
     return {
-      sql: sqlOriginal.trim(),
-      conteudoPosteriorIgnorado: false,
+      sql: semComentariosFinais.sql,
+      conteudoPosteriorIgnorado: semComentariosFinais.comentariosRemovidos,
     };
+  }
+
+  /**
+   * Comentários após o último token executável são anotações do arquivo,
+   * não parte da consulta. Removê-los evita que o SGU reposicione o marcador
+   * de filtros dentro de um bloco comentado ao persistir a definição.
+   */
+  private removerComentariosFinaisSql(sqlOriginal: string): {
+    sql: string;
+    comentariosRemovidos: boolean;
+  } {
+    let indice = 0;
+    let fimExecutavel = 0;
+    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
+
+    while (indice < sqlOriginal.length) {
+      const atual = sqlOriginal[indice];
+      const proximo = sqlOriginal[indice + 1] ?? '';
+
+      if (estado === 'texto') {
+        fimExecutavel = indice + 1;
+        if (atual === "'" && proximo === "'") {
+          fimExecutavel = indice + 2;
+          indice += 2;
+          continue;
+        }
+        if (atual === "'") estado = 'normal';
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'identificador') {
+        fimExecutavel = indice + 1;
+        if (atual === '"' && proximo === '"') {
+          fimExecutavel = indice + 2;
+          indice += 2;
+          continue;
+        }
+        if (atual === '"') estado = 'normal';
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'linha') {
+        if (atual === '\n') estado = 'normal';
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'bloco') {
+        if (atual === '*' && proximo === '/') {
+          estado = 'normal';
+          indice += 2;
+          continue;
+        }
+        indice += 1;
+        continue;
+      }
+
+      if (atual === '-' && proximo === '-') {
+        estado = 'linha';
+        indice += 2;
+        continue;
+      }
+
+      if (atual === '/' && proximo === '*') {
+        estado = 'bloco';
+        indice += 2;
+        continue;
+      }
+
+      if (atual === "'") estado = 'texto';
+      else if (atual === '"') estado = 'identificador';
+
+      if (!/\s/.test(atual)) fimExecutavel = indice + 1;
+      indice += 1;
+    }
+
+    // Um delimitador aberto deve permanecer no texto para a validação acusar
+    // o erro, em vez de ser silenciosamente descartado como comentário final.
+    if (estado === 'bloco' || estado === 'texto' || estado === 'identificador') {
+      return { sql: sqlOriginal.trim(), comentariosRemovidos: false };
+    }
+
+    const sqlSemEspacosFinais = sqlOriginal.trimEnd();
+    const comentariosRemovidos = fimExecutavel < sqlSemEspacosFinais.length;
+
+    return {
+      sql: comentariosRemovidos ? sqlOriginal.slice(0, fimExecutavel).trimEnd() : sqlSemEspacosFinais,
+      comentariosRemovidos,
+    };
+  }
+
+  private validarDelimitadoresSql(sql: string): string {
+    let indice = 0;
+    let linha = 1;
+    let linhaAbertura = 1;
+    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
+
+    while (indice < sql.length) {
+      const atual = sql[indice];
+      const proximo = sql[indice + 1] ?? '';
+
+      if (estado === 'texto') {
+        if (atual === "'" && proximo === "'") {
+          indice += 2;
+          continue;
+        }
+        if (atual === "'") estado = 'normal';
+        if (atual === '\n') linha += 1;
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'identificador') {
+        if (atual === '"' && proximo === '"') {
+          indice += 2;
+          continue;
+        }
+        if (atual === '"') estado = 'normal';
+        if (atual === '\n') linha += 1;
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'linha') {
+        if (atual === '\n') {
+          linha += 1;
+          estado = 'normal';
+        }
+        indice += 1;
+        continue;
+      }
+
+      if (estado === 'bloco') {
+        if (atual === '*' && proximo === '/') {
+          estado = 'normal';
+          indice += 2;
+          continue;
+        }
+        if (atual === '\n') linha += 1;
+        indice += 1;
+        continue;
+      }
+
+      if (atual === '-' && proximo === '-') {
+        estado = 'linha';
+        indice += 2;
+        continue;
+      }
+
+      if (atual === '/' && proximo === '*') {
+        linhaAbertura = linha;
+        estado = 'bloco';
+        indice += 2;
+        continue;
+      }
+
+      if (atual === '*' && proximo === '/') {
+        return `A consulta SQL possui um fechamento de comentário */ sem abertura na linha ${linha}.`;
+      }
+
+      if (atual === "'") {
+        linhaAbertura = linha;
+        estado = 'texto';
+      } else if (atual === '"') {
+        linhaAbertura = linha;
+        estado = 'identificador';
+      } else if (atual === '\n') {
+        linha += 1;
+      }
+
+      indice += 1;
+    }
+
+    if (estado === 'bloco') {
+      return `A consulta SQL possui um comentário /* sem fechamento, iniciado na linha ${linhaAbertura}.`;
+    }
+
+    if (estado === 'texto') {
+      return `A consulta SQL possui um texto entre aspas simples sem fechamento, iniciado na linha ${linhaAbertura}.`;
+    }
+
+    if (estado === 'identificador') {
+      return `A consulta SQL possui um identificador entre aspas duplas sem fechamento, iniciado na linha ${linhaAbertura}.`;
+    }
+
+    return '';
   }
 
   private filtroDetectadoDoSql(nome: string): SguFiltro {
@@ -2420,13 +2615,18 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     sqlOriginal: string,
     possuiFiltros: boolean,
   ): { sql: string; ajustes: string[] } {
-    let sql = sqlOriginal
-      .replace(/^\uFEFF/, '')
-      .trim()
-      .replace(/;\s*$/, '');
     const ajustes: string[] = [];
+    const semComentariosFinais = this.removerComentariosFinaisSql(
+      sqlOriginal.replace(/^\uFEFF/, '').trim(),
+    );
+    let sql = semComentariosFinais.sql.replace(/;\s*$/, '');
+
+    if (semComentariosFinais.comentariosRemovidos) {
+      ajustes.push('Comentários e anotações após o fim da consulta foram removidos.');
+    }
 
     if (!sql) return { sql, ajustes };
+    if (this.validarDelimitadoresSql(sql)) return { sql, ajustes };
 
     let estrutura = this.localizarConsultaPrincipal(sql);
     if (!estrutura) return { sql, ajustes };
@@ -2876,6 +3076,9 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     if (!nomeExibicao.trim()) {
       return 'Informe o nome de exibição do relatório.';
     }
+
+    const erroDelimitadores = this.validarDelimitadoresSql(api.consultaSQL);
+    if (erroDelimitadores) return erroDelimitadores;
 
     const aliasDuplicado = this.detectarAliasDuplicadoSql(api.consultaSQL);
     if (aliasDuplicado) {

@@ -127,7 +127,11 @@ Igualdades somente são convertidas para a allowlist de colunas conhecidas;
 constantes técnicas como `RN = 1` e indicadores de status permanecem fixas.
 Condições internas de CTE continuam no próprio bloco e recebem binds locais,
 preservando o escopo dos aliases. O leitor também limita a importação à primeira
-instrução terminada por ponto e vírgula fora de textos e comentários.
+instrução terminada por ponto e vírgula fora de textos e comentários. Blocos de
+comentário usados apenas como anotação depois do último token executável são
+removidos antes da publicação, enquanto comentários internos são preservados.
+Uma validação léxica impede o cadastro quando comentários ou aspas permanecem
+sem fechamento.
 
 **Status: Atual.** A validação anterior ao cadastro identifica aliases de tabela
 duplicados dentro do mesmo bloco `SELECT`, sem impedir a reutilização em CTEs e

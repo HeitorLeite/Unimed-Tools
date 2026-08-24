@@ -302,6 +302,44 @@ describe('RelatoriosComponent - importação SQL', () => {
     expect(resultado.conteudoPosteriorIgnorado).toBe(true);
   });
 
+  it('remove comentários finais antes de posicionar o marcador do SGU', () => {
+    const component = criarComponente();
+    const arquivo = criarArquivo(`
+      SELECT EMP.EMPCN_COD_PESSOA
+      FROM DBAUNIMED.EMP_CONTRT EMP
+      WHERE EMP.EMPCN_COD_PESSOA IN (90)
+
+      /*
+       * Consulta auxiliar mantida apenas como anotação da equipe.
+       * SELECT * FROM OUTRA_TABELA;
+       */
+    `);
+
+    component.ajustarArquivoSql(arquivo);
+
+    expect(arquivo.consultaSQL).toContain('/*FILTROS*/');
+    expect(arquivo.consultaSQL).not.toContain('Consulta auxiliar');
+    expect(arquivo.consultaSQL).not.toContain('OUTRA_TABELA');
+    expect(arquivo.ajustesAplicados).toContain(
+      'Comentários e anotações após o fim da consulta foram removidos.',
+    );
+    expect(component.erroArquivoSql(arquivo)).toBe('');
+  });
+
+  it('impede o cadastro de SQL com comentário de bloco sem fechamento', () => {
+    const component = criarComponente();
+    const arquivo = criarArquivo(`
+      SELECT *
+      FROM DBAUNIMED.EMP_CONTRT
+      WHERE 1 = 1
+      /* anotação sem fechamento
+    `);
+
+    component.ajustarArquivoSql(arquivo);
+
+    expect(component.erroArquivoSql(arquivo)).toContain('comentário /* sem fechamento');
+  });
+
   it('atualiza a lista assim que a consulta de APIs termina', () => {
     const resposta$ = new Subject<any[]>();
     const relatorioService = {

@@ -685,7 +685,11 @@ automaticamente.
 Quando o arquivo contém anotações ou consultas auxiliares depois do ponto e
 vírgula da consulta principal, somente a primeira instrução é importada. Pontos
 e vírgulas dentro de textos ou comentários são preservados e não encerram a
-leitura.
+leitura. Comentários que aparecem somente depois do último token executável
+também são descartados antes do cadastro, para que o marcador `/*FILTROS*/`
+permaneça no SQL executável. Comentários internos continuam preservados, e
+delimitadores de comentário ou aspas sem fechamento impedem o envio ao SGU com
+uma mensagem que indica a linha de abertura.
 
 Antes do cadastro, a aplicação também verifica aliases de tabela repetidos no
 mesmo bloco `SELECT` e informa o alias e as linhas conflitantes. O mesmo nome

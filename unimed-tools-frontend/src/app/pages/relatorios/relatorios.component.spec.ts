@@ -30,6 +30,17 @@ describe('RelatoriosComponent - importação SQL', () => {
     erro: '',
   });
 
+  it('bloqueia as ações do modo manual durante consulta ou download', () => {
+    const component = criarComponente();
+
+    expect(component.operacaoRelatorioEmAndamento).toBe(false);
+    component.carregando = true;
+    expect(component.operacaoRelatorioEmAndamento).toBe(true);
+    component.carregando = false;
+    component.exportando = 'xlsx';
+    expect(component.operacaoRelatorioEmAndamento).toBe(true);
+  });
+
   it('detecta a data compartilhada e a lista de empresas dentro da CTE', () => {
     const component = criarComponente();
     const arquivo = criarArquivo(`

@@ -21,7 +21,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
 
   @Test
   void deveExporNovosIndicadoresFinanceirosNoCatalogo() {
-    assertThat(builder.campos()).hasSize(52);
+    assertThat(builder.campos()).hasSize(53);
     assertThat(builder.campo("VALOR_TOTAL").rotulo()).isEqualTo("Despesa total");
     assertThat(builder.campo("VALOR_TOTAL_21").rotulo())
         .isEqualTo("Despesa total com 21%");
@@ -32,6 +32,10 @@ class RelatorioPersonalizadoSqlBuilderTest {
     });
     assertThat(builder.campo("SINISTRALIDADE").rotulo())
         .isEqualTo("Sinistralidade (%)");
+    assertThat(builder.campo("NOME_PESSOA_EMPRESA")).satisfies(campo -> {
+      assertThat(campo.rotulo()).isEqualTo("Nome da pessoa da empresa");
+      assertThat(campo.expressaoSql()).isEqualTo("PES_EMPRESA.PES_NOM_COMP");
+    });
   }
 
   @Test
@@ -84,8 +88,13 @@ class RelatorioPersonalizadoSqlBuilderTest {
 
       assertThat(nomePublico).matches("[a-z0-9]+");
       assertThat(nomesExternos.add(nomePublico)).isTrue();
-      assertThat(conteudo)
-          .matches("and RP\\.F_[A-Z0-9_]+ (?:=|>=|<=|LIKE) :" + nomePublico);
+      if (filtro.get("nomeFiltro").equals("codigoempresa")) {
+        assertThat(conteudo).isEqualTo(
+            "and :codigoempresa LIKE RP.F_CODIGO_EMPRESA");
+      } else {
+        assertThat(conteudo)
+            .matches("and RP\\.F_[A-Z0-9_]+ (?:=|>=|<=|LIKE) :" + nomePublico);
+      }
       assertThat(conteudo).doesNotContain(
           "\n",
           "\r",
@@ -125,6 +134,24 @@ class RelatorioPersonalizadoSqlBuilderTest {
           .isEqualTo("and RP.F_CODIGO_BENEFICIARIO = :codigobeneficiario")
           .doesNotContain("\n", "\r", "\t");
     });
+  }
+
+  @Test
+  void devePublicarFiltroDeMultiplosCodigosDeEmpresaComoBindTextual() {
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of("CODIGO_EMPRESA", "NOME_PESSOA_EMPRESA"),
+        Set.of("codigo_empresa"));
+
+    assertThat(api.consultaSql()).contains(
+        "PES_EMPRESA.PES_NOM_COMP AS NOME_PESSOA_EMPRESA",
+        "WHEN BF.UNI_COD_RESPON <> 90 THEN EXT.US8UNIMED",
+        "ELSE EC.EMPCN_COD_PESSOA");
+    assertThat(api.filtros()).singleElement().satisfies(filtro -> assertThat(filtro)
+        .containsEntry("nomeFiltro", "codigoempresa")
+        .containsEntry("tipoDadoFiltro", "VARCHAR(240)")
+        .containsEntry(
+            "conteudoFiltro",
+            "and :codigoempresa LIKE RP.F_CODIGO_EMPRESA"));
   }
 
   @Test

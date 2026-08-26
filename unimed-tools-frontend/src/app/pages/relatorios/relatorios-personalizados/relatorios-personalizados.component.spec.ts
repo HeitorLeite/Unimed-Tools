@@ -7,6 +7,20 @@ import { RelatorioService } from '../../../shared/services/relatorio.service';
 import { RelatoriosPersonalizadosComponent } from './relatorios-personalizados.component';
 
 describe('RelatoriosPersonalizadosComponent', () => {
+  it('bloqueia as ações enquanto consulta ou exporta', () => {
+    const component = new RelatoriosPersonalizadosComponent(
+      {} as RelatorioService,
+      { detectChanges: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    expect(component.operacaoRelatorioEmAndamento).toBe(false);
+    component.gerando = true;
+    expect(component.operacaoRelatorioEmAndamento).toBe(true);
+    component.gerando = false;
+    component.exportando = true;
+    expect(component.operacaoRelatorioEmAndamento).toBe(true);
+  });
+
   it('recolhe e expande cada seção sem alterar as demais', () => {
     const component = new RelatoriosPersonalizadosComponent(
       {} as RelatorioService,
@@ -104,10 +118,9 @@ describe('RelatoriosPersonalizadosComponent', () => {
         of({ content: [{ VALOR_TOTAL: 10 }], colunas: ['VALOR_TOTAL'], last: true }),
       ),
     } as unknown as RelatorioService;
-    const component = new RelatoriosPersonalizadosComponent(
-      relatorioService,
-      { detectChanges: vi.fn() } as unknown as ChangeDetectorRef,
-    );
+    const component = new RelatoriosPersonalizadosComponent(relatorioService, {
+      detectChanges: vi.fn(),
+    } as unknown as ChangeDetectorRef);
     component.configuracao = {
       apiNome: '0090-relatorio-personalizado',
       fonte: 'Teste',

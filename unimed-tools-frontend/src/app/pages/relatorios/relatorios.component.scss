@@ -1,4 +1,20 @@
 /* Estilos de execução manual e administração da Central de Relatórios; seletores ficam limitados ao contexto indicado pelo arquivo. */
+.reports-manual-page {
+  position: relative;
+}
+
+.report-operation-lock {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  cursor: wait;
+}
+
+.mode-back-button {
+  position: relative;
+  z-index: 31;
+}
+
 .relatorios-page {
   max-width: none;
 }

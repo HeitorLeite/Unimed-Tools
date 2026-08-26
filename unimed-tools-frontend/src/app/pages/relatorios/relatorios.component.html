@@ -20,7 +20,7 @@
 ></app-relatorios-personalizados>
 
 <ng-container *ngIf="modoPagina === 'manual'">
-  <section class="reports-manual-page">
+  <section class="reports-manual-page" [attr.aria-busy]="operacaoRelatorioEmAndamento">
     <header class="reports-commandbar">
       <button class="mode-back-button" type="button" (click)="voltarSelecaoModo()">
         <span aria-hidden="true">←</span>
@@ -41,6 +41,12 @@
         </button>
       </div>
     </header>
+
+    <div
+      *ngIf="operacaoRelatorioEmAndamento"
+      class="report-operation-lock"
+      aria-hidden="true"
+    ></div>
 
     <div class="manual-context-strip">
       <div><span>01</span><strong>Selecione no catálogo</strong></div>

@@ -1,5 +1,5 @@
 <!-- Apresentação de configuração e execução de grupos automáticos; regras de negócio permanecem no componente ou serviço correspondente. -->
-<section class="automatic-reports-page">
+<section class="automatic-reports-page" [attr.aria-busy]="operacaoRelatorioEmAndamento">
   <header class="automatic-commandbar">
     <button class="mode-back-button" type="button" (click)="voltar.emit()">
       <span aria-hidden="true">←</span>
@@ -13,6 +13,8 @@
 
     <button class="btn btn-primary" type="button" (click)="abrirNovoGrupo()">＋ Novo grupo</button>
   </header>
+
+  <div *ngIf="operacaoRelatorioEmAndamento" class="report-operation-lock" aria-hidden="true"></div>
 
   <div class="automatic-context-strip">
     <div><span>01</span><strong>Escolha o grupo</strong></div>
@@ -29,6 +31,27 @@
   <div class="alert alert-success" *ngIf="sucesso" role="status">
     <span>{{ sucesso }}</span>
     <button type="button" (click)="sucesso = ''" aria-label="Fechar">×</button>
+  </div>
+
+  <div
+    *ngIf="notificacaoExecucao as notificacao"
+    class="execution-toast"
+    [class.error]="notificacao.tipo === 'erro'"
+    role="status"
+    aria-live="assertive"
+  >
+    <span class="execution-toast-icon" aria-hidden="true">
+      {{ notificacao.tipo === 'sucesso' ? '✓' : '!' }}
+    </span>
+    <div>
+      <strong>{{
+        notificacao.tipo === 'sucesso' ? 'Download concluído' : 'Geração concluída com erro'
+      }}</strong>
+      <span>{{ notificacao.mensagem }}</span>
+    </div>
+    <button type="button" (click)="fecharNotificacaoExecucao()" aria-label="Fechar notificação">
+      ×
+    </button>
   </div>
 
   <div class="automatic-shell" *ngIf="grupos.length; else nenhumGrupo">
@@ -309,19 +332,11 @@
           {{ executando ? 'Gerando lote… ' + segundosExecucao + 's' : 'Gerar todos os relatórios' }}
         </button>
 
-        <div
-          class="batch-progress"
-          *ngIf="executando || progressoExecucao === 100"
-          [class.completed]="progressoExecucao === 100"
-          aria-live="polite"
-        >
+        <div class="batch-progress" *ngIf="executando" aria-live="polite">
           <div>
             <strong>{{ etapaExecucao }}</strong>
             <small *ngIf="executando">
               Progresso estimado pelo tempo e pela quantidade de relatórios. Não feche esta página.
-            </small>
-            <small *ngIf="progressoExecucao === 100">
-              A geração terminou; confira o download e o resumo acima.
             </small>
           </div>
           <div
@@ -337,7 +352,6 @@
           <div class="progress-meta">
             <strong>{{ progressoExecucao }}%</strong>
             <span *ngIf="executando">{{ segundosExecucao }}s decorridos</span>
-            <span *ngIf="progressoExecucao === 100">Concluído</span>
           </div>
         </div>
       </section>

@@ -11,6 +11,19 @@
   min-height: 100%;
   margin: 0 auto;
   padding: 42px;
+  position: relative;
+}
+
+.report-operation-lock {
+  cursor: wait;
+  inset: 0;
+  position: absolute;
+  z-index: 30;
+}
+
+.back-button {
+  position: relative;
+  z-index: 31;
 }
 
 .custom-commandbar {

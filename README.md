@@ -515,8 +515,9 @@ sem precisar ser importados novamente.
 No modo automático, a interface exibe uma evolução estimada enquanto o backend
 consulta os itens e monta o ZIP. Como a exportação é uma única resposta HTTP e o
 backend não envia eventos intermediários, o percentual fica limitado a 94% até a
-chegada do arquivo; então muda para 100%, encerra o carregamento e informa a
-conclusão ou a falha do lote.
+chegada do arquivo. Quando o download é preparado, a barra desaparece e uma
+notificação transitória informa quantos arquivos foram gerados ou quantas falhas
+foram registradas.
 
 ### Relatório personalizado
 
@@ -529,7 +530,7 @@ O modo de relatório personalizado utiliza exclusivamente a API reservada:
 ```
 
 A fonte atual é **Despesas, receita e sinistralidade**. O catálogo controlado pelo
-backend contém 52 colunas e 24 filtros, organizados nos grupos Beneficiário,
+backend contém 53 colunas e 24 filtros, organizados nos grupos Beneficiário,
 Contrato e empresa, Prestador, Guia, Procedimento, Valores e Período. As
 competências inicial e final são obrigatórias e o intervalo aceita no máximo 12
 meses. A prévia permite 25, 50 ou 100 linhas por página, aceita os metadados de
@@ -542,6 +543,13 @@ continua consistente ao trocar de página e também no arquivo exportado.
 Quando uma coluna é escolhida, o backend envia ao SGU somente seu alias validado
 e `ASC` ou `DESC`; critérios técnicos adicionais não são anexados para respeitar
 o limite interno da rotina `ins_atu_query_api`.
+
+O filtro **Código da empresa** aceita um ou vários códigos separados por vírgula,
+como `2010038, 2011533, 2011372`. O backend valida cada item, remove espaços e
+repetições e envia a lista em um bind textual; nenhum código informado é
+concatenado ao SQL. A coluna **Nome da pessoa da empresa** segue o vínculo
+`EMP_CONTRT.EMPCN_COD_PESSOA → PESSOA.PES_COD` e devolve
+`PESSOA.PES_NOM_COMP`, sem alterar a coluna histórica **Nome da empresa**.
 
 O filtro opcional **Grupo do beneficiário** aceita o código funcional
 `DBAUNIMED.GRUPO_BNFRIO.GRBNF_COD` ou parte da descrição `GRBNF_DES`, sem
@@ -634,6 +642,8 @@ Validações atuais do construtor:
 - datas inicial e final precisam formar um intervalo válido;
 - valor máximo não pode ser menor que o mínimo;
 - filtros numéricos e decimais são convertidos no backend;
+- o código da empresa aceita uma lista numérica separada por vírgulas, com
+  espaços e duplicidades normalizados antes da integração;
 - CPF, código de beneficiário, código de grupo, CID e buscas textuais são normalizados
   antes da integração;
 - filtros desconhecidos, duplicados ou acima de 240 caracteres são rejeitados;
@@ -849,6 +859,10 @@ consulta ou da montagem do arquivo e passa a acompanhar a transferência HTTP
 quando o tamanho total é informado. A coluna técnica `RNUM`, usada pelo SGU na
 paginação, é descartada pelo gerador comum e não aparece em CSV, TXT, XLSX ou
 arquivos incluídos no ZIP automático.
+
+Enquanto os modos Manual, Automático ou Personalizado estiverem consultando ou
+preparando um download, uma camada de interação bloqueia os demais controles da
+área de relatório. O comando de voltar ou trocar de modo permanece disponível.
 
 **Status: Atual.** As conclusões assíncronas dos modos Manual, Personalizado e
 Automático notificam explicitamente a detecção de mudanças do Angular. Listagem,

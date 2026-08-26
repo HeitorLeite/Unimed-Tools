@@ -59,6 +59,11 @@ interface ContextoEmpresa {
   codigos: string;
 }
 
+interface NotificacaoExecucao {
+  tipo: 'sucesso' | 'erro';
+  mensagem: string;
+}
+
 @Component({
   selector: 'app-relatorios-automaticos',
   standalone: true,
@@ -92,9 +97,15 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
   etapaExecucao = '';
   erro = '';
   sucesso = '';
+  notificacaoExecucao: NotificacaoExecucao | null = null;
 
   private intervaloExecucao?: ReturnType<typeof setInterval>;
+  private temporizadorNotificacao?: ReturnType<typeof setTimeout>;
   private readonly timeoutLoteMs = 3_600_000;
+
+  get operacaoRelatorioEmAndamento(): boolean {
+    return this.executando;
+  }
 
   constructor(
     private readonly relatorioService: RelatorioService,
@@ -120,6 +131,9 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
 
   ngOnDestroy(): void {
     this.pararCronometro();
+    if (this.temporizadorNotificacao) {
+      clearTimeout(this.temporizadorNotificacao);
+    }
   }
 
   abrirNovoGrupo(): void {
@@ -367,6 +381,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     this.etapaExecucao = 'Preparando consultas e arquivos…';
     this.erro = '';
     this.sucesso = '';
+    this.fecharNotificacaoExecucao();
     this.iniciarCronometro(request.itens.length);
     this.cdr.detectChanges();
 
@@ -389,8 +404,9 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
         next: (resposta: HttpResponse<Blob>) => {
           const blob = resposta.body;
           if (!blob) {
-            this.erro = 'O backend não devolveu o arquivo ZIP.';
             this.progressoExecucao = 0;
+            this.etapaExecucao = '';
+            this.mostrarNotificacaoExecucao('erro', 'O backend não devolveu o arquivo ZIP.');
             return;
           }
 
@@ -408,31 +424,57 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
           const falhas = resposta.headers.get('X-Relatorios-Erros');
 
           if (gerados === '0' && falhas && falhas !== '0') {
-            this.erro = `Nenhum relatório foi gerado. O ZIP contém o resumo de ${falhas} falha(s).`;
             this.progressoExecucao = 0;
+            this.etapaExecucao = '';
+            this.mostrarNotificacaoExecucao(
+              'erro',
+              `Nenhum relatório foi gerado. O ZIP contém o resumo de ${falhas} falha(s).`,
+            );
           } else {
-            this.progressoExecucao = 100;
-            this.etapaExecucao = 'Lote concluído e download preparado.';
-            this.sucesso = gerados
+            const mensagem = gerados
               ? `${gerados} arquivo(s) gerado(s).${
                   falhas && falhas !== '0'
                     ? ` ${falhas} falha(s) foram registradas dentro do ZIP.`
                     : ''
                 }`
               : `Lote concluído: ${nomeZip}.zip`;
+            this.progressoExecucao = 0;
+            this.etapaExecucao = '';
+            this.mostrarNotificacaoExecucao(
+              falhas && falhas !== '0' ? 'erro' : 'sucesso',
+              mensagem,
+            );
           }
           this.cdr.detectChanges();
         },
         error: async (erro: unknown) => {
-          this.erro = await this.mensagemErroBlob(
-            erro,
-            'Não foi possível gerar o grupo automático.',
+          this.mostrarNotificacaoExecucao(
+            'erro',
+            await this.mensagemErroBlob(erro, 'Não foi possível gerar o grupo automático.'),
           );
           this.progressoExecucao = 0;
           this.etapaExecucao = '';
           this.cdr.detectChanges();
         },
       });
+  }
+
+  fecharNotificacaoExecucao(): void {
+    if (this.temporizadorNotificacao) {
+      clearTimeout(this.temporizadorNotificacao);
+      this.temporizadorNotificacao = undefined;
+    }
+    this.notificacaoExecucao = null;
+  }
+
+  private mostrarNotificacaoExecucao(tipo: NotificacaoExecucao['tipo'], mensagem: string): void {
+    this.fecharNotificacaoExecucao();
+    this.notificacaoExecucao = { tipo, mensagem };
+    this.temporizadorNotificacao = setTimeout(() => {
+      this.notificacaoExecucao = null;
+      this.temporizadorNotificacao = undefined;
+      this.cdr.detectChanges();
+    }, 7000);
   }
 
   // ── Execução do lote e atualização da interface ────────────────────────────

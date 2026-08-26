@@ -6,6 +6,14 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
+    id: '7.6.0-filtro-multiplo-empresa-e-bloqueio-operacoes',
+    versao: '7.6.0',
+    titulo: 'Empresas múltiplas e operações protegidas',
+    resumo:
+      'Permite filtrar vários códigos de empresa, adiciona o nome da pessoa da empresa, bloqueia ações durante geração e melhora a conclusão do lote automático.',
+    publicadaEm: '2026-08-26',
+  },
+  {
     id: '7.5.1-correcao-ordenacao-relatorio-personalizado',
     versao: '7.5.1',
     titulo: 'Correção da ordenação do relatório personalizado',

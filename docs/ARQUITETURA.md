@@ -234,7 +234,7 @@ sequenceDiagram
 
     F->>C: GET /personalizado/configuracao
     C->>R: configuracao()
-    R-->>F: 52 colunas, 24 filtros e limites
+    R-->>F: 53 colunas, 24 filtros e limites
     U->>F: informa filtros, seleciona colunas, distinct e ordenação
     F->>C: POST /personalizado/executar
     C->>R: request tipado
@@ -258,9 +258,15 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
 ### Contratos e limites
 
 - fonte atual: **Despesas, receita e sinistralidade**;
-- 52 colunas autorizadas, com rótulo, grupo, seleção padrão e indicador de
+- 53 colunas autorizadas, com rótulo, grupo, seleção padrão e indicador de
   sensibilidade;
 - 24 filtros autorizados; competências inicial e final são obrigatórias;
+- o filtro de código da empresa aceita uma lista de inteiros separados por
+  vírgula; o backend normaliza a lista e o SQL compara cada valor por meio de um
+  único bind `VARCHAR`, sem interpolação de entrada do usuário;
+- `NOME_PESSOA_EMPRESA` resolve `PESSOA.PES_NOM_COMP` pelo vínculo
+  `EMP_CONTRT.EMPCN_COD_PESSOA`, mantendo `NOME_EMPRESA` compatível com as
+  regras históricas de intercâmbio e pessoa física;
 - o filtro opcional de grupo do beneficiário aceita `GRBNF_COD` ou parte da
   descrição, sem utilizar o campo técnico `ID`; a associação entre
   `GRUPO_BNFRIO_ITEM` e `GRUPO_BNFRIO` é
@@ -303,6 +309,12 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
   preservados como texto, enquanto CSV e TXT recebem representação compatível
   com a importação no Excel sem alterar sua natureza textual;
 - SQL, aliases técnicos e `SGU_API_KEY` não são enviados ao navegador.
+
+Nos três modos de relatório, o frontend mantém uma camada de bloqueio sobre a
+área de trabalho enquanto uma consulta ou exportação está ativa. Somente o
+comando de voltar/trocar de modo fica acima dessa camada. No modo Automático, a
+barra existe apenas durante a requisição; a conclusão é comunicada por uma
+notificação transitória de sucesso ou erro.
 
 Os endpoints específicos são:
 

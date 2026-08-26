@@ -1,4 +1,4 @@
-<section class="custom-report-page">
+<section class="custom-report-page" [attr.aria-busy]="operacaoRelatorioEmAndamento">
   <header class="custom-commandbar">
     <button class="back-button" type="button" (click)="voltar.emit()">
       <span aria-hidden="true">←</span>
@@ -12,6 +12,8 @@
       <span aria-hidden="true">◉</span> Filtros mantidos apenas nesta sessão
     </div>
   </header>
+
+  <div *ngIf="operacaoRelatorioEmAndamento" class="report-operation-lock" aria-hidden="true"></div>
 
   <div class="custom-intro">
     <div>
@@ -145,8 +147,8 @@
         <div id="conteudo-colunas" [hidden]="secaoRecolhida('colunas')">
           <p class="panel-help">
             A ordem marcada será preservada na prévia e na exportação. Quando forem escolhidas
-            somente informações do beneficiário e valores, os valores serão somados por
-            beneficiário no período.
+            somente informações do beneficiário e valores, os valores serão somados por beneficiário
+            no período.
           </p>
 
           <label class="distinct-option" [class.active]="somenteDistintos">

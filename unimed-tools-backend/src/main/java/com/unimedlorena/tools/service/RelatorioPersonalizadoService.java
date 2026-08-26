@@ -351,6 +351,7 @@ public class RelatorioPersonalizadoService {
 
     return switch (id) {
       case "codigo_beneficiario" -> texto.replace(".", "");
+      case "codigo_empresa" -> normalizarCodigosEmpresa(texto);
       case "cpf" -> texto.replaceAll("[^0-9]", "");
       case "cid" -> texto.toUpperCase(Locale.ROOT);
       case "grupo_beneficiario" -> normalizarGrupoBeneficiario(texto);
@@ -359,6 +360,33 @@ public class RelatorioPersonalizadoService {
           "%" + texto.toUpperCase(Locale.ROOT) + "%";
       default -> texto;
     };
+  }
+
+  private String normalizarCodigosEmpresa(String texto) {
+    String[] partes = texto.split(",", -1);
+    LinkedHashSet<String> codigos = new LinkedHashSet<>();
+
+    for (String parte : partes) {
+      String codigo = parte.trim();
+      if (!codigo.matches("\\d+")) {
+        throw new IllegalArgumentException(
+            "Código da empresa deve conter um ou mais números separados por vírgula.");
+      }
+      try {
+        codigos.add(Long.valueOf(codigo).toString());
+      } catch (NumberFormatException ex) {
+        throw new IllegalArgumentException(
+            "Código da empresa contém um número inválido.",
+            ex);
+      }
+    }
+
+    String listaNormalizada = "," + String.join(",", codigos) + ",";
+    if (listaNormalizada.length() > 240) {
+      throw new IllegalArgumentException(
+          "O filtro “Código da empresa” excede o tamanho permitido.");
+    }
+    return listaNormalizada;
   }
 
   private String normalizarGrupoBeneficiario(String texto) {

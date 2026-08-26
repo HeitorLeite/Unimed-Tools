@@ -4,6 +4,7 @@
 package com.unimedlorena.tools.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -80,6 +81,38 @@ class RelatorioPersonalizadoServiceTest {
     verify(sgu).executar(eq(RelatorioPersonalizadoService.API_NOME), parametros.capture());
     assertThat(parametros.getValue())
         .containsEntry("grupobeneficiario", "%|C:12|%");
+  }
+
+  @Test
+  void deveNormalizarListaDeCodigosDeEmpresa() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(sgu.executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(Map.of("content", List.of(), "last", true));
+
+    service.executar(requisicao(Map.of(
+        "competencia_inicio", "202601",
+        "competencia_fim", "202601",
+        "codigo_empresa", "2010038, 2011533, 2011372, 2010038")));
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> parametros = ArgumentCaptor.forClass(Map.class);
+    verify(sgu).executar(eq(RelatorioPersonalizadoService.API_NOME), parametros.capture());
+    assertThat(parametros.getValue())
+        .containsEntry("codigoempresa", ",2010038,2011533,2011372,");
+
+    assertThatThrownBy(() -> service.executar(requisicao(Map.of(
+        "competencia_inicio", "202601",
+        "competencia_fim", "202601",
+        "codigo_empresa", "2010038, empresa"))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("números separados por vírgula");
   }
 
   @Test

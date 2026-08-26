@@ -79,6 +79,10 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   secoesRecolhidas = new Set<SecaoRelatorio>();
   private intervaloOperacao?: ReturnType<typeof setInterval>;
 
+  get operacaoRelatorioEmAndamento(): boolean {
+    return this.gerando || this.exportando;
+  }
+
   constructor(
     private readonly relatorioService: RelatorioService,
     private readonly cdr: ChangeDetectorRef,
@@ -445,8 +449,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
 
   private validarIndicadoresFinanceiros(): boolean {
     const usaIndicadores =
-      this.colunasSelecionadas.has('RECEITA') ||
-      this.colunasSelecionadas.has('SINISTRALIDADE');
+      this.colunasSelecionadas.has('RECEITA') || this.colunasSelecionadas.has('SINISTRALIDADE');
     if (!usaIndicadores || !this.configuracao) return true;
 
     const valoresPermitidos = new Set([

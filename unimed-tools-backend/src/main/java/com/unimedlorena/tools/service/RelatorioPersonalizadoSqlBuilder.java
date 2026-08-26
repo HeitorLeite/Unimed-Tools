@@ -76,6 +76,12 @@ public class RelatorioPersonalizadoSqlBuilder {
       END
       """.strip();
 
+  /*
+   * Mantém separada a pessoa vinculada à empresa porque NOME_EMPRESA também
+   * atende intercâmbio e possui o fallback histórico para pessoa física.
+   */
+  private static final String NOME_PESSOA_EMPRESA = "PES_EMPRESA.PES_NOM_COMP";
+
   private static final String NUMERO_CONTRATO = """
       CASE
         WHEN BF.UNI_COD_RESPON <> 90 THEN EXT.US8CODCONT
@@ -1059,6 +1065,8 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(campos, "TIPO_PESSOA", "Tipo de pessoa", "Contrato e empresa", false, false,
         "CASE WHEN BF.UNI_COD_RESPON <> 90 THEN 'J' WHEN PES_EMPRESA.PES_IND IS NULL THEN 'F' ELSE PES_EMPRESA.PES_IND END");
     adicionar(campos, "NOME_EMPRESA", "Nome da empresa", "Contrato e empresa", false, false, NOME_EMPRESA);
+    adicionar(campos, "NOME_PESSOA_EMPRESA", "Nome da pessoa da empresa", "Contrato e empresa", false, false,
+        NOME_PESSOA_EMPRESA);
     adicionar(campos, "CODIGO_EMPRESA", "Código da empresa", "Contrato e empresa", false, false, CODIGO_EMPRESA);
     adicionar(campos, "TIPO_CONVENIO", "Tipo do convênio", "Contrato e empresa", false, false, tipoConvenio());
     adicionar(campos, "CODIGO_PLANO", "Código do plano", "Contrato e empresa", false, false,
@@ -1145,9 +1153,11 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(filtros, "numero_contrato", "Número do contrato", "Contrato e empresa", "number", "", false,
         "F_NUMERO_CONTRATO", NUMERO_CONTRATO,
         "and RP.F_NUMERO_CONTRATO = :numero_contrato", "NUMBER", "");
-    adicionar(filtros, "codigo_empresa", "Código da empresa", "Contrato e empresa", "number", "", false,
-        "F_CODIGO_EMPRESA", CODIGO_EMPRESA,
-        "and RP.F_CODIGO_EMPRESA = :codigo_empresa", "NUMBER", "");
+    adicionar(filtros, "codigo_empresa", "Código da empresa", "Contrato e empresa", "text",
+        "Ex.: 2010038, 2011533, 2011372", false,
+        "F_CODIGO_EMPRESA", "'%,' || TO_CHAR(" + CODIGO_EMPRESA + ") || ',%'",
+        "and :codigo_empresa LIKE RP.F_CODIGO_EMPRESA",
+        "VARCHAR(240)", "");
     adicionar(filtros, "nome_empresa", "Nome da empresa", "Contrato e empresa", "text", "Digite parte do nome", false,
         "F_NOME_EMPRESA", "UPPER(" + NOME_EMPRESA + ")",
         "and RP.F_NOME_EMPRESA LIKE :nome_empresa", "VARCHAR(120)", "");

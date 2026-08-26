@@ -173,6 +173,10 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   private readonly nomeFiltroTecnicoSemFiltros = 'filtrotecnico';
   private readonly valoresFiltroPorRelatorio: Record<string, Record<string, string | number>> = {};
 
+  get operacaoRelatorioEmAndamento(): boolean {
+    return this.carregando || this.exportando !== null;
+  }
+
   constructor(
     private readonly relatorioService: RelatorioService,
     private readonly cdr: ChangeDetectorRef,
@@ -1660,7 +1664,9 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     const comentariosRemovidos = fimExecutavel < sqlSemEspacosFinais.length;
 
     return {
-      sql: comentariosRemovidos ? sqlOriginal.slice(0, fimExecutavel).trimEnd() : sqlSemEspacosFinais,
+      sql: comentariosRemovidos
+        ? sqlOriginal.slice(0, fimExecutavel).trimEnd()
+        : sqlSemEspacosFinais,
       comentariosRemovidos,
     };
   }

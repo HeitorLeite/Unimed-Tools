@@ -186,7 +186,7 @@ Controllers não devem incorporar parsing de arquivos ou regras de negócio. Ser
 | Componente                            | Responsabilidade                                                       |
 | ------------------------------------- | ---------------------------------------------------------------------- |
 | `RelatorioController`                 | Expõe configuração, execução e exportação e protege a API reservada.   |
-| `RelatorioPersonalizadoRequest`       | Contrato de colunas, filtros, `distinct`, paginação e nome do arquivo. |
+| `RelatorioPersonalizadoRequest`       | Contrato de colunas, filtros, `distinct`, ordenação, paginação e arquivo. |
 | `RelatorioPersonalizadoService`       | Valida entradas, coordena publicação/execução e projeta a resposta.    |
 | `RelatorioPersonalizadoSqlBuilder`    | Mantém a allowlist e monta SQL somente com fragmentos aprovados.       |
 | `SguRelatorioService`                 | Envia a definição e os parâmetros ao SGU sem expor a chave ao cliente. |
@@ -234,8 +234,8 @@ sequenceDiagram
 
     F->>C: GET /personalizado/configuracao
     C->>R: configuracao()
-    R-->>F: 50 colunas, 24 filtros e limites
-    U->>F: informa filtros, seleciona colunas e define distinct
+    R-->>F: 52 colunas, 24 filtros e limites
+    U->>F: informa filtros, seleciona colunas, distinct e ordenação
     F->>C: POST /personalizado/executar
     C->>R: request tipado
     R->>R: valida e normaliza entradas
@@ -257,8 +257,8 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
 
 ### Contratos e limites
 
-- fonte atual: **Despesas por item de guia**;
-- 50 colunas autorizadas, com rótulo, grupo, seleção padrão e indicador de
+- fonte atual: **Despesas, receita e sinistralidade**;
+- 52 colunas autorizadas, com rótulo, grupo, seleção padrão e indicador de
   sensibilidade;
 - 24 filtros autorizados; competências inicial e final são obrigatórias;
 - o filtro opcional de grupo do beneficiário aceita `GRBNF_COD` ou parte da
@@ -272,6 +272,12 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
   **Valores** são agregadas automaticamente pela identidade técnica do
   beneficiário, com `SUM` nas colunas de valores; qualquer coluna de contrato,
   prestador, guia ou procedimento mantém a granularidade por item;
+- Receita e Sinistralidade usam CTEs financeiras que consolidam separadamente
+  despesas de guia, mensalidades, coparticipações e itens de fatura sem
+  movimento antes da união; a Sinistralidade aplica
+  `(despesa - coparticipação positiva) / mensalidade * 100` e os dois
+  indicadores só aceitam dimensões e filtros de beneficiário, contrato,
+  empresa e competência para evitar cruzamentos de granularidade;
 - intervalo máximo de 12 meses;
 - prévia de 1 a 100 linhas por página;
 - filtros desconhecidos, repetidos ou maiores que 240 caracteres são rejeitados;
@@ -281,8 +287,13 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
   e ordena pelas próprias colunas projetadas para preservar compatibilidade com
   o Oracle;
 - a resposta e a exportação contêm apenas as colunas solicitadas e validadas;
+- a ordenação explícita usa somente o alias projetado e `ASC` ou `DESC`, sem
+  critérios técnicos adicionais, por compatibilidade com o limite interno da
+  rotina `ins_atu_query_api` do SGU;
 - a ordem das colunas enviada pelo Angular é preservada pelo backend na prévia e
   na exportação;
+- a coluna clicada na prévia e a direção `ASC` ou `DESC` são validadas contra a
+  seleção e aplicadas no backend a todas as páginas e à exportação;
 - a prévia apresenta o total informado pelo SGU em `totalElements` ou
   `numberOfElements`; quando nenhum total é recebido, a interface deixa a
   indisponibilidade explícita em vez de manter um cálculo indefinido;

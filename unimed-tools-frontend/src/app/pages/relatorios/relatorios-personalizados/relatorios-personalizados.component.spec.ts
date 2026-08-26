@@ -1,6 +1,6 @@
 /** Verifica a atualização imediata da tela após a resposta assíncrona do relatório. */
 import { ChangeDetectorRef } from '@angular/core';
-import { Subject } from 'rxjs';
+import { of, Subject } from 'rxjs';
 
 import { SguResultado } from '../../../shared/models/relatorio.model';
 import { RelatorioService } from '../../../shared/services/relatorio.service';
@@ -96,5 +96,53 @@ describe('RelatoriosPersonalizadosComponent', () => {
 
     expect(component.ordemColunasSelecionadas).toEqual(['NUMERO_GUIA', 'CPF', 'NOME_BENEFICIARIO']);
     expect(component.colunasResultado).toEqual(component.ordemColunasSelecionadas);
+  });
+
+  it('ordena a prévia inteira pelo backend e alterna entre crescente e decrescente', () => {
+    const relatorioService = {
+      executarPersonalizado: vi.fn(() =>
+        of({ content: [{ VALOR_TOTAL: 10 }], colunas: ['VALOR_TOTAL'], last: true }),
+      ),
+    } as unknown as RelatorioService;
+    const component = new RelatoriosPersonalizadosComponent(
+      relatorioService,
+      { detectChanges: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.configuracao = {
+      apiNome: '0090-relatorio-personalizado',
+      fonte: 'Teste',
+      colunas: [
+        {
+          id: 'VALOR_TOTAL',
+          rotulo: 'Despesa total',
+          grupo: 'Valores',
+          selecionadaPorPadrao: true,
+          sensivel: true,
+        },
+      ],
+      filtros: [],
+      limites: { maximoColunas: 1, maximoMeses: 12, maximoLinhasPagina: 100 },
+    };
+    component.valoresFiltro = {
+      competencia_inicio: '2026-01',
+      competencia_fim: '2026-01',
+    };
+    component.colunasSelecionadas.add('VALOR_TOTAL');
+    component.ordemColunasSelecionadas = ['VALOR_TOTAL'];
+    component.registros = [{ VALOR_TOTAL: 5 }];
+
+    component.ordenarPor('VALOR_TOTAL');
+    component.ordenarPor('VALOR_TOTAL');
+
+    expect(relatorioService.executarPersonalizado).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ ordenarPor: 'VALOR_TOTAL', direcaoOrdenacao: 'ASC' }),
+    );
+    expect(relatorioService.executarPersonalizado).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ ordenarPor: 'VALOR_TOTAL', direcaoOrdenacao: 'DESC' }),
+    );
+    expect(component.ariaOrdenacao('VALOR_TOTAL')).toBe('descending');
+    expect(component.simboloOrdenacao('VALOR_TOTAL')).toBe('↓');
   });
 });

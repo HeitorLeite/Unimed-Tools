@@ -528,15 +528,20 @@ O modo de relatório personalizado utiliza exclusivamente a API reservada:
 0090-relatorio-personalizado
 ```
 
-A fonte atual é **Despesas por item de guia**. O catálogo controlado pelo
-backend contém 50 colunas e 24 filtros, organizados nos grupos Beneficiário,
+A fonte atual é **Despesas, receita e sinistralidade**. O catálogo controlado pelo
+backend contém 52 colunas e 24 filtros, organizados nos grupos Beneficiário,
 Contrato e empresa, Prestador, Guia, Procedimento, Valores e Período. As
 competências inicial e final são obrigatórias e o intervalo aceita no máximo 12
 meses. A prévia permite 25, 50 ou 100 linhas por página, aceita os metadados de
 contagem `totalElements` ou `numberOfElements` informados pelo SGU, possui
-cabeçalho fixo, numeração das linhas e modo ampliado; a exportação percorre todas
+cabeçalho fixo, numeração das linhas, ordenação crescente ou decrescente por
+qualquer coluna e modo ampliado; a exportação percorre todas
 as páginas e gera CSV, TXT ou XLSX apenas com as colunas selecionadas e na ordem
-definida pelo usuário.
+definida pelo usuário. A ordenação é validada e aplicada no backend, portanto
+continua consistente ao trocar de página e também no arquivo exportado.
+Quando uma coluna é escolhida, o backend envia ao SGU somente seu alias validado
+e `ASC` ou `DESC`; critérios técnicos adicionais não são anexados para respeitar
+o limite interno da rotina `ins_atu_query_api`.
 
 O filtro opcional **Grupo do beneficiário** aceita o código funcional
 `DBAUNIMED.GRUPO_BNFRIO.GRBNF_COD` ou parte da descrição `GRBNF_DES`, sem
@@ -558,12 +563,26 @@ técnica do agrupamento mesmo quando o código não é exibido. Ao selecionar um
 coluna de contrato, prestador, guia ou procedimento, a consulta preserva o
 detalhamento por item.
 
+As colunas **Receita** e **Sinistralidade (%)** usam uma consulta financeira
+agregada previamente por beneficiário e competência. A Receita soma mensalidade,
+coparticipação e itens de fatura sem movimento quando eles podem ser atribuídos
+ao recorte; a Sinistralidade calcula
+`(Despesa total - Coparticipação positiva) / Mensalidade * 100`, com duas casas
+decimais e resultado zero quando não há mensalidade. A antiga coluna **Valor
+total** permanece com o mesmo identificador e cálculo, mas é apresentada como
+**Despesa total**; o mesmo vale para **Despesa total com 21%**. Para impedir
+duplicação entre valores de fatura e itens de guia, Receita e Sinistralidade só
+podem ser combinadas com dimensões de Beneficiário, Contrato e empresa,
+Competência e com os próprios totais financeiros. Esses indicadores aceitam os
+filtros de período, beneficiário, contrato e empresa.
+
 Fluxo atual:
 
 1. o frontend solicita ao backend os rótulos, tipos, grupos, limites e marcações
    de dados sensíveis;
 2. o usuário informa os filtros, escolhe ao menos uma coluna e organiza a ordem
-   de saída;
+   de saída; na prévia, também pode clicar em qualquer cabeçalho para alternar
+   entre ordem crescente e decrescente;
 3. o backend valida a allowlist de campos, tipos, intervalos e paginação;
 4. o SQL é montado somente com expressões aprovadas no código;
 5. a definição é publicada na API reservada e executada no SGU;
@@ -1541,6 +1560,8 @@ Contrato do relatório personalizado:
     "competencia_fim": "202601"
   },
   "distinct": true,
+  "ordenarPor": "VALOR_TOTAL",
+  "direcaoOrdenacao": "DESC",
   "pagina": 1,
   "tamanhoPagina": 50,
   "nomeArquivo": "relatorio_personalizado"
@@ -1552,7 +1573,9 @@ resposta do SGU é acrescida da lista `colunas` e o conteúdo é projetado confo
 a seleção validada. Na exportação, `pagina` e `tamanhoPagina` não limitam o
 arquivo final, pois o backend materializa todas as páginas dentro dos limites
 globais configurados. O campo booleano `distinct` é opcional por compatibilidade
-e assume `false` quando não enviado. As respostas de exportação incluem o header
+e assume `false` quando não enviado. `ordenarPor` também é opcional, aceita
+somente uma das colunas selecionadas, e `direcaoOrdenacao` aceita apenas `ASC`
+ou `DESC`. As respostas de exportação incluem o header
 `X-Total-Registros` com a quantidade de linhas do arquivo.
 
 Formatos de exportação:

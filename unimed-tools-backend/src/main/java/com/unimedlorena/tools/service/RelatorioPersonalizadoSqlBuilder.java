@@ -181,6 +181,24 @@ public class RelatorioPersonalizadoSqlBuilder {
       NVL(GI.GUITE_VAL_PAG_CO, 0)
       """.strip();
 
+  private static final String CAMPO_RECEITA = "RECEITA";
+  private static final String CAMPO_SINISTRALIDADE = "SINISTRALIDADE";
+  private static final Set<String> CAMPOS_VALORES_INDICADORES = Set.of(
+      "VALOR_TOTAL",
+      "VALOR_TOTAL_21",
+      CAMPO_RECEITA,
+      CAMPO_SINISTRALIDADE);
+  private static final Set<String> FILTROS_INDICADORES = Set.of(
+      "competencia_inicio",
+      "competencia_fim",
+      "codigo_beneficiario",
+      "nome_beneficiario",
+      "cpf",
+      "grupo_beneficiario",
+      "numero_contrato",
+      "codigo_empresa",
+      "nome_empresa");
+
   private static final String TIPO_PROCEDIMENTO = """
       CASE
         WHEN IT.TPITE_COD = 1 AND IT.TPITV_COD = 1 THEN '92'
@@ -307,6 +325,194 @@ public class RelatorioPersonalizadoSqlBuilder {
       )
       """.strip();
 
+  /*
+   * Receita e despesa nascem em granularidades diferentes. Cada fonte é
+   * consolidada por beneficiário e competência antes do UNION ALL, impedindo
+   * que uma mensalidade seja repetida para cada item de guia.
+   */
+  private static final String CTE_INDICADORES_SQL = """
+      WITH FATURA_INDICADOR AS (
+        SELECT
+          FR.FR_NRO,
+          FR.FR_DAT_COMPET,
+          FR.FR_COD_EMP_CONTRT_BASE
+        FROM DBAUNIMED.FATURA_REC FR
+        WHERE FR.FR_DAT_CANCEL = DATE '0001-01-01'
+          /*FILTRO_COMPETENCIA_FATURA*/
+      ),
+      MOVIMENTO_RECEITA AS (
+        SELECT
+          MR.MR_COD,
+          MR.MR_COD_UNIMED_BNFRIO,
+          MR.MR_COD_CNTRAT_CART_BNFRIO,
+          MR.MR_COD_BNFRIO,
+          MR.MR_COD_DEPNTE_BNFRIO,
+          MR.MR_NRO_CNTRAT_VENDA,
+          FR.FR_DAT_COMPET,
+          FR.FR_COD_EMP_CONTRT_BASE
+        FROM DBAUNIMED.MVTO_REC MR
+        INNER JOIN FATURA_INDICADOR FR ON FR.FR_NRO = MR.MR_FR_NRO
+      ),
+      RECEITA_TAXA AS (
+        SELECT
+          MRT.MR_COD,
+          SUM(NVL(MRT.MRT_VAL_FINAL, 0)) AS VALOR_MENSALIDADE
+        FROM DBAUNIMED.MVTO_REC_TAXA MRT
+        INNER JOIN MOVIMENTO_RECEITA MOV ON MOV.MR_COD = MRT.MR_COD
+        GROUP BY MRT.MR_COD
+      ),
+      RECEITA_SERVICO AS (
+        SELECT
+          MRS.MR_COD,
+          SUM(NVL(MRS.MRS_VAL_FINAL, 0)) AS VALOR_COPART,
+          SUM(
+            CASE WHEN NVL(MRS.MRS_VAL_FINAL, 0) > 0
+              THEN MRS.MRS_VAL_FINAL ELSE 0 END
+          ) AS VALOR_COPART_SINISTRO
+        FROM DBAUNIMED.MVTO_REC_SERVIC MRS
+        INNER JOIN MOVIMENTO_RECEITA MOV ON MOV.MR_COD = MRS.MR_COD
+        GROUP BY MRS.MR_COD
+      ),
+      DESPESA_INDICADOR AS (
+        SELECT
+          GUIA.GUIA_COD_UNIMED_BNFRIO,
+          GUIA.GUIA_COD_CNTRAT_CART_BNFRIO,
+          GUIA.GUIA_COD_BNFRIO,
+          GUIA.GUIA_COD_DEPNTE_BNFRIO,
+          GUIA.GUIA_NRO_COMPET,
+          BNF.CV_NRO,
+          CNT_BASE.EMPCN_COD,
+          SUM(
+            NVL(ITEM_GUIA.GUITE_VAL_PAG_HONOR, 0) +
+            NVL(ITEM_GUIA.GUITE_VAL_PAG_FILME, 0) +
+            NVL(ITEM_GUIA.GUITE_VAL_PAG_CO, 0)
+          ) AS VALOR_DESPESA,
+          0 AS VALOR_RECEITA,
+          0 AS VALOR_MENSALIDADE,
+          0 AS VALOR_COPART
+        FROM DBAUNIMED.GUIA GUIA
+        INNER JOIN DBAUNIMED.GUIA_ITEM ITEM_GUIA
+          ON ITEM_GUIA.GUIA_COD_ID = GUIA.GUIA_COD_ID
+        LEFT JOIN DBAUNIMED.BNFRIO BNF
+          ON BNF.UNI_COD_RESPON = GUIA.GUIA_COD_UNIMED_BNFRIO
+          AND BNF.BNF_COD_CNTRAT_CART = GUIA.GUIA_COD_CNTRAT_CART_BNFRIO
+          AND BNF.BNF_COD = GUIA.GUIA_COD_BNFRIO
+          AND BNF.BNF_COD_DEPNTE = GUIA.GUIA_COD_DEPNTE_BNFRIO
+        LEFT JOIN DBAUNIMED.CNTRAT_VENDA CNT_BASE ON CNT_BASE.CV_NRO = BNF.CV_NRO
+        WHERE ITEM_GUIA.GUITE_IND_STATUS = 'I'
+          /*FILTRO_COMPETENCIA_DESPESA*/
+        GROUP BY
+          GUIA.GUIA_COD_UNIMED_BNFRIO,
+          GUIA.GUIA_COD_CNTRAT_CART_BNFRIO,
+          GUIA.GUIA_COD_BNFRIO,
+          GUIA.GUIA_COD_DEPNTE_BNFRIO,
+          GUIA.GUIA_NRO_COMPET,
+          BNF.CV_NRO,
+          CNT_BASE.EMPCN_COD
+      ),
+      RECEITA_INDICADOR AS (
+        SELECT
+          MR.MR_COD_UNIMED_BNFRIO AS GUIA_COD_UNIMED_BNFRIO,
+          MR.MR_COD_CNTRAT_CART_BNFRIO AS GUIA_COD_CNTRAT_CART_BNFRIO,
+          MR.MR_COD_BNFRIO AS GUIA_COD_BNFRIO,
+          MR.MR_COD_DEPNTE_BNFRIO AS GUIA_COD_DEPNTE_BNFRIO,
+          MR.FR_DAT_COMPET AS GUIA_NRO_COMPET,
+          MR.MR_NRO_CNTRAT_VENDA AS CV_NRO,
+          MR.FR_COD_EMP_CONTRT_BASE AS EMPCN_COD,
+          0 AS VALOR_DESPESA,
+          SUM(NVL(RT.VALOR_MENSALIDADE, 0) + NVL(RS.VALOR_COPART, 0)) AS VALOR_RECEITA,
+          SUM(NVL(RT.VALOR_MENSALIDADE, 0)) AS VALOR_MENSALIDADE,
+          SUM(NVL(RS.VALOR_COPART_SINISTRO, 0)) AS VALOR_COPART
+        FROM MOVIMENTO_RECEITA MR
+        LEFT JOIN RECEITA_TAXA RT ON RT.MR_COD = MR.MR_COD
+        LEFT JOIN RECEITA_SERVICO RS ON RS.MR_COD = MR.MR_COD
+        WHERE NVL(RT.VALOR_MENSALIDADE, 0) <> 0
+          OR NVL(RS.VALOR_COPART, 0) <> 0
+        GROUP BY
+          MR.MR_COD_UNIMED_BNFRIO,
+          MR.MR_COD_CNTRAT_CART_BNFRIO,
+          MR.MR_COD_BNFRIO,
+          MR.MR_COD_DEPNTE_BNFRIO,
+          MR.FR_DAT_COMPET,
+          MR.MR_NRO_CNTRAT_VENDA,
+          MR.FR_COD_EMP_CONTRT_BASE
+      ),
+      RECEITA_SEM_MOVIMENTO AS (
+        SELECT
+          CAST(NULL AS NUMBER) AS GUIA_COD_UNIMED_BNFRIO,
+          CAST(NULL AS NUMBER) AS GUIA_COD_CNTRAT_CART_BNFRIO,
+          CAST(NULL AS NUMBER) AS GUIA_COD_BNFRIO,
+          CAST(NULL AS NUMBER) AS GUIA_COD_DEPNTE_BNFRIO,
+          FR.FR_DAT_COMPET AS GUIA_NRO_COMPET,
+          CAST(NULL AS NUMBER) AS CV_NRO,
+          FR.FR_COD_EMP_CONTRT_BASE AS EMPCN_COD,
+          0 AS VALOR_DESPESA,
+          SUM(NVL(FRI.FRI_VAL_FINAL, 0)) AS VALOR_RECEITA,
+          0 AS VALOR_MENSALIDADE,
+          0 AS VALOR_COPART
+        FROM DBAUNIMED.FATURA_REC_ITEM FRI
+        INNER JOIN FATURA_INDICADOR FR ON FR.FR_NRO = FRI.FR_NRO
+        WHERE FRI.FRI_COD_MVTO_REC IS NULL
+        GROUP BY FR.FR_DAT_COMPET, FR.FR_COD_EMP_CONTRT_BASE
+      ),
+      INDICADOR_BASE AS (
+        SELECT * FROM DESPESA_INDICADOR
+        UNION ALL
+        SELECT * FROM RECEITA_INDICADOR
+        UNION ALL
+        SELECT * FROM RECEITA_SEM_MOVIMENTO
+      ),
+      ENDERECO_ATIVO AS (
+        SELECT *
+        FROM (
+          SELECT
+            PE_BASE.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY PE_BASE.PES_COD
+              ORDER BY
+                CASE WHEN PE_BASE.CEP_COD IS NOT NULL THEN 0 ELSE 1 END,
+                CASE WHEN PE_BASE.END_COD_UF IS NOT NULL THEN 0 ELSE 1 END,
+                PE_BASE.END_NRO
+            ) RN
+          FROM DBAUNIMED.PESSOA_END PE_BASE
+          WHERE PE_BASE.END_DAT_EXCL IS NULL
+            OR TRUNC(PE_BASE.END_DAT_EXCL) = DATE '0001-01-01'
+        )
+        WHERE RN = 1
+      )
+      """.strip();
+
+  private static final String FROM_INDICADORES_SQL = """
+      FROM INDICADOR_BASE G
+      LEFT JOIN DBAUNIMED.BNFRIO BF
+        ON G.GUIA_COD_UNIMED_BNFRIO = BF.UNI_COD_RESPON
+        AND G.GUIA_COD_CNTRAT_CART_BNFRIO = BF.BNF_COD_CNTRAT_CART
+        AND G.GUIA_COD_BNFRIO = BF.BNF_COD
+        AND G.GUIA_COD_DEPNTE_BNFRIO = BF.BNF_COD_DEPNTE
+      /*JOIN_GRUPO_BENEFICIARIO*/
+      LEFT JOIN DBAUNIMED.PESSOA P ON P.PES_COD = BF.BNF_COD_PESSOA
+      LEFT JOIN DBAUNIMED.PESSOA_DOC PESDOC
+        ON PESDOC.PES_COD = P.PES_COD AND PESDOC.TPDOC_COD = 2
+      LEFT JOIN DBAUNIMED.CNTRAT_VENDA CNT ON CNT.CV_NRO = NVL(G.CV_NRO, BF.CV_NRO)
+      LEFT JOIN DBAUNIMED.EMP_CONTRT EC
+        ON EC.EMPCN_COD = NVL(G.EMPCN_COD, CNT.EMPCN_COD)
+      LEFT JOIN DBAUNIMED.PESSOA PES_EMPRESA ON PES_EMPRESA.PES_COD = EC.EMPCN_COD_PESSOA
+      LEFT JOIN DBAUNIMED.PLANO PN ON PN.PLANO_NRO_REG_ANS = CNT.PLANO_NRO_REG_ANS
+      LEFT JOIN ENDERECO_ATIVO PE ON PE.PES_COD = P.PES_COD
+      LEFT JOIN ENDERECO_ATIVO PE_TIT ON PE_TIT.PES_COD = PE.END_COD_PES_VINC
+      LEFT JOIN DBAUNIMED.CEP CEP ON CEP.CEP_COD = NVL(PE.CEP_COD, PE_TIT.CEP_COD)
+      LEFT JOIN DBAUNIMED.CIDADE CIDADE ON CIDADE.CIDAD_COD = CEP.CIDAD_COD
+      LEFT JOIN DBAUNIMED.US8001 EXT
+        ON EXT.US8UNIMED = G.GUIA_COD_UNIMED_BNFRIO
+        AND EXT.US8CODCONT = G.GUIA_COD_CNTRAT_CART_BNFRIO
+        AND EXT.US8CODUSU = G.GUIA_COD_BNFRIO
+        AND EXT.US8CODDEP = G.GUIA_COD_DEPNTE_BNFRIO
+      LEFT JOIN DBAUNIMED.UNIMED U_INTERCAMBIO ON U_INTERCAMBIO.UNI_COD = EXT.US8UNIMED
+      LEFT JOIN DBAUNIMED.PESSOA PES_INTERCAMBIO
+        ON PES_INTERCAMBIO.PES_COD = U_INTERCAMBIO.UNI_PES_COD
+      WHERE 1 = 1
+      """.strip();
+
   private static final String FROM_BASE_SQL = """
       FROM DBAUNIMED.GUIA G
       LEFT JOIN DBAUNIMED.BNFRIO BF
@@ -420,13 +626,22 @@ public class RelatorioPersonalizadoSqlBuilder {
   }
 
   public ApiGerada gerar(List<String> colunas, Set<String> filtrosAtivos) {
-    return gerar(colunas, filtrosAtivos, false);
+    return gerar(colunas, filtrosAtivos, false, null, null);
   }
 
   public ApiGerada gerar(
       List<String> colunas,
       Set<String> filtrosAtivos,
       boolean distinct) {
+    return gerar(colunas, filtrosAtivos, distinct, null, null);
+  }
+
+  public ApiGerada gerar(
+      List<String> colunas,
+      Set<String> filtrosAtivos,
+      boolean distinct,
+      String ordenarPor,
+      String direcaoOrdenacao) {
     if (colunas == null || colunas.isEmpty()) {
       throw new IllegalArgumentException("Selecione pelo menos uma coluna.");
     }
@@ -442,6 +657,18 @@ public class RelatorioPersonalizadoSqlBuilder {
       expressoesInternas.put(campo.id(), campo.expressaoSql());
     }
 
+    Set<String> ativos = normalizarFiltrosAtivos(filtrosAtivos);
+    String colunaOrdenacao = normalizarColunaOrdenacao(ordenarPor);
+    String direcao = normalizarDirecaoOrdenacao(direcaoOrdenacao, colunaOrdenacao);
+    validarOrdenacao(camposSelecionados, colunaOrdenacao);
+    if (usaIndicadoresFinanceiros(camposSelecionados)) {
+      return gerarIndicadores(
+          camposSelecionados,
+          ativos,
+          colunaOrdenacao,
+          direcao);
+    }
+
     boolean consolidarPorBeneficiario =
         deveConsolidarValoresPorBeneficiario(camposSelecionados);
     List<String> projecoes = camposSelecionados.stream()
@@ -450,17 +677,6 @@ public class RelatorioPersonalizadoSqlBuilder {
                 ? "SUM(RP." + campo.id() + ") AS " + campo.id()
                 : "RP." + campo.id())
         .toList();
-
-    Set<String> ativos = new LinkedHashSet<>();
-    if (filtrosAtivos != null) {
-      for (String id : filtrosAtivos) {
-        Filtro filtro = filtro(id);
-        if (filtro == null) {
-          throw new IllegalArgumentException("Filtro não permitido: " + id + ".");
-        }
-        ativos.add(filtro.id());
-      }
-    }
 
     List<Map<String, Object>> definicoesFiltro = new ArrayList<>();
     for (Filtro filtro : FILTROS.values()) {
@@ -517,16 +733,275 @@ public class RelatorioPersonalizadoSqlBuilder {
         "\nFROM (\n" + consultaInterna.indent(2).stripTrailing() +
         "\n) RP\nWHERE 1 = 1\n  /*FILTROS*/" + agrupamento;
 
-    String ordenacao = consolidarPorBeneficiario
-        ? String.join(", ", colunasAgrupamentoBeneficiario(camposSelecionados))
-        : distinct
-        ? String.join(", ", projecoes)
-        : "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
+    String ordenacao = ordenacaoDetalhada(
+        camposSelecionados,
+        projecoes,
+        consolidarPorBeneficiario,
+        distinct,
+        colunaOrdenacao,
+        direcao);
 
     return new ApiGerada(
         consulta,
         ordenacao,
         List.copyOf(definicoesFiltro));
+  }
+
+  private ApiGerada gerarIndicadores(
+      List<Campo> camposSelecionados,
+      Set<String> filtrosAtivos,
+      String ordenarPor,
+      String direcaoOrdenacao) {
+    for (Campo campo : camposSelecionados) {
+      boolean dimensaoPermitida = GRUPO_CAMPOS_BENEFICIARIO.equals(campo.grupo())
+          || "Contrato e empresa".equals(campo.grupo())
+          || "PERIODO".equals(campo.id());
+      boolean valorPermitido = CAMPOS_VALORES_INDICADORES.contains(campo.id());
+      if (!dimensaoPermitida && !valorPermitido) {
+        throw new IllegalArgumentException(
+            "Receita e Sinistralidade podem ser combinadas somente com " +
+                "Beneficiário, Contrato e empresa, Competência e os totais financeiros.");
+      }
+    }
+    for (String filtro : filtrosAtivos) {
+      if (!FILTROS_INDICADORES.contains(filtro)) {
+        throw new IllegalArgumentException(
+            "Receita e Sinistralidade aceitam filtros de período, beneficiário, " +
+                "contrato ou empresa.");
+      }
+    }
+
+    Map<String, String> expressoesInternas = new LinkedHashMap<>();
+    for (Campo campo : camposSelecionados) {
+      if (!GRUPO_CAMPOS_VALORES.equals(campo.grupo())) {
+        expressoesInternas.put(campo.id(), campo.expressaoSql());
+      }
+    }
+    expressoesInternas.put("M_DESPESA", "G.VALOR_DESPESA");
+    expressoesInternas.put("M_RECEITA", "G.VALOR_RECEITA");
+    expressoesInternas.put("M_MENSALIDADE", "G.VALOR_MENSALIDADE");
+    expressoesInternas.put("M_COPART", "G.VALOR_COPART");
+
+    List<Map<String, Object>> definicoesFiltro = new ArrayList<>();
+    for (Filtro filtro : FILTROS.values()) {
+      if (!filtrosAtivos.contains(filtro.id())) {
+        continue;
+      }
+      expressoesInternas.putIfAbsent(filtro.aliasSql(), filtro.expressaoSql());
+      definicoesFiltro.add(definicaoFiltro(filtro));
+    }
+
+    LinkedHashSet<String> agrupamentos = new LinkedHashSet<>();
+    boolean possuiBeneficiario = camposSelecionados.stream()
+        .anyMatch(campo -> GRUPO_CAMPOS_BENEFICIARIO.equals(campo.grupo()));
+    boolean possuiContrato = camposSelecionados.stream()
+        .map(Campo::id)
+        .anyMatch(Set.of(
+            "CODIGO_CONTRATO",
+            "NUMERO_CONTRATO",
+            "TIPO_CONVENIO",
+            "CODIGO_PLANO")::contains);
+    boolean possuiEmpresa = camposSelecionados.stream()
+        .anyMatch(campo -> "Contrato e empresa".equals(campo.grupo()));
+
+    if (possuiBeneficiario) {
+      COLUNAS_IDENTIDADE_BENEFICIARIO.forEach(expressoesInternas::putIfAbsent);
+      COLUNAS_IDENTIDADE_BENEFICIARIO.keySet().stream()
+          .map(alias -> "RP." + alias)
+          .forEach(agrupamentos::add);
+    } else if (possuiContrato) {
+      expressoesInternas.put("O_CONTRATO", "NVL(G.CV_NRO, BF.CV_NRO)");
+      agrupamentos.add("RP.O_CONTRATO");
+    } else if (possuiEmpresa) {
+      expressoesInternas.put("O_EMPRESA", "NVL(G.EMPCN_COD, CNT.EMPCN_COD)");
+      agrupamentos.add("RP.O_EMPRESA");
+    }
+    camposSelecionados.stream()
+        .filter(campo -> !GRUPO_CAMPOS_VALORES.equals(campo.grupo()))
+        .map(campo -> "RP." + campo.id())
+        .forEach(agrupamentos::add);
+
+    List<String> colunasInternas = expressoesInternas.entrySet().stream()
+        .map(coluna -> coluna.getValue() + " AS " + coluna.getKey())
+        .toList();
+    String fromBaseSql = FROM_INDICADORES_SQL.replace(
+        MARCADOR_JOIN_GRUPO_BENEFICIARIO,
+        filtrosAtivos.contains(FILTRO_GRUPO_BENEFICIARIO)
+            ? JOIN_GRUPO_BENEFICIARIO_SQL
+            : "");
+    if (possuiBeneficiario) {
+      fromBaseSql += "\n  AND G.GUIA_COD_UNIMED_BNFRIO IS NOT NULL";
+    } else if (possuiContrato) {
+      fromBaseSql += "\n  AND NVL(G.CV_NRO, BF.CV_NRO) IS NOT NULL";
+    }
+
+    String consultaInterna = "SELECT\n    " +
+        String.join(",\n    ", colunasInternas) + "\n" + fromBaseSql;
+    List<String> projecoes = camposSelecionados.stream()
+        .map(this::projecaoIndicador)
+        .toList();
+    String agrupamento = agrupamentos.isEmpty()
+        ? ""
+        : "\nGROUP BY\n  " + String.join(",\n  ", agrupamentos);
+    String cteIndicadores = cteIndicadoresComPeriodo(filtrosAtivos);
+    String consulta = cteIndicadores +
+        "\nSELECT\n  " + String.join(",\n  ", projecoes) +
+        "\nFROM (\n" + consultaInterna.indent(2).stripTrailing() +
+        "\n) RP\nWHERE 1 = 1\n  /*FILTROS*/" + agrupamento;
+
+    return new ApiGerada(
+        consulta,
+        ordenacaoIndicadores(
+            camposSelecionados,
+            agrupamentos,
+            ordenarPor,
+            direcaoOrdenacao),
+        List.copyOf(definicoesFiltro));
+  }
+
+  private String cteIndicadoresComPeriodo(Set<String> filtrosAtivos) {
+    String inicioDespesa = filtrosAtivos.contains("competencia_inicio")
+        ? "AND GUIA.GUIA_NRO_COMPET >= :competenciainicio"
+        : "";
+    String fimDespesa = filtrosAtivos.contains("competencia_fim")
+        ? "AND GUIA.GUIA_NRO_COMPET <= :competenciafim"
+        : "";
+    String inicioReceita = filtrosAtivos.contains("competencia_inicio")
+        ? "AND FR.FR_DAT_COMPET >= :competenciainicio"
+        : "";
+    String fimReceita = filtrosAtivos.contains("competencia_fim")
+        ? "AND FR.FR_DAT_COMPET <= :competenciafim"
+        : "";
+    return CTE_INDICADORES_SQL
+        .replace(
+            "/*FILTRO_COMPETENCIA_DESPESA*/",
+            String.join("\n          ", inicioDespesa, fimDespesa).trim())
+        .replace(
+            "/*FILTRO_COMPETENCIA_FATURA*/",
+            String.join("\n          ", inicioReceita, fimReceita).trim());
+  }
+
+  private String projecaoIndicador(Campo campo) {
+    return switch (campo.id()) {
+      case "VALOR_TOTAL" -> "SUM(RP.M_DESPESA) AS VALOR_TOTAL";
+      case "VALOR_TOTAL_21" -> "SUM(RP.M_DESPESA) * 1.21 AS VALOR_TOTAL_21";
+      case CAMPO_RECEITA -> "SUM(RP.M_RECEITA) AS RECEITA";
+      case CAMPO_SINISTRALIDADE -> """
+          CASE
+            WHEN SUM(RP.M_MENSALIDADE) = 0 THEN 0
+            ELSE TRUNC(
+              (SUM(RP.M_DESPESA) - SUM(RP.M_COPART)) /
+              SUM(RP.M_MENSALIDADE) * 100,
+              2
+            )
+          END AS SINISTRALIDADE
+          """.strip();
+      default -> "RP." + campo.id();
+    };
+  }
+
+  private String ordenacaoIndicadores(
+      List<Campo> camposSelecionados,
+      Set<String> agrupamentos,
+      String ordenarPor,
+      String direcaoOrdenacao) {
+    if (ordenarPor != null) {
+      // A rotina ins_atu_query_api possui um buffer pequeno para a ordenação.
+      // O alias projetado é suficiente e evita reenviar critérios técnicos longos.
+      return ordenarPor + " " + direcaoOrdenacao;
+    }
+    if (!agrupamentos.isEmpty()) {
+      return String.join(", ", agrupamentos);
+    }
+    return camposSelecionados.getFirst().id();
+  }
+
+  private String ordenacaoDetalhada(
+      List<Campo> camposSelecionados,
+      List<String> projecoes,
+      boolean consolidarPorBeneficiario,
+      boolean distinct,
+      String ordenarPor,
+      String direcaoOrdenacao) {
+    if (ordenarPor != null) {
+      // Oracle aceita o alias da projeção no ORDER BY, inclusive para SUM.
+      // Mantê-lo curto evita estourar o buffer da rotina de publicação do SGU.
+      return ordenarPor + " " + direcaoOrdenacao;
+    }
+    if (consolidarPorBeneficiario) {
+      return String.join(", ", colunasAgrupamentoBeneficiario(camposSelecionados));
+    }
+    return distinct
+        ? String.join(", ", projecoes)
+        : "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
+  }
+
+  private Set<String> normalizarFiltrosAtivos(Set<String> filtrosAtivos) {
+    Set<String> ativos = new LinkedHashSet<>();
+    if (filtrosAtivos == null) {
+      return ativos;
+    }
+    for (String id : filtrosAtivos) {
+      Filtro filtro = filtro(id);
+      if (filtro == null) {
+        throw new IllegalArgumentException("Filtro não permitido: " + id + ".");
+      }
+      ativos.add(filtro.id());
+    }
+    return ativos;
+  }
+
+  private String normalizarColunaOrdenacao(String ordenarPor) {
+    if (ordenarPor == null || ordenarPor.isBlank()) {
+      return null;
+    }
+    return ordenarPor.trim().toUpperCase(Locale.ROOT);
+  }
+
+  private String normalizarDirecaoOrdenacao(
+      String direcaoOrdenacao,
+      String ordenarPor) {
+    if (ordenarPor == null) {
+      return null;
+    }
+    String direcao = direcaoOrdenacao == null
+        ? "ASC"
+        : direcaoOrdenacao.trim().toUpperCase(Locale.ROOT);
+    if (!Set.of("ASC", "DESC").contains(direcao)) {
+      throw new IllegalArgumentException("Direção de ordenação deve ser ASC ou DESC.");
+    }
+    return direcao;
+  }
+
+  private void validarOrdenacao(
+      List<Campo> camposSelecionados,
+      String ordenarPor) {
+    if (ordenarPor == null) {
+      return;
+    }
+    boolean selecionada = camposSelecionados.stream()
+        .anyMatch(campo -> campo.id().equals(ordenarPor));
+    if (!selecionada) {
+      throw new IllegalArgumentException(
+          "A coluna de ordenação deve estar entre as colunas selecionadas.");
+    }
+  }
+
+  private boolean usaIndicadoresFinanceiros(List<Campo> camposSelecionados) {
+    return camposSelecionados.stream()
+        .map(Campo::id)
+        .anyMatch(Set.of(CAMPO_RECEITA, CAMPO_SINISTRALIDADE)::contains);
+  }
+
+  private Map<String, Object> definicaoFiltro(Filtro filtro) {
+    String nomeFiltroSgu = nomeFiltroSgu(filtro.id());
+    Map<String, Object> definicao = new LinkedHashMap<>();
+    definicao.put("nomeFiltro", nomeFiltroSgu);
+    definicao.put("conteudoFiltro", conteudoFiltroSgu(filtro));
+    definicao.put("tipoDadoFiltro", filtro.tipoSgu());
+    definicao.put("mascaraFiltro", filtro.mascaraSgu());
+    definicao.put("obrigatorioFiltro", filtro.obrigatorio() ? "S" : "N");
+    return definicao;
   }
 
   private static boolean deveConsolidarValoresPorBeneficiario(
@@ -630,8 +1105,10 @@ public class RelatorioPersonalizadoSqlBuilder {
         "NVL(GI.GUITE_VAL_PAG_FILME, 0)");
     adicionar(campos, "VALOR_PG_CO", "Valor pago de custo operacional", "Valores", false, true,
         "NVL(GI.GUITE_VAL_PAG_CO, 0)");
-    adicionar(campos, "VALOR_TOTAL", "Valor total", "Valores", true, true, VALOR_TOTAL);
-    adicionar(campos, "VALOR_TOTAL_21", "Valor total com 21%", "Valores", false, true, "(" + VALOR_TOTAL + ") * 1.21");
+    adicionar(campos, "VALOR_TOTAL", "Despesa total", "Valores", true, true, VALOR_TOTAL);
+    adicionar(campos, "VALOR_TOTAL_21", "Despesa total com 21%", "Valores", false, true, "(" + VALOR_TOTAL + ") * 1.21");
+    adicionar(campos, CAMPO_RECEITA, "Receita", "Valores", false, true, "0");
+    adicionar(campos, CAMPO_SINISTRALIDADE, "Sinistralidade (%)", "Valores", false, true, "0");
     adicionar(campos, "VALOR_RECEBER", "Valor a receber", "Valores", false, true, valorReceber());
 
     return Collections.unmodifiableMap(campos);

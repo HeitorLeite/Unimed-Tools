@@ -114,6 +114,8 @@ export interface RelatorioPersonalizadoRequest {
   colunas: string[];
   filtros: Record<string, unknown>;
   distinct: boolean;
+  ordenarPor?: string;
+  direcaoOrdenacao?: 'ASC' | 'DESC';
   pagina: number;
   tamanhoPagina: number;
   nomeArquivo: string;

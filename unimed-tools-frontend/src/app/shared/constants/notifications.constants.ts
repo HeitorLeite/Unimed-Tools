@@ -6,6 +6,22 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
+    id: '7.5.1-correcao-ordenacao-relatorio-personalizado',
+    versao: '7.5.1',
+    titulo: 'Correção da ordenação do relatório personalizado',
+    resumo:
+      'Reduz a definição de ordenação enviada ao SGU para evitar falha de buffer ao ordenar a prévia.',
+    publicadaEm: '2026-08-26',
+  },
+  {
+    id: '7.5.0-indicadores-financeiros-e-ordenacao',
+    versao: '7.5.0',
+    titulo: 'Indicadores financeiros e ordenação da prévia',
+    resumo:
+      'Adiciona Receita, Sinistralidade e Despesa total por beneficiário, contrato ou empresa e permite ordenar qualquer coluna da prévia.',
+    publicadaEm: '2026-08-26',
+  },
+  {
     id: '7.4.0-exportacoes-e-filtros-sql',
     versao: '7.4.0',
     titulo: 'Exportações extensas e filtros SQL ampliados',

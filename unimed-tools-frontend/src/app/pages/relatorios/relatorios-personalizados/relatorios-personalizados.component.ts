@@ -63,6 +63,8 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   totalRegistrosExportados: number | null = null;
   somenteDistintos = false;
   previaExpandida = false;
+  colunaOrdenacao: string | null = null;
+  direcaoOrdenacao: 'ASC' | 'DESC' = 'ASC';
 
   formatoSelecionado: FormatoExportacao = 'xlsx';
   nomeArquivo = 'relatorio_personalizado';
@@ -208,6 +210,10 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => id !== coluna.id,
       );
+      if (this.colunaOrdenacao === coluna.id) {
+        this.colunaOrdenacao = null;
+        this.direcaoOrdenacao = 'ASC';
+      }
     } else if (this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)) {
       this.colunasSelecionadas.add(coluna.id);
       this.ordemColunasSelecionadas.push(coluna.id);
@@ -224,6 +230,10 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => !idsGrupo.has(id),
       );
+      if (this.colunaOrdenacao && idsGrupo.has(this.colunaOrdenacao)) {
+        this.colunaOrdenacao = null;
+        this.direcaoOrdenacao = 'ASC';
+      }
     } else {
       grupo.itens.forEach((item) => {
         if (
@@ -257,6 +267,31 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   alternarDistinct(): void {
     this.somenteDistintos = !this.somenteDistintos;
     this.limparPrevia();
+  }
+
+  ordenarPor(coluna: string): void {
+    if (this.gerando || this.exportando) return;
+
+    if (this.colunaOrdenacao === coluna) {
+      this.direcaoOrdenacao = this.direcaoOrdenacao === 'ASC' ? 'DESC' : 'ASC';
+    } else {
+      this.colunaOrdenacao = coluna;
+      this.direcaoOrdenacao = 'ASC';
+    }
+
+    if (this.registros.length) {
+      this.gerar(1);
+    }
+  }
+
+  ariaOrdenacao(coluna: string): 'ascending' | 'descending' | 'none' {
+    if (this.colunaOrdenacao !== coluna) return 'none';
+    return this.direcaoOrdenacao === 'ASC' ? 'ascending' : 'descending';
+  }
+
+  simboloOrdenacao(coluna: string): string {
+    if (this.colunaOrdenacao !== coluna) return '↕';
+    return this.direcaoOrdenacao === 'ASC' ? '↑' : '↓';
   }
 
   alternarPreviaExpandida(): void {
@@ -351,6 +386,8 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.configuracao = configuracao;
     this.colunasSelecionadas.clear();
     this.ordemColunasSelecionadas = [];
+    this.colunaOrdenacao = null;
+    this.direcaoOrdenacao = 'ASC';
     this.gruposFiltros = this.agrupar(configuracao.filtros);
     this.gruposColunas = this.agrupar(configuracao.colunas);
     this.valoresFiltro = Object.fromEntries(configuracao.filtros.map((filtro) => [filtro.id, '']));
@@ -379,6 +416,9 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.erro = 'Selecione pelo menos uma coluna para o relatório.';
       return null;
     }
+    if (!this.validarIndicadoresFinanceiros()) {
+      return null;
+    }
 
     const filtros = Object.fromEntries(
       Object.entries(this.valoresFiltro)
@@ -391,10 +431,65 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       colunas: [...this.ordemColunasSelecionadas],
       filtros,
       distinct: this.somenteDistintos,
+      ...(this.colunaOrdenacao
+        ? {
+            ordenarPor: this.colunaOrdenacao,
+            direcaoOrdenacao: this.direcaoOrdenacao,
+          }
+        : {}),
       pagina,
       tamanhoPagina: this.tamanhoPagina,
       nomeArquivo: this.nomeArquivoSeguro(),
     };
+  }
+
+  private validarIndicadoresFinanceiros(): boolean {
+    const usaIndicadores =
+      this.colunasSelecionadas.has('RECEITA') ||
+      this.colunasSelecionadas.has('SINISTRALIDADE');
+    if (!usaIndicadores || !this.configuracao) return true;
+
+    const valoresPermitidos = new Set([
+      'VALOR_TOTAL',
+      'VALOR_TOTAL_21',
+      'RECEITA',
+      'SINISTRALIDADE',
+    ]);
+    const colunaIncompativel = this.configuracao.colunas.find(
+      (coluna) =>
+        this.colunasSelecionadas.has(coluna.id) &&
+        coluna.grupo !== 'Beneficiário' &&
+        coluna.grupo !== 'Contrato e empresa' &&
+        coluna.id !== 'PERIODO' &&
+        !valoresPermitidos.has(coluna.id),
+    );
+    if (colunaIncompativel) {
+      this.erro =
+        'Receita e Sinistralidade podem ser combinadas somente com Beneficiário, ' +
+        'Contrato e empresa, Competência e os totais financeiros.';
+      return false;
+    }
+
+    const filtrosPermitidos = new Set([
+      'competencia_inicio',
+      'competencia_fim',
+      'codigo_beneficiario',
+      'nome_beneficiario',
+      'cpf',
+      'grupo_beneficiario',
+      'numero_contrato',
+      'codigo_empresa',
+      'nome_empresa',
+    ]);
+    const filtroIncompativel = Object.entries(this.valoresFiltro).some(
+      ([id, valor]) => String(valor ?? '').trim() !== '' && !filtrosPermitidos.has(id),
+    );
+    if (filtroIncompativel) {
+      this.erro =
+        'Receita e Sinistralidade aceitam filtros de período, beneficiário, contrato ou empresa.';
+      return false;
+    }
+    return true;
   }
 
   private aplicarResultado(resposta: SguResultado, paginaSolicitada: number): void {

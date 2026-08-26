@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.springframework.stereotype.Service;
@@ -109,7 +110,7 @@ public class RelatorioPersonalizadoService {
 
     return new Configuracao(
         API_NOME,
-        "Despesas por item de guia",
+        "Despesas, receita e sinistralidade",
         colunas,
         filtros,
         new Limites(colunas.size(), MAXIMO_MESES, MAXIMO_LINHAS_PAGINA));
@@ -171,7 +172,9 @@ public class RelatorioPersonalizadoService {
     RelatorioPersonalizadoSqlBuilder.ApiGerada gerada = sqlBuilder.gerar(
         normalizada.colunas(),
         normalizada.filtros().keySet(),
-        normalizada.distinct());
+        normalizada.distinct(),
+        normalizada.ordenarPor(),
+        normalizada.direcaoOrdenacao());
 
     /*
      * Paginação e repetições com a mesma estrutura não precisam republicar a
@@ -215,13 +218,49 @@ public class RelatorioPersonalizadoService {
             "Tamanho da página")
         : MAXIMO_LINHAS_PAGINA;
     boolean distinct = Boolean.TRUE.equals(request.distinct());
+    String ordenarPor = normalizarOrdenarPor(request.ordenarPor(), colunas);
+    String direcaoOrdenacao = normalizarDirecaoOrdenacao(
+        request.direcaoOrdenacao(),
+        ordenarPor);
 
     return new RequisicaoNormalizada(
         colunas,
         filtros,
         distinct,
+        ordenarPor,
+        direcaoOrdenacao,
         pagina,
         tamanho);
+  }
+
+  private String normalizarOrdenarPor(
+      String recebido,
+      List<String> colunasSelecionadas) {
+    if (recebido == null || recebido.isBlank()) {
+      return null;
+    }
+    String coluna = recebido.trim().toUpperCase(Locale.ROOT);
+    if (!colunasSelecionadas.contains(coluna)) {
+      throw new IllegalArgumentException(
+          "A coluna de ordenação deve estar entre as colunas selecionadas.");
+    }
+    return coluna;
+  }
+
+  private String normalizarDirecaoOrdenacao(
+      String recebida,
+      String ordenarPor) {
+    if (ordenarPor == null) {
+      return null;
+    }
+    String direcao = recebida == null
+        ? "ASC"
+        : recebida.trim().toUpperCase(Locale.ROOT);
+    if (!Set.of("ASC", "DESC").contains(direcao)) {
+      throw new IllegalArgumentException(
+          "Direção de ordenação deve ser ASC ou DESC.");
+    }
+    return direcao;
   }
 
   private List<String> normalizarColunas(List<String> solicitadas) {
@@ -479,6 +518,8 @@ public class RelatorioPersonalizadoService {
       List<String> colunas,
       Map<String, Object> filtros,
       boolean distinct,
+      String ordenarPor,
+      String direcaoOrdenacao,
       int pagina,
       int tamanhoPagina) {
   }

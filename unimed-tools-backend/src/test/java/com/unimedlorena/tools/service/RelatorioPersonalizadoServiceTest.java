@@ -189,6 +189,40 @@ class RelatorioPersonalizadoServiceTest {
                 "RP.O_BNF_CODIGO,\n  RP.O_BNF_DEPENDENTE");
   }
 
+  @Test
+  void deveNormalizarOrdenacaoEPublicarDirecaoSolicitada() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(sgu.executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(Map.of("content", List.of(), "last", true));
+
+    service.executar(new RelatorioPersonalizadoRequest(
+        List.of("COD_BENEFICIARIO", "NOME_BENEFICIARIO"),
+        Map.of(
+            "competencia_inicio", "202601",
+            "competencia_fim", "202601"),
+        false,
+        "nome_beneficiario",
+        "desc",
+        1,
+        50,
+        "beneficiarios"));
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> definicao = ArgumentCaptor.forClass(Map.class);
+    verify(sgu).criarOuAtualizar(definicao.capture());
+    assertThat(definicao.getValue())
+        .containsEntry(
+            "ordenacao",
+            "NOME_BENEFICIARIO DESC");
+  }
+
   private RelatorioPersonalizadoRequest requisicao(Map<String, Object> filtros) {
     return new RelatorioPersonalizadoRequest(
         List.of("COD_BENEFICIARIO"),

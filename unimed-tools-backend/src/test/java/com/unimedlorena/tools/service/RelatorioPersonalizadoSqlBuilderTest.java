@@ -4,6 +4,7 @@
 package com.unimedlorena.tools.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,6 +18,21 @@ class RelatorioPersonalizadoSqlBuilderTest {
 
   private final RelatorioPersonalizadoSqlBuilder builder =
       new RelatorioPersonalizadoSqlBuilder();
+
+  @Test
+  void deveExporNovosIndicadoresFinanceirosNoCatalogo() {
+    assertThat(builder.campos()).hasSize(52);
+    assertThat(builder.campo("VALOR_TOTAL").rotulo()).isEqualTo("Despesa total");
+    assertThat(builder.campo("VALOR_TOTAL_21").rotulo())
+        .isEqualTo("Despesa total com 21%");
+    assertThat(builder.campo("RECEITA")).satisfies(campo -> {
+      assertThat(campo.rotulo()).isEqualTo("Receita");
+      assertThat(campo.grupo()).isEqualTo("Valores");
+      assertThat(campo.sensivel()).isTrue();
+    });
+    assertThat(builder.campo("SINISTRALIDADE").rotulo())
+        .isEqualTo("Sinistralidade (%)");
+  }
 
   @Test
   void deveAceitarFiltroComUnderscoreOuHifen() {
@@ -230,5 +246,90 @@ class RelatorioPersonalizadoSqlBuilderTest {
     assertThat(api.ordenacao())
         .isEqualTo("RP.NUMERO_GUIA, RP.PERIODO")
         .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
+  }
+
+  @Test
+  void deveOrdenarTodaConsultaPelaColunaSelecionada() {
+    RelatorioPersonalizadoSqlBuilder.ApiGerada crescente = builder.gerar(
+        List.of("NOME_BENEFICIARIO", "VALOR_TOTAL"),
+        Set.of("competencia_inicio", "competencia_fim"),
+        false,
+        "nome_beneficiario",
+        "asc");
+    RelatorioPersonalizadoSqlBuilder.ApiGerada decrescente = builder.gerar(
+        List.of("NOME_BENEFICIARIO", "VALOR_TOTAL"),
+        Set.of("competencia_inicio", "competencia_fim"),
+        false,
+        "VALOR_TOTAL",
+        "DESC");
+
+    assertThat(crescente.ordenacao()).isEqualTo("NOME_BENEFICIARIO ASC");
+    assertThat(decrescente.ordenacao()).isEqualTo("VALOR_TOTAL DESC");
+    assertThatThrownBy(() -> builder.gerar(
+        List.of("NOME_BENEFICIARIO"),
+        Set.of("competencia_inicio", "competencia_fim"),
+        false,
+        "CPF",
+        "ASC"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("colunas selecionadas");
+  }
+
+  @Test
+  void deveAgregarReceitaDespesaESinistralidadeSemMultiplicarItens() {
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of(
+            "CODIGO_EMPRESA",
+            "NOME_EMPRESA",
+            "VALOR_TOTAL",
+            "RECEITA",
+            "SINISTRALIDADE"),
+        Set.of("competencia_inicio", "competencia_fim", "codigo_empresa"),
+        false,
+        "SINISTRALIDADE",
+        "DESC");
+
+    assertThat(api.consultaSql())
+        .contains(
+            "RECEITA_TAXA AS (",
+            "RECEITA_SERVICO AS (",
+            "INNER JOIN MOVIMENTO_RECEITA MOV ON MOV.MR_COD = MRT.MR_COD",
+            "INNER JOIN MOVIMENTO_RECEITA MOV ON MOV.MR_COD = MRS.MR_COD",
+            "DESPESA_INDICADOR AS (",
+            "RECEITA_INDICADOR AS (",
+            "RECEITA_SEM_MOVIMENTO AS (",
+            "AND GUIA.GUIA_NRO_COMPET >= :competenciainicio",
+            "AND GUIA.GUIA_NRO_COMPET <= :competenciafim",
+            "AND FR.FR_DAT_COMPET >= :competenciainicio",
+            "AND FR.FR_DAT_COMPET <= :competenciafim",
+            "SUM(RP.M_DESPESA) AS VALOR_TOTAL",
+            "SUM(RP.M_RECEITA) AS RECEITA",
+            "(SUM(RP.M_DESPESA) - SUM(RP.M_COPART)) /",
+            "SUM(RP.M_MENSALIDADE) * 100",
+            "GROUP BY\n  RP.O_EMPRESA,\n  RP.CODIGO_EMPRESA,\n  RP.NOME_EMPRESA")
+        .containsOnlyOnce("LEFT JOIN RECEITA_TAXA RT ON RT.MR_COD = MR.MR_COD")
+        .doesNotContain(
+            "MRT_VAL_FINAL + MRS_VAL_FINAL",
+            "/*FILTRO_COMPETENCIA_DESPESA*/",
+            "/*FILTRO_COMPETENCIA_FATURA*/");
+    assertThat(api.ordenacao()).isEqualTo("SINISTRALIDADE DESC");
+    assertThat(api.filtros())
+        .extracting(filtro -> filtro.get("nomeFiltro"))
+        .containsExactly("competenciainicio", "competenciafim", "codigoempresa");
+  }
+
+  @Test
+  void deveRestringirIndicadoresAosRecortesComGranularidadeCompativel() {
+    assertThatThrownBy(() -> builder.gerar(
+        List.of("NOME_PRESTADOR", "RECEITA"),
+        Set.of("competencia_inicio", "competencia_fim")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Beneficiário, Contrato e empresa");
+
+    assertThatThrownBy(() -> builder.gerar(
+        List.of("NOME_EMPRESA", "SINISTRALIDADE"),
+        Set.of("competencia_inicio", "competencia_fim", "nome_prestador")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("filtros de período, beneficiário, contrato ou empresa");
   }
 }

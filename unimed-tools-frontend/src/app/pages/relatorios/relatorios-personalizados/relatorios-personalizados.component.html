@@ -217,7 +217,12 @@
                 />
                 <span
                   ><strong>{{ coluna.rotulo }}</strong
-                  ><small *ngIf="coluna.sensivel">dado sensível</small></span
+                  ><small *ngIf="coluna.sensivel">dado sensível</small
+                  ><small
+                    *ngIf="coluna.id === 'RECEITA' || coluna.id === 'SINISTRALIDADE'"
+                    class="metric-note"
+                    >agrega por beneficiário, contrato ou empresa</small
+                  ></span
                 >
               </label>
             </div>
@@ -367,8 +372,29 @@
             <thead>
               <tr>
                 <th class="row-number">#</th>
-                <th *ngFor="let coluna of colunasResultado" [title]="rotuloColuna(coluna)">
-                  {{ rotuloColuna(coluna) }}
+                <th
+                  *ngFor="let coluna of colunasResultado"
+                  [attr.aria-sort]="ariaOrdenacao(coluna)"
+                  [title]="'Ordenar por ' + rotuloColuna(coluna)"
+                >
+                  <button
+                    type="button"
+                    class="sort-button"
+                    [disabled]="gerando || exportando"
+                    [attr.aria-label]="
+                      'Ordenar ' +
+                      rotuloColuna(coluna) +
+                      (colunaOrdenacao === coluna && direcaoOrdenacao === 'ASC'
+                        ? ' do maior para o menor'
+                        : ' do menor para o maior')
+                    "
+                    (click)="ordenarPor(coluna)"
+                  >
+                    <span>{{ rotuloColuna(coluna) }}</span>
+                    <b [class.active]="colunaOrdenacao === coluna" aria-hidden="true">
+                      {{ simboloOrdenacao(coluna) }}
+                    </b>
+                  </button>
                 </th>
               </tr>
             </thead>

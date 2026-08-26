@@ -523,6 +523,11 @@
     margin-top: 2px;
     text-transform: uppercase;
   }
+  .metric-note {
+    color: #527366;
+    letter-spacing: 0;
+    text-transform: none;
+  }
 }
 
 .result-panel {
@@ -779,6 +784,43 @@ th {
   top: 0;
   white-space: normal;
   z-index: 2;
+}
+.sort-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: space-between;
+  letter-spacing: inherit;
+  padding: 0;
+  text-align: left;
+  text-transform: inherit;
+  width: 100%;
+
+  b {
+    color: #82948b;
+    font-size: 13px;
+    line-height: 1;
+
+    &.active {
+      color: #008557;
+    }
+  }
+
+  &:focus-visible {
+    border-radius: 4px;
+    outline: 3px solid rgba(0, 168, 107, 0.18);
+    outline-offset: 3px;
+  }
+
+  &:disabled {
+    cursor: wait;
+  }
 }
 td {
   border-top: 1px solid #edf2ef;

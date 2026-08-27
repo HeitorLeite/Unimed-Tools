@@ -21,11 +21,12 @@ import {
   isProtectedBeneficiaryColumn,
 } from '../../shared/utils/report-preview.utils';
 import { RelatoriosAutomaticosComponent } from './relatorios-automaticos/relatorios-automaticos.component';
+import { RelatoriosAgendadosComponent } from './relatorios-agendados/relatorios-agendados.component';
 import { RelatoriosInicioComponent } from './relatorios-inicio/relatorios-inicio.component';
 import { RelatoriosPersonalizadosComponent } from './relatorios-personalizados/relatorios-personalizados.component';
 
 type ModoCadastro = 'existente' | 'lista' | 'nova' | 'arquivos';
-type ModoPaginaRelatorios = 'selecao' | 'manual' | 'automatico' | 'personalizado';
+type ModoPaginaRelatorios = 'selecao' | 'manual' | 'automatico' | 'personalizado' | 'agendado';
 
 type StatusArquivoSql = 'pendente' | 'criando' | 'sucesso' | 'erro';
 
@@ -77,6 +78,7 @@ interface EstruturaConsultaPrincipal {
     FormsModule,
     RelatoriosInicioComponent,
     RelatoriosAutomaticosComponent,
+    RelatoriosAgendadosComponent,
     RelatoriosPersonalizadosComponent,
   ],
   templateUrl: './relatorios.component.html',

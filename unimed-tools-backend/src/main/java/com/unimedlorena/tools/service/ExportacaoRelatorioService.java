@@ -81,6 +81,17 @@ public class ExportacaoRelatorioService {
 
   public record DescricaoArquivo(String contentType, String extensao) {}
 
+  public record OpcoesSaida(List<String> colunas, boolean incluirCabecalho) {
+
+    public OpcoesSaida {
+      colunas = colunas == null ? List.of() : List.copyOf(colunas);
+    }
+
+    public static OpcoesSaida padrao() {
+      return new OpcoesSaida(List.of(), true);
+    }
+  }
+
   @FunctionalInterface
   private interface ConsumidorPagina {
     void aceitar(List<LinkedHashMap<String, Object>> registros)
@@ -138,8 +149,19 @@ public class ExportacaoRelatorioService {
     RelatorioExportacaoRequest request,
     OutputStream destino
   ) throws IOException {
+    exportarPara(apiNome, formato, request, destino, OpcoesSaida.padrao());
+  }
+
+  public void exportarPara(
+    String apiNome,
+    String formato,
+    RelatorioExportacaoRequest request,
+    OutputStream destino,
+    OpcoesSaida opcoes
+  ) throws IOException {
     DescricaoArquivo descricao = descreverArquivo(formato);
     Map<String, Object> filtros = request == null ? null : request.filtros();
+    OpcoesSaida saida = validarOpcoesSaida(opcoes);
 
     log.info(
       "Iniciando exportação paginada. api={}, formato={}, lote={}",
@@ -150,9 +172,9 @@ public class ExportacaoRelatorioService {
 
     long inicio = System.nanoTime();
     int quantidade = switch (descricao.extensao()) {
-      case "csv" -> escreverCsvPaginado(apiNome, filtros, destino, ';');
-      case "txt" -> escreverCsvPaginado(apiNome, filtros, destino, ';');
-      case "xlsx" -> escreverXlsxPaginado(apiNome, filtros, destino);
+      case "csv" -> escreverCsvPaginado(apiNome, filtros, destino, ';', saida);
+      case "txt" -> escreverCsvPaginado(apiNome, filtros, destino, ';', saida);
+      case "xlsx" -> escreverXlsxPaginado(apiNome, filtros, destino, saida);
       default -> throw new IllegalStateException("Formato de exportação não suportado.");
     };
 
@@ -317,7 +339,8 @@ public class ExportacaoRelatorioService {
     String apiNome,
     Map<String, Object> filtros,
     OutputStream destino,
-    char delimitador
+    char delimitador,
+    OpcoesSaida opcoes
   ) throws IOException {
     escreverBom(destino);
     EstadoColunas estado = new EstadoColunas();
@@ -332,13 +355,20 @@ public class ExportacaoRelatorioService {
           .build()
       )
     ) {
-      int quantidade = percorrerPaginas(apiNome, filtros, lote -> {
+      int quantidade = percorrerPaginas(apiNome, filtros, loteOriginal -> {
+        List<LinkedHashMap<String, Object>> lote = projetarColunas(
+          loteOriginal,
+          opcoes.colunas(),
+          !estado.inicializado
+        );
         if (!estado.inicializado) {
           inicializarColunas(estado, lote);
-          for (String coluna : estado.colunas) {
-            printer.print(neutralizarFormula(coluna));
+          if (opcoes.incluirCabecalho()) {
+            for (String coluna : estado.colunas) {
+              printer.print(neutralizarFormula(coluna));
+            }
+            printer.println();
           }
-          printer.println();
         }
 
         for (Map<String, Object> registro : lote) {
@@ -361,12 +391,15 @@ public class ExportacaoRelatorioService {
   private int escreverXlsxPaginado(
     String apiNome,
     Map<String, Object> filtros,
-    OutputStream destino
+    OutputStream destino,
+    OpcoesSaida opcoes
   ) throws IOException {
     try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) {
       workbook.setCompressTempFiles(true);
       Sheet sheet = workbook.createSheet("Relatório");
-      sheet.createFreezePane(0, 1);
+      if (opcoes.incluirCabecalho()) {
+        sheet.createFreezePane(0, 1);
+      }
 
       CellStyle cabecalho = workbook.createCellStyle();
       Font fonte = workbook.createFont();
@@ -398,16 +431,26 @@ public class ExportacaoRelatorioService {
       );
 
       EstadoXlsx estado = new EstadoXlsx();
-      int quantidade = percorrerPaginas(apiNome, filtros, lote -> {
+      if (!opcoes.incluirCabecalho()) {
+        estado.indiceLinha = 0;
+      }
+      int quantidade = percorrerPaginas(apiNome, filtros, loteOriginal -> {
+        List<LinkedHashMap<String, Object>> lote = projetarColunas(
+          loteOriginal,
+          opcoes.colunas(),
+          !estado.inicializado
+        );
         if (!estado.inicializado) {
           inicializarColunas(estado, lote);
           estado.larguras = new int[estado.colunas.size()];
-          Row header = sheet.createRow(0);
+          Row header = opcoes.incluirCabecalho() ? sheet.createRow(0) : null;
           for (int i = 0; i < estado.colunas.size(); i++) {
             String coluna = estado.colunas.get(i);
-            Cell cell = header.createCell(i);
-            cell.setCellValue(coluna);
-            cell.setCellStyle(cabecalho);
+            if (header != null) {
+              Cell cell = header.createCell(i);
+              cell.setCellValue(coluna);
+              cell.setCellStyle(cabecalho);
+            }
             estado.larguras[i] = Math.max(12, coluna.length() + 3);
             sheet.setDefaultColumnStyle(i, estilos.get(estado.tipos.get(coluna)));
           }
@@ -441,7 +484,7 @@ public class ExportacaoRelatorioService {
         }
       });
 
-      if (!estado.inicializado) {
+      if (!estado.inicializado && opcoes.incluirCabecalho()) {
         sheet.createRow(0);
       }
 
@@ -449,7 +492,7 @@ public class ExportacaoRelatorioService {
         sheet.setColumnWidth(i, Math.min(60, estado.larguras[i]) * 256);
       }
 
-      if (!estado.colunas.isEmpty()) {
+      if (opcoes.incluirCabecalho() && !estado.colunas.isEmpty()) {
         sheet.setAutoFilter(
           new org.apache.poi.ss.util.CellRangeAddress(
             0,
@@ -474,6 +517,57 @@ public class ExportacaoRelatorioService {
     estado.colunas = colunas(lote);
     estado.tipos = inferirTipos(lote, estado.colunas);
     estado.inicializado = true;
+  }
+
+  private OpcoesSaida validarOpcoesSaida(OpcoesSaida recebidas) {
+    OpcoesSaida opcoes = recebidas == null ? OpcoesSaida.padrao() : recebidas;
+    if (opcoes.colunas().size() > 200) {
+      throw new IllegalArgumentException("Selecione no máximo 200 colunas para a exportação.");
+    }
+
+    LinkedHashSet<String> unicas = new LinkedHashSet<>();
+    for (String recebida : opcoes.colunas()) {
+      String coluna = recebida == null ? "" : recebida.trim();
+      if (coluna.isBlank() || coluna.length() > 128 || ehColunaTecnicaPaginacao(coluna)) {
+        throw new IllegalArgumentException("A seleção de colunas da exportação é inválida.");
+      }
+      if (!unicas.add(coluna.toUpperCase(Locale.ROOT))) {
+        throw new IllegalArgumentException("A seleção de colunas contém itens repetidos.");
+      }
+    }
+    return new OpcoesSaida(opcoes.colunas(), opcoes.incluirCabecalho());
+  }
+
+  private List<LinkedHashMap<String, Object>> projetarColunas(
+    List<LinkedHashMap<String, Object>> registros,
+    List<String> colunasSolicitadas,
+    boolean validarExistencia
+  ) {
+    if (colunasSolicitadas.isEmpty()) return registros;
+
+    Map<String, String> chavesDisponiveis = new LinkedHashMap<>();
+    registros.forEach(registro -> registro.keySet().forEach(chave ->
+      chavesDisponiveis.putIfAbsent(chave.toUpperCase(Locale.ROOT), chave)
+    ));
+    if (validarExistencia) {
+      for (String solicitada : colunasSolicitadas) {
+        if (chavesDisponiveis.containsKey(solicitada.toUpperCase(Locale.ROOT))) continue;
+        throw new IllegalArgumentException(
+          "A coluna “" + solicitada + "” não existe no resultado atual do relatório."
+        );
+      }
+    }
+
+    List<LinkedHashMap<String, Object>> projetados = new ArrayList<>(registros.size());
+    for (Map<String, Object> registro : registros) {
+      LinkedHashMap<String, Object> projetado = new LinkedHashMap<>();
+      for (String solicitada : colunasSolicitadas) {
+        String chaveReal = chavesDisponiveis.get(solicitada.toUpperCase(Locale.ROOT));
+        projetado.put(solicitada, chaveReal == null ? null : registro.get(chaveReal));
+      }
+      projetados.add(projetado);
+    }
+    return projetados;
   }
 
   private void preencherCelulaSeguro(

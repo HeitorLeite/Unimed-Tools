@@ -6,7 +6,9 @@ Como a primeira conta administrativa já foi criada, não exclua o banco. No
 phpMyAdmin, selecione `DBUNIMED`, abra a aba **Importar** e execute, nesta ordem,
 somente as migrações ainda não aplicadas:
 
-1. `migrations/002_permissoes_por_usuario.sql`.
+1. `migrations/002_permissoes_por_usuario.sql`;
+2. `migrations/003_agendamento_relatorios.sql`;
+3. `migrations/004_recorrencia_agendamento_relatorios.sql`.
 
 A migração 002:
 
@@ -22,6 +24,15 @@ usa esses campos para preservar a trilha de auditoria sem manter a conta ativa.
 Faça backup antes de aplicar uma migração em um ambiente com dados importantes.
 Depois da importação, reinicie o backend para que a versão nova do código passe
 a usar a tabela criada.
+
+A migração 003 cria `relatorio_agendamento`, vincula cada agenda ao usuário
+criador e mantém filtros e opções somente no campo criptografado pelo backend.
+Também registra reservas temporárias, falhas e a retenção do histórico por 90
+dias, sem mover o catálogo local de relatórios para o banco.
+
+A migração 004 preserva as agendas existentes como execução única e adiciona
+recorrência diária, semanal e mensal, dias da semana, dia do mês, fuso horário
+e contador de execuções concluídas.
 
 ## Instalação nova
 

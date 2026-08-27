@@ -80,9 +80,23 @@
 
 .mode-board {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-top: 24px;
+}
+
+.scheduled-route {
+  border-color: #c7b98a;
+  background: linear-gradient(145deg, #fffdf5, #f5f0dd);
+
+  .route-icon {
+    border-color: #d8c998;
+    color: #7b681f;
+  }
+
+  .route-copy small {
+    color: #7b681f;
+  }
 }
 
 .personalized-route {

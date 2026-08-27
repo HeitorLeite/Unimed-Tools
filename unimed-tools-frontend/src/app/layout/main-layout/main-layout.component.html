@@ -1,5 +1,14 @@
 <!-- Shell compartilhado: navegação, contexto da rota e área de trabalho permanecem separados das regras de negócio. -->
 <div class="layout" [class.sidebar-collapsed]="!sidebarOpen()">
+  <div
+    *ngIf="executorAgendamento.aviso() as aviso"
+    class="scheduled-report-toast"
+    [class.error]="aviso.tipo === 'erro'"
+    role="status"
+  >
+    <span>{{ aviso.mensagem }}</span>
+    <button type="button" (click)="executorAgendamento.limparAviso()" aria-label="Fechar">×</button>
+  </div>
   <app-sidebar [open]="sidebarOpen()" (toggleSidebar)="toggleSidebar()" />
 
   <button

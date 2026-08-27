@@ -5,6 +5,7 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { filter } from 'rxjs/operators';
 import { ApplicationNotification } from '../../shared/models/application-notification.model';
 import { NotificationService } from '../../shared/services/notification.service';
+import { ExecutorAgendamentoService } from '../../shared/services/executor-agendamento.service';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 
 @Component({
@@ -26,7 +27,9 @@ export class MainLayoutComponent {
   constructor(
     private readonly router: Router,
     private readonly notificationService: NotificationService,
+    readonly executorAgendamento: ExecutorAgendamentoService,
   ) {
+    this.executorAgendamento.iniciar();
     this.notifications = this.notificationService.listar();
     this.unreadNotifications.set(this.notificationService.quantidadeNaoLidas());
     this.updateViewport();

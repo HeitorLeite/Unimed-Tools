@@ -101,7 +101,7 @@ Diretório: `unimed-tools-frontend/`
 
 As rotas utilizam carregamento sob demanda e permanecem centralizadas em `src/app/app.routes.ts`.
 
-A rota `/relatorios` agrega quatro componentes de tela:
+A rota `/relatorios` agrega cinco componentes de tela:
 
 | Componente                       | Responsabilidade                                        |
 | -------------------------------- | ------------------------------------------------------- |
@@ -109,6 +109,7 @@ A rota `/relatorios` agrega quatro componentes de tela:
 | `relatorios`                     | Orquestração do modo selecionado.                       |
 | `relatorios-automaticos`         | Grupos e exportações em lote.                           |
 | `relatorios-personalizados`      | Filtros, colunas, prévia paginada e exportação guiada.  |
+| `relatorios-agendados`           | Assistente, prévia, layout do arquivo, agenda e histórico. |
 
 `RelatorioService` concentra a comunicação HTTP e o acesso aos catálogos do
 `localStorage`. O modo personalizado não persiste filtros digitados: eles ficam
@@ -324,6 +325,29 @@ Os endpoints específicos são:
 | POST   | `/api/relatorios/personalizado/executar`              | Prévia paginada                    |
 | POST   | `/api/relatorios/personalizado/exportar?formato=...`  | Exportação completa                |
 
+### Agendamento e gravação local
+
+**Status: Atual.** O backend persiste a agenda e protege seu snapshot com
+AES-256-GCM usando `REPORT_SCHEDULE_ENCRYPTION_KEY`. O navegador guarda o
+`FileSystemDirectoryHandle` no IndexedDB e envia ao servidor somente um UUID de
+referência. A cada 30 segundos, o executor global consulta os vencimentos do
+usuário autenticado, reserva um item por duas horas, recebe o arquivo e grava no
+handle autorizado. Somente depois do fechamento bem-sucedido do arquivo o
+status passa para `CONCLUIDO`.
+
+Reservas usam atualização condicional `PENDENTE → EM_EXECUCAO`, evitando
+duplicidade entre abas. Perda do handle, permissão revogada, arquivo existente e
+falha de gravação são categorias fixas; detalhes livres do navegador não são
+registrados. Depois de uma falha, o usuário pode selecionar outro diretório e o
+item volta a `PENDENTE`. Concluídos, cancelados e falhas são removidos após 90
+dias por uma limpeza diária.
+
+O backend revalida sessão, `RELATORIOS_ACESSAR` e propriedade em cada etapa.
+Administradores podem listar todos e cancelar itens pendentes, mas somente o
+criador reserva, baixa, conclui, registra falha ou troca a pasta. O catálogo
+continua no `localStorage`; a agenda guarda apenas o snapshot necessário para a
+execução futura.
+
 ## Estado e persistência
 
 - Catálogo, templates e grupos de relatórios permanecem no `localStorage`.
@@ -333,6 +357,16 @@ Os endpoints específicos são:
 - Filtros do relatório personalizado não são persistidos; o catálogo autorizado vem do backend.
 - O cache da última definição personalizada publicada existe apenas na memória da instância Spring Boot.
 - Usuários, perfis, permissões, desafios, sessões e auditorias ficam no MariaDB.
+- Agendamentos ficam em `relatorio_agendamento`, vinculados ao criador. Filtros
+  e opções são criptografados com uma chave exclusiva; listagens nunca devolvem
+  essa configuração. Estados terminais são retidos por 90 dias.
+- A recorrência pode ser única, diária, semanal em vários dias ou mensal. O
+  backend calcula a próxima ocorrência no fuso do navegador somente após a
+  confirmação da gravação local. Ocorrências perdidas não formam lote
+  retroativo e arquivos recorrentes recebem data e hora no nome.
+- O handle da pasta autorizada fica somente no IndexedDB do navegador, indexado
+  por um UUID opaco armazenado no agendamento. Caminho e capacidade de escrita
+  não atravessam a API.
 - O backend usa JDBC parametrizado e não introduz JPA nos catálogos existentes.
 - Token de sessão, senha e segredo TOTP nunca são persistidos em claro.
 - O estado de autenticação do Angular fica apenas em memória; o cookie de sessão
@@ -380,6 +414,10 @@ com certificado aprovado, sem desativar a validação TLS.
   dependem de procedimento administrativo futuro e aprovado.
 - A chave de criptografia MFA precisa permanecer disponível e protegida durante
   todo o ciclo de vida; perdê-la impede validar os segredos TOTP existentes.
+- O agendador web depende de Chrome ou Edge compatível, contexto seguro e uma
+  aba autenticada aberta. Se a aplicação estiver fechada no horário, a execução
+  vencida é retomada no próximo acesso. Garantia de execução com o navegador
+  fechado exigiria um agente nativo instalado e não faz parte desta versão.
 
 ## Como evoluir a estrutura
 

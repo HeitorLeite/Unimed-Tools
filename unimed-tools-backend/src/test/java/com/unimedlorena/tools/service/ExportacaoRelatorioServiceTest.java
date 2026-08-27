@@ -318,4 +318,32 @@ class ExportacaoRelatorioServiceTest {
     }
     verify(sgu, times(2)).executar(anyString(), anyMap());
   }
+
+  @Test
+  void deveAplicarOrdemDeColunasESemCabecalhoNoArquivoAgendado() throws Exception {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
+    registro.put("COLUNA_A", "primeiro");
+    registro.put("COLUNA_B", "segundo");
+
+    when(sgu.executar(anyString(), anyMap()))
+      .thenReturn(Map.of("content", List.of(registro), "last", true));
+
+    var paginado = new ExportacaoRelatorioService(sgu, 100, 0);
+    ByteArrayOutputStream destino = new ByteArrayOutputStream();
+    paginado.exportarPara(
+      "api-teste",
+      "csv",
+      new RelatorioExportacaoRequest(Map.of(), "teste"),
+      destino,
+      new ExportacaoRelatorioService.OpcoesSaida(
+        List.of("COLUNA_B", "COLUNA_A"),
+        false
+      )
+    );
+
+    String conteudo = destino.toString(StandardCharsets.UTF_8);
+    assertThat(conteudo).startsWith("\uFEFFsegundo;primeiro\r\n");
+    assertThat(conteudo).doesNotContain("COLUNA_A", "COLUNA_B");
+  }
 }

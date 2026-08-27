@@ -10,6 +10,10 @@ import { RELATORIO_STORAGE_KEYS } from '../constants/storage.constants';
 import {
   FormatoExportacao,
   RelatorioCatalogo,
+  RelatorioAgendamentoConfiguracao,
+  RelatorioAgendamentoCriacao,
+  RelatorioAgendamentoOperacao,
+  RelatorioAgendamentoResumo,
   RelatorioGrupoAutomatico,
   RelatorioLoteRequest,
   RelatorioPersonalizadoConfiguracao,
@@ -229,6 +233,72 @@ export class RelatorioService {
       observe: 'response',
       responseType: 'blob',
     });
+  }
+
+  configuracaoAgendamento(): Observable<RelatorioAgendamentoConfiguracao> {
+    return this.http.get<RelatorioAgendamentoConfiguracao>(
+      `${this.baseUrl}/agendamentos/configuracao`,
+    );
+  }
+
+  listarAgendamentos(): Observable<RelatorioAgendamentoResumo[]> {
+    return this.http.get<RelatorioAgendamentoResumo[]>(`${this.baseUrl}/agendamentos`);
+  }
+
+  criarAgendamento(
+    request: RelatorioAgendamentoCriacao,
+  ): Observable<RelatorioAgendamentoResumo> {
+    return this.http.post<RelatorioAgendamentoResumo>(`${this.baseUrl}/agendamentos`, request);
+  }
+
+  listarAgendamentosPendentes(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.baseUrl}/agendamentos/pendentes`);
+  }
+
+  reservarAgendamento(id: string): Observable<RelatorioAgendamentoResumo> {
+    return this.http.post<RelatorioAgendamentoResumo>(
+      `${this.baseUrl}/agendamentos/${encodeURIComponent(id)}/reservar`,
+      {},
+    );
+  }
+
+  baixarArquivoAgendado(id: string): Observable<HttpResponse<Blob>> {
+    return this.http.post(
+      `${this.baseUrl}/agendamentos/${encodeURIComponent(id)}/arquivo`,
+      {},
+      { observe: 'response', responseType: 'blob' },
+    );
+  }
+
+  concluirAgendamento(id: string): Observable<RelatorioAgendamentoOperacao> {
+    return this.http.post<RelatorioAgendamentoOperacao>(
+      `${this.baseUrl}/agendamentos/${encodeURIComponent(id)}/concluir`,
+      {},
+    );
+  }
+
+  falharAgendamento(id: string, codigo: string): Observable<RelatorioAgendamentoOperacao> {
+    return this.http.post<RelatorioAgendamentoOperacao>(
+      `${this.baseUrl}/agendamentos/${encodeURIComponent(id)}/falhar`,
+      { codigo },
+    );
+  }
+
+  alterarDestinoAgendamento(
+    id: string,
+    diretorioReferencia: string,
+    diretorioNome: string,
+  ): Observable<RelatorioAgendamentoOperacao> {
+    return this.http.put<RelatorioAgendamentoOperacao>(
+      `${this.baseUrl}/agendamentos/${encodeURIComponent(id)}/destino`,
+      { diretorioReferencia, diretorioNome },
+    );
+  }
+
+  cancelarAgendamento(id: string): Observable<RelatorioAgendamentoOperacao> {
+    return this.http.delete<RelatorioAgendamentoOperacao>(
+      `${this.baseUrl}/agendamentos/${encodeURIComponent(id)}`,
+    );
   }
 
   private detalheErro(erro: any): string {

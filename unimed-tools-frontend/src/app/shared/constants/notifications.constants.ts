@@ -6,22 +6,6 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
-    id: '7.7.1-recorrencia-agendamento-relatorios',
-    versao: '7.7.1',
-    titulo: 'Agendamentos recorrentes',
-    resumo:
-      'Permite repetir relatórios diariamente, semanalmente em vários dias ou mensalmente, preservando cada arquivo com data e hora no nome.',
-    publicadaEm: '2026-08-27',
-  },
-  {
-    id: '7.7.0-agendamento-relatorios-pasta-local',
-    versao: '7.7.0',
-    titulo: 'Agendamento de relatórios',
-    resumo:
-      'Adiciona o assistente para programar relatórios existentes ou personalizados, organizar colunas, controlar o cabeçalho e salvar em uma pasta autorizada do computador.',
-    publicadaEm: '2026-08-27',
-  },
-  {
     id: '7.6.0-filtro-multiplo-empresa-e-bloqueio-operacoes',
     versao: '7.6.0',
     titulo: 'Empresas múltiplas e operações protegidas',

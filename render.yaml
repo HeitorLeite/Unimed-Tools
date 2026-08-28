@@ -16,8 +16,6 @@ services:
         sync: false
       - key: AUTH_MFA_ENCRYPTION_KEY
         sync: false
-      - key: REPORT_SCHEDULE_ENCRYPTION_KEY
-        sync: false
       - key: AUTH_COOKIE_SECURE
         value: true
       - key: SGU_API_KEY

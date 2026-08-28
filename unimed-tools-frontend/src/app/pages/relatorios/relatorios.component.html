@@ -6,14 +6,7 @@
   (escolherManual)="selecionarModoPagina('manual')"
   (escolherAutomatico)="selecionarModoPagina('automatico')"
   (escolherPersonalizado)="selecionarModoPagina('personalizado')"
-  (escolherAgendado)="selecionarModoPagina('agendado')"
 ></app-relatorios-inicio>
-
-<app-relatorios-agendados
-  *ngIf="modoPagina === 'agendado'"
-  [relatorios]="relatorios"
-  (voltar)="voltarSelecaoModo()"
-></app-relatorios-agendados>
 
 <app-relatorios-automaticos
   *ngIf="modoPagina === 'automatico'"

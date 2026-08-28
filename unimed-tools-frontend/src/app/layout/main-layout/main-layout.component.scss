@@ -5,38 +5,6 @@
   background: var(--content-bg);
 }
 
-.scheduled-report-toast {
-  position: fixed;
-  z-index: 1000;
-  top: 82px;
-  right: 24px;
-  max-width: min(440px, calc(100vw - 32px));
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 14px 16px;
-  border: 1px solid #9bcdae;
-  border-radius: 12px;
-  background: #ecf8f1;
-  box-shadow: 0 14px 38px rgba(24, 54, 40, 0.18);
-  color: #174c31;
-  font-size: 12px;
-
-  &.error {
-    border-color: #e0a7a7;
-    background: #fff1f1;
-    color: #7b2525;
-  }
-
-  button {
-    border: 0;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-    font-size: 20px;
-  }
-}
-
 .app-frame {
   min-width: 0;
   flex: 1;

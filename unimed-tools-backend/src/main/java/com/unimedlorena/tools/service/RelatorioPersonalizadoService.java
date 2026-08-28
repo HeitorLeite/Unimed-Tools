@@ -4,7 +4,6 @@
 package com.unimedlorena.tools.service;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -20,7 +19,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.springframework.stereotype.Service;
 
 import com.unimedlorena.tools.dto.RelatorioPersonalizadoRequest;
-import com.unimedlorena.tools.dto.RelatorioExportacaoRequest;
 
 @Service
 public class RelatorioPersonalizadoService {
@@ -165,34 +163,6 @@ public class RelatorioPersonalizadoService {
           registros,
           normalizada.colunas());
       return exportacao.gerarArquivo(formato, projetados);
-    } finally {
-      API_LOCK.unlock();
-    }
-  }
-
-  public void validarAgendamento(RelatorioPersonalizadoRequest request) {
-    normalizar(request, false);
-  }
-
-  /** Mantém o lock da API reservada enquanto o arquivo agendado é transmitido. */
-  public void exportarPara(
-      String formato,
-      RelatorioPersonalizadoRequest request,
-      OutputStream destino,
-      ExportacaoRelatorioService.OpcoesSaida opcoes) throws IOException {
-    RequisicaoNormalizada normalizada = normalizar(request, false);
-
-    API_LOCK.lock();
-    try {
-      publicarApi(normalizada);
-      exportacao.exportarPara(
-          API_NOME,
-          formato,
-          new RelatorioExportacaoRequest(
-              parametrosSgu(normalizada.filtros()),
-              request.nomeArquivo()),
-          destino,
-          opcoes);
     } finally {
       API_LOCK.unlock();
     }

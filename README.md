@@ -489,12 +489,11 @@ A Central de Relatórios permite cadastrar, localizar, executar, visualizar e ex
 
 **Status:** Atual e disponível no ambiente local.
 
-A página oferece quatro modos:
+A página oferece três modos:
 
 - **Manual:** catálogo local de APIs do SGU, com filtros e exportação sob demanda;
 - **Automático:** execução e exportação em lote dos grupos salvos no navegador;
 - **Personalizado:** construtor guiado com filtros e colunas previamente autorizados pelo backend.
-- **Agendamentos:** prepara um relatório existente ou personalizado e grava o arquivo em uma pasta autorizada no horário definido.
 
 **Atual:** a permissão `RELATORIOS_ACESSAR` libera todos os modos e operações
 da Central de Relatórios, inclusive importar SQL, criar, editar e excluir APIs
@@ -658,59 +657,6 @@ No frontend Angular sem Zone.js, o componente solicita explicitamente a
 atualização da view ao iniciar e concluir a chamada HTTP. Assim, o indicador de
 carregamento, a tabela, a paginação e as mensagens aparecem automaticamente
 quando a resposta chega, sem depender de redimensionamento ou abertura do F12.
-
-### Agendamento de relatórios
-
-**Status: Atual.** O quarto modo da Central possui um assistente em três etapas:
-
-1. selecionar um relatório do catálogo manual ou montar um relatório personalizado e gerar uma prévia de 25 linhas;
-2. reordenar as colunas, excluir colunas do arquivo e escolher se o cabeçalho será incluído;
-3. informar a primeira data e hora, escolher execução única, diária, semanal ou
-   mensal, definir os dias aplicáveis, nome, formato CSV/TXT/XLSX e autorizar
-   uma pasta do computador.
-
-Na recorrência semanal podem ser selecionados vários dias, sempre no horário
-da primeira execução. Na mensal, o usuário escolhe um dia de 1 a 31; quando o
-mês for menor, é usado seu último dia. Cada ocorrência recorrente acrescenta
-`_AAAAMMDD_HHMM` ao nome para preservar os arquivos anteriores sem sobrescrita.
-
-A pasta é selecionada pela File System Access API do Chrome ou Edge. O backend
-recebe somente um UUID opaco e o nome visível da pasta; o caminho e o handle
-permanecem no IndexedDB do navegador. O arquivo só é gravado sem novo diálogo
-enquanto a permissão `readwrite` continuar válida. Não há sobrescrita: se já
-existir um arquivo com o mesmo nome, o agendamento termina com falha.
-
-Uma aplicação web não pode executar nem acessar uma pasta quando o navegador
-está fechado. Por isso, a aplicação verifica os vencimentos a cada 30 segundos
-enquanto estiver aberta. Se ela estiver fechada no horário, a agenda permanece
-pendente e é retomada no próximo acesso autenticado. A reserva de duas horas
-impede duas abas de executarem o mesmo item; uma reserva abandonada volta ao
-estado pendente depois desse prazo.
-
-Depois de uma execução recorrente concluída, o backend calcula a próxima data
-no fuso horário informado pelo navegador. Se várias ocorrências vencerem com a
-aplicação fechada, uma execução é retomada ao abrir e a próxima fica programada
-para uma data futura; não é criado um lote retroativo de arquivos.
-
-Cada usuário executa e altera somente seus próprios agendamentos. Administradores
-podem consultar o histórico de todos e cancelar itens pendentes, mas não podem
-usar a pasta autorizada de outra conta. A permissão `RELATORIOS_ACESSAR` é
-validada novamente em todas as chamadas de execução. Filtros e opções são
-criptografados com AES-256-GCM e uma chave exclusiva antes da persistência. O
-catálogo manual continua no `localStorage` e somente um snapshot necessário à
-execução é guardado no banco.
-
-Quando a pasta não existir neste navegador, a permissão tiver sido revogada ou
-a gravação falhar, o histórico apresenta a causa e o botão **Alterar pasta e
-tentar novamente**. Concluídos, cancelados e falhas são eliminados do banco após
-90 dias. A aplicação não apaga automaticamente o arquivo final escolhido pelo
-usuário.
-
-Antes de usar o modo, aplique `database/migrations/003_agendamento_relatorios.sql`
-e `database/migrations/004_recorrencia_agendamento_relatorios.sql`, na ordem,
-e configure `REPORT_SCHEDULE_ENCRYPTION_KEY` com uma chave Base64 de 32 bytes.
-Sem a chave, os demais relatórios permanecem disponíveis, mas a criação de
-agendamentos falha de forma segura.
 
 ### Dependências
 
@@ -1242,21 +1188,8 @@ cd corretor-de-arquivos
 
 ```powershell
 $authKeyBytes = New-Object byte[] 32
-$authRng = [Security.Cryptography.RandomNumberGenerator]::Create()
-$authRng.GetBytes($authKeyBytes)
-$authRng.Dispose()
+[Security.Cryptography.RandomNumberGenerator]::Fill($authKeyBytes)
 $env:AUTH_MFA_ENCRYPTION_KEY=[Convert]::ToBase64String($authKeyBytes)
-```
-
-Para habilitar o agendador, gere outra chave independente; não reutilize a chave
-do MFA:
-
-```powershell
-$scheduleKeyBytes = New-Object byte[] 32
-$scheduleRng = [Security.Cryptography.RandomNumberGenerator]::Create()
-$scheduleRng.GetBytes($scheduleKeyBytes)
-$scheduleRng.Dispose()
-$env:REPORT_SCHEDULE_ENCRYPTION_KEY=[Convert]::ToBase64String($scheduleKeyBytes)
 ```
 
 4. Antes da primeira execução, defina o acesso ao banco e a conta inicial:
@@ -1438,7 +1371,6 @@ coloque os valores no `.cmd`, no script ou em arquivos versionados:
 
 ```powershell
 [Environment]::SetEnvironmentVariable('AUTH_MFA_ENCRYPTION_KEY', '<chave-base64>', 'User')
-[Environment]::SetEnvironmentVariable('REPORT_SCHEDULE_ENCRYPTION_KEY', '<outra-chave-base64>', 'User')
 [Environment]::SetEnvironmentVariable('SGU_API_KEY', '<chave-sgu>', 'User')
 ```
 
@@ -1502,7 +1434,6 @@ linha única.
 | `DB_USERNAME`            |            Sim  | vazio                                | Conta de banco exclusiva da aplicação               |
 | `DB_PASSWORD`            |            Sim  | vazio                                | Senha da conta de banco                              |
 | `AUTH_MFA_ENCRYPTION_KEY`|            Sim  | vazio                                | Chave Base64 de 32 bytes para AES-256-GCM            |
-| `REPORT_SCHEDULE_ENCRYPTION_KEY` | Para agendamentos | vazio                         | Chave Base64 exclusiva de 32 bytes para proteger filtros agendados |
 | `AUTH_COOKIE_SECURE`     | Produção/rede   | `true`                               | Exige HTTPS para o cookie de sessão                  |
 | `AUTH_COOKIE_SAME_SITE`  |             Não | `Strict`                             | Política SameSite do cookie de sessão                |
 | `AUTH_SESSION_IDLE_MINUTES` |          Não | `30`                                 | Expiração da sessão por inatividade                  |
@@ -1632,16 +1563,6 @@ Multipart:
 | POST   | `/api/relatorios/sgu/executar/{nome}`                       | Executa relatório do catálogo manual       |
 | POST   | `/api/relatorios/sgu/exportar/{nome}?formato=xlsx`          | Transmite o relatório manual por páginas   |
 | POST   | `/api/relatorios/sgu/exportar-lote`                         | Exporta grupo automático em arquivo ZIP    |
-| GET    | `/api/relatorios/agendamentos/configuracao`                  | Informa disponibilidade, intervalo e retenção do agendador |
-| GET    | `/api/relatorios/agendamentos`                               | Lista agendas próprias; administradores também veem o histórico global |
-| POST   | `/api/relatorios/agendamentos`                               | Cria um agendamento com configuração criptografada |
-| GET    | `/api/relatorios/agendamentos/pendentes`                     | Lista IDs próprios vencidos que aguardam execução local |
-| POST   | `/api/relatorios/agendamentos/{id}/reservar`                  | Reserva atomicamente uma execução para a aba atual |
-| POST   | `/api/relatorios/agendamentos/{id}/arquivo`                   | Transmite o arquivo de uma reserva válida |
-| POST   | `/api/relatorios/agendamentos/{id}/concluir`                  | Confirma a gravação local concluída |
-| POST   | `/api/relatorios/agendamentos/{id}/falhar`                    | Registra uma categoria sanitizada de falha |
-| PUT    | `/api/relatorios/agendamentos/{id}/destino`                   | Troca a referência local após falha e agenda nova tentativa |
-| DELETE | `/api/relatorios/agendamentos/{id}`                           | Cancela item pendente ou com falha |
 
 Contrato do relatório personalizado:
 

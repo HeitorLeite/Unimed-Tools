@@ -113,16 +113,12 @@ try {
   }
 
   $mfaKey = Get-ConfiguredValue 'AUTH_MFA_ENCRYPTION_KEY'
-  $scheduleKey = Get-ConfiguredValue 'REPORT_SCHEDULE_ENCRYPTION_KEY'
   $sguKey = Get-ConfiguredValue 'SGU_API_KEY'
   if ([string]::IsNullOrWhiteSpace($mfaKey)) {
     throw "Configure AUTH_MFA_ENCRYPTION_KEY nas variaveis de ambiente do usuario antes de iniciar."
   }
   if ([string]::IsNullOrWhiteSpace($sguKey)) {
     throw "Configure SGU_API_KEY nas variaveis de ambiente do usuario antes de iniciar."
-  }
-  if ([string]::IsNullOrWhiteSpace($scheduleKey)) {
-    throw "Configure REPORT_SCHEDULE_ENCRYPTION_KEY nas variaveis de ambiente do usuario antes de iniciar."
   }
 
   New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
@@ -169,7 +165,6 @@ try {
   $configuredDbPassword = Get-ConfiguredValue 'DB_PASSWORD'
   $env:DB_PASSWORD = if ($null -eq $configuredDbPassword) { '' } else { $configuredDbPassword }
   $env:AUTH_MFA_ENCRYPTION_KEY = $mfaKey
-  $env:REPORT_SCHEDULE_ENCRYPTION_KEY = $scheduleKey
   $env:SERVER_ADDRESS = '127.0.0.1'
   $env:SGU_API_KEY = $sguKey
   $configuredHeaders = Get-ConfiguredValue 'SGU_API_KEY_HEADERS'

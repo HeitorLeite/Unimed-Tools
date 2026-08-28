@@ -16,5 +16,4 @@ export class RelatoriosInicioComponent {
   @Output() escolherManual = new EventEmitter<void>();
   @Output() escolherAutomatico = new EventEmitter<void>();
   @Output() escolherPersonalizado = new EventEmitter<void>();
-  @Output() escolherAgendado = new EventEmitter<void>();
 }

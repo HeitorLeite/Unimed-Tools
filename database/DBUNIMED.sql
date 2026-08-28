@@ -184,59 +184,6 @@ CREATE TABLE auditoria_acesso (
     INDEX idx_auditoria_ocorrido_em (ocorrido_em)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE relatorio_agendamento (
-    id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    usuario_id BIGINT UNSIGNED NOT NULL,
-    tipo_relatorio VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    titulo_relatorio VARCHAR(150) NOT NULL,
-    api_nome VARCHAR(150),
-    -- Filtros e opções são protegidos com AES-256-GCM antes da persistência.
-    configuracao_criptografada LONGTEXT CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    formato VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    nome_arquivo VARCHAR(180) NOT NULL,
-    -- Referência opaca para um handle mantido somente no navegador do usuário.
-    diretorio_referencia CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    diretorio_nome VARCHAR(255) NOT NULL,
-    incluir_cabecalho BOOLEAN NOT NULL DEFAULT TRUE,
-    agendado_para_epoch_ms BIGINT UNSIGNED NOT NULL,
-    recorrencia VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'UNICA',
-    dias_semana VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin,
-    dia_mes TINYINT UNSIGNED,
-    fuso_horario VARCHAR(50) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'America/Sao_Paulo',
-    status VARCHAR(30) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'PENDENTE',
-    tentativas SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-    execucoes_concluidas INT UNSIGNED NOT NULL DEFAULT 0,
-    reservado_ate_epoch_ms BIGINT UNSIGNED,
-    erro_codigo VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin,
-    erro_mensagem VARCHAR(300),
-    criado_em_epoch_ms BIGINT UNSIGNED NOT NULL,
-    atualizado_em_epoch_ms BIGINT UNSIGNED NOT NULL,
-    concluido_em_epoch_ms BIGINT UNSIGNED,
-    retencao_ate_epoch_ms BIGINT UNSIGNED,
-    CONSTRAINT pk_relatorio_agendamento PRIMARY KEY (id),
-    CONSTRAINT fk_relatorio_agendamento_usuario FOREIGN KEY (usuario_id)
-        REFERENCES usuario (id) ON DELETE CASCADE ON UPDATE RESTRICT,
-    CONSTRAINT chk_relatorio_agendamento_tipo CHECK (
-        tipo_relatorio IN ('MANUAL', 'PERSONALIZADO')
-    ),
-    CONSTRAINT chk_relatorio_agendamento_formato CHECK (
-        formato IN ('csv', 'txt', 'xlsx')
-    ),
-    CONSTRAINT chk_relatorio_agendamento_recorrencia CHECK (
-        recorrencia IN ('UNICA', 'DIARIA', 'SEMANAL', 'MENSAL')
-    ),
-    CONSTRAINT chk_relatorio_agendamento_dia_mes CHECK (
-        dia_mes IS NULL OR dia_mes BETWEEN 1 AND 31
-    ),
-    CONSTRAINT chk_relatorio_agendamento_status CHECK (
-        status IN ('PENDENTE', 'EM_EXECUCAO', 'CONCLUIDO', 'FALHA', 'CANCELADO')
-    ),
-    INDEX idx_agendamento_usuario (usuario_id, criado_em_epoch_ms),
-    INDEX idx_agendamento_pendente (status, agendado_para_epoch_ms),
-    INDEX idx_agendamento_reserva (status, reservado_ate_epoch_ms),
-    INDEX idx_agendamento_retencao (retencao_ate_epoch_ms)
-) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-
 INSERT INTO perfil_acesso (codigo, nome, descricao, ativo) VALUES
 ('ADMINISTRADOR', 'Administrador', 'Acesso completo e gerenciamento de usuários.', TRUE),
 ('USUARIO', 'Usuário', 'Acesso aos módulos operacionais autorizados.', TRUE);

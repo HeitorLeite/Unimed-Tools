@@ -6,6 +6,14 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
+    id: '7.7.0-filtro-id-guia',
+    versao: '7.7.0',
+    titulo: 'Filtro por ID da guia',
+    resumo:
+      'Separa o ID interno do número da guia e permite consultar um ou vários IDs separados por vírgula.',
+    publicadaEm: '2026-09-02',
+  },
+  {
     id: '7.6.0-filtro-multiplo-empresa-e-bloqueio-operacoes',
     versao: '7.6.0',
     titulo: 'Empresas múltiplas e operações protegidas',

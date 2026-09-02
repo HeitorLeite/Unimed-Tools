@@ -530,7 +530,7 @@ O modo de relatório personalizado utiliza exclusivamente a API reservada:
 ```
 
 A fonte atual é **Despesas, receita e sinistralidade**. O catálogo controlado pelo
-backend contém 53 colunas e 24 filtros, organizados nos grupos Beneficiário,
+backend contém 53 colunas e 25 filtros, organizados nos grupos Beneficiário,
 Contrato e empresa, Prestador, Guia, Procedimento, Valores e Período. As
 competências inicial e final são obrigatórias e o intervalo aceita no máximo 12
 meses. A prévia permite 25, 50 ou 100 linhas por página, aceita os metadados de
@@ -550,6 +550,12 @@ repetições e envia a lista em um bind textual; nenhum código informado é
 concatenado ao SQL. A coluna **Nome da pessoa da empresa** segue o vínculo
 `EMP_CONTRT.EMPCN_COD_PESSOA → PESSOA.PES_COD` e devolve
 `PESSOA.PES_NOM_COMP`, sem alterar a coluna histórica **Nome da empresa**.
+
+Os filtros de guia distinguem os campos da tabela `DBAUNIMED.GUIA`: **ID da
+guia** consulta `GUIA_COD_ID` e aceita um ou vários IDs numéricos separados por
+vírgula; **Número da guia** consulta exatamente `GUIA_COD`. O backend valida,
+remove espaços e repetições da lista de IDs e mantém todos os valores em binds,
+sem concatená-los ao SQL.
 
 O filtro opcional **Grupo do beneficiário** aceita o código funcional
 `DBAUNIMED.GRUPO_BNFRIO.GRBNF_COD` ou parte da descrição `GRBNF_DES`, sem
@@ -644,6 +650,8 @@ Validações atuais do construtor:
 - filtros numéricos e decimais são convertidos no backend;
 - o código da empresa aceita uma lista numérica separada por vírgulas, com
   espaços e duplicidades normalizados antes da integração;
+- o ID da guia aceita um ou vários valores numéricos separados por vírgula,
+  enquanto o número da guia continua sendo comparado a `GUIA_COD`;
 - CPF, código de beneficiário, código de grupo, CID e buscas textuais são normalizados
   antes da integração;
 - filtros desconhecidos, duplicados ou acima de 240 caracteres são rejeitados;

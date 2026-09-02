@@ -352,6 +352,7 @@ public class RelatorioPersonalizadoService {
     return switch (id) {
       case "codigo_beneficiario" -> texto.replace(".", "");
       case "codigo_empresa" -> normalizarCodigosEmpresa(texto);
+      case "id_guia" -> normalizarIdsGuia(texto);
       case "cpf" -> texto.replaceAll("[^0-9]", "");
       case "cid" -> texto.toUpperCase(Locale.ROOT);
       case "grupo_beneficiario" -> normalizarGrupoBeneficiario(texto);
@@ -385,6 +386,33 @@ public class RelatorioPersonalizadoService {
     if (listaNormalizada.length() > 240) {
       throw new IllegalArgumentException(
           "O filtro “Código da empresa” excede o tamanho permitido.");
+    }
+    return listaNormalizada;
+  }
+
+  private String normalizarIdsGuia(String texto) {
+    String[] partes = texto.split(",", -1);
+    LinkedHashSet<String> ids = new LinkedHashSet<>();
+
+    for (String parte : partes) {
+      String id = parte.trim();
+      if (!id.matches("\\d+")) {
+        throw new IllegalArgumentException(
+            "ID da guia deve conter um ou mais números separados por vírgula.");
+      }
+      try {
+        ids.add(Long.valueOf(id).toString());
+      } catch (NumberFormatException ex) {
+        throw new IllegalArgumentException(
+            "ID da guia contém um número inválido.",
+            ex);
+      }
+    }
+
+    String listaNormalizada = "," + String.join(",", ids) + ",";
+    if (listaNormalizada.length() > 240) {
+      throw new IllegalArgumentException(
+          "O filtro “ID da guia” excede o tamanho permitido.");
     }
     return listaNormalizada;
   }

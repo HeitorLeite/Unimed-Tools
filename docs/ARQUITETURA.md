@@ -234,7 +234,7 @@ sequenceDiagram
 
     F->>C: GET /personalizado/configuracao
     C->>R: configuracao()
-    R-->>F: 53 colunas, 24 filtros e limites
+    R-->>F: 53 colunas, 25 filtros e limites
     U->>F: informa filtros, seleciona colunas, distinct e ordenação
     F->>C: POST /personalizado/executar
     C->>R: request tipado
@@ -260,10 +260,13 @@ processo e só é republicada quando mudam as colunas ou os filtros ativos.
 - fonte atual: **Despesas, receita e sinistralidade**;
 - 53 colunas autorizadas, com rótulo, grupo, seleção padrão e indicador de
   sensibilidade;
-- 24 filtros autorizados; competências inicial e final são obrigatórias;
+- 25 filtros autorizados; competências inicial e final são obrigatórias;
 - o filtro de código da empresa aceita uma lista de inteiros separados por
   vírgula; o backend normaliza a lista e o SQL compara cada valor por meio de um
   único bind `VARCHAR`, sem interpolação de entrada do usuário;
+- o filtro `id_guia` consulta `GUIA.GUIA_COD_ID` e aceita uma lista de inteiros
+  separados por vírgula; `numero_guia` permanece associado a `GUIA.GUIA_COD`,
+  preservando a distinção entre a chave interna e o número cadastrado;
 - `NOME_PESSOA_EMPRESA` resolve `PESSOA.PES_NOM_COMP` pelo vínculo
   `EMP_CONTRT.EMPCN_COD_PESSOA`, mantendo `NOME_EMPRESA` compatível com as
   regras históricas de intercâmbio e pessoa física;

@@ -68,6 +68,8 @@ describe('RelatoriosPersonalizadosComponent', () => {
     component.valoresFiltro = {
       competencia_inicio: '2026-01',
       competencia_fim: '2026-01',
+      id_guia: '375354, 375355',
+      numero_guia: 'GUIA-2026-001',
     };
     component.colunasSelecionadas.add('COD_BENEFICIARIO');
     component.somenteDistintos = true;
@@ -76,7 +78,14 @@ describe('RelatoriosPersonalizadosComponent', () => {
 
     expect(component.gerando).toBe(true);
     expect(relatorioService.executarPersonalizado).toHaveBeenCalledWith(
-      expect.objectContaining({ colunas: ['COD_BENEFICIARIO'], distinct: true }),
+      expect.objectContaining({
+        colunas: ['COD_BENEFICIARIO'],
+        distinct: true,
+        filtros: expect.objectContaining({
+          id_guia: '375354, 375355',
+          numero_guia: 'GUIA-2026-001',
+        }),
+      }),
     );
     expect(cdr.detectChanges).toHaveBeenCalledTimes(1);
 

@@ -1161,7 +1161,10 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(filtros, "nome_empresa", "Nome da empresa", "Contrato e empresa", "text", "Digite parte do nome", false,
         "F_NOME_EMPRESA", "UPPER(" + NOME_EMPRESA + ")",
         "and RP.F_NOME_EMPRESA LIKE :nome_empresa", "VARCHAR(120)", "");
-    adicionar(filtros, "numero_guia", "Número da guia", "Guia", "text", "Número ou código da guia", false,
+    adicionar(filtros, "id_guia", "ID da guia", "Guia", "text", "Ex.: 375354, 375355", false,
+        "F_ID_GUIA", "'%,' || TO_CHAR(G.GUIA_COD_ID) || ',%'",
+        "and :id_guia LIKE RP.F_ID_GUIA", "VARCHAR(240)", "");
+    adicionar(filtros, "numero_guia", "Número da guia", "Guia", "text", "Número cadastrado na guia", false,
         "F_NUMERO_GUIA", "G.GUIA_COD",
         "and RP.F_NUMERO_GUIA = :numero_guia", "VARCHAR(40)", "");
     adicionar(filtros, "tipo_guia", "Tipo da guia", "Guia", "number", "Código do tipo", false,

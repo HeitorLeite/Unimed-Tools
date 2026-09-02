@@ -88,9 +88,11 @@ class RelatorioPersonalizadoSqlBuilderTest {
 
       assertThat(nomePublico).matches("[a-z0-9]+");
       assertThat(nomesExternos.add(nomePublico)).isTrue();
-      if (filtro.get("nomeFiltro").equals("codigoempresa")) {
+      if (Set.of("codigoempresa", "idguia").contains(nomePublico)) {
         assertThat(conteudo).isEqualTo(
-            "and :codigoempresa LIKE RP.F_CODIGO_EMPRESA");
+            nomePublico.equals("codigoempresa")
+                ? "and :codigoempresa LIKE RP.F_CODIGO_EMPRESA"
+                : "and :idguia LIKE RP.F_ID_GUIA");
       } else {
         assertThat(conteudo)
             .matches("and RP\\.F_[A-Z0-9_]+ (?:=|>=|<=|LIKE) :" + nomePublico);
@@ -152,6 +154,35 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .containsEntry(
             "conteudoFiltro",
             "and :codigoempresa LIKE RP.F_CODIGO_EMPRESA"));
+  }
+
+  @Test
+  void deveSepararFiltroDeIdDoFiltroDeNumeroDaGuia() {
+    RelatorioPersonalizadoSqlBuilder.Filtro idGuia = builder.filtro("id_guia");
+    RelatorioPersonalizadoSqlBuilder.Filtro numeroGuia = builder.filtro("numero_guia");
+
+    assertThat(idGuia).satisfies(filtro -> {
+      assertThat(filtro.rotulo()).isEqualTo("ID da guia");
+      assertThat(filtro.expressaoSql()).isEqualTo("'%,' || TO_CHAR(G.GUIA_COD_ID) || ',%'");
+      assertThat(filtro.tipoSgu()).isEqualTo("VARCHAR(240)");
+    });
+    assertThat(numeroGuia).satisfies(filtro -> {
+      assertThat(filtro.rotulo()).isEqualTo("Número da guia");
+      assertThat(filtro.expressaoSql()).isEqualTo("G.GUIA_COD");
+      assertThat(filtro.placeholder()).isEqualTo("Número cadastrado na guia");
+    });
+
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of("NUMERO_GUIA"),
+        Set.of("id_guia", "numero_guia"));
+
+    assertThat(api.consultaSql()).contains(
+        "'%,' || TO_CHAR(G.GUIA_COD_ID) || ',%' AS F_ID_GUIA",
+        "G.GUIA_COD AS F_NUMERO_GUIA");
+    assertThat(api.filtros()).extracting(filtro -> filtro.get("conteudoFiltro"))
+        .containsExactly(
+            "and :idguia LIKE RP.F_ID_GUIA",
+            "and RP.F_NUMERO_GUIA = :numeroguia");
   }
 
   @Test

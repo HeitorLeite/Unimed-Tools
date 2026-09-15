@@ -1367,12 +1367,32 @@ novo build. Nos demais computadores, atualize a página com `Ctrl + F5`.
 
 #### Iniciador local para Windows
 
-O arquivo `Iniciar Unimed Tools.cmd`, na raiz do projeto, automatiza o fluxo
-local: inicia Apache e MariaDB pelo XAMPP quando necessário, testa e publica o
-frontend em `C:\xampp\htdocs\unimed-tools`, executa os testes e o pacote Maven,
-encerra somente uma instância anterior deste backend e inicia o novo JAR no
-perfil `local`. O backend fica oculto e grava logs em
-`%LOCALAPPDATA%\UnimedTools`.
+**Atual:** o arquivo `Iniciar Unimed Tools.cmd`, na raiz do projeto, automatiza
+o fluxo local. Ele seleciona o JDK 21, inicia Apache e MariaDB pelo XAMPP quando
+necessário e executa os testes e builds do frontend e do backend. Somente após
+o sucesso dessas etapas publica o frontend em `C:\xampp\htdocs\unimed-tools`
+e reinicia este backend no perfil `local`, em `127.0.0.1:8080`. A conclusão é
+confirmada pela resposta `ok` de `/health`.
+
+O iniciador respeita `JAVA_HOME`, quando configurado, e verifica se aponta para
+um JDK 21. Na ausência dessa variável, procura o JDK pelo compilador no `PATH`
+e nas pastas usuais de instalação em `Program Files`. Maven e o backend usam
+sempre o mesmo JDK; a seleção vale apenas para essa execução, sem alterar as
+variáveis permanentes do Windows. Isso evita usar o Java 8 que pode aparecer
+primeiro no `javapath` da Oracle. Para uma instalação em outro caminho, configure
+`JAVA_HOME` na variável do usuário apontando para a pasta do JDK, sem `bin`.
+
+O backend fica oculto e executa uma cópia do JAR em
+`%LOCALAPPDATA%\UnimedTools`, onde também grava os logs. Essa cópia permite
+compilar a próxima versão sem que o Java bloqueie o JAR em `target`; se testes
+ou build falharem, a instância atual permanece em execução e o frontend
+publicado não é substituído.
+
+**Pendente na migração:** se uma instância iniciada pelo script antigo ainda
+estiver executando diretamente o JAR de `target`, encerre somente essa instância
+uma vez antes de usar o iniciador atualizado. Caso contrário, o Windows pode
+impedir o `mvn clean` por manter o arquivo aberto. Nas próximas inicializações,
+o próprio script gerencia o reinício da cópia em execução.
 
 Antes do primeiro uso, grave as duas credenciais como variáveis do usuário. Não
 coloque os valores no `.cmd`, no script ou em arquivos versionados:
@@ -1387,6 +1407,11 @@ local do MariaDB; se o banco
 tiver outras credenciais, configure também `DB_USERNAME` e `DB_PASSWORD` como
 variáveis do usuário. A janela permanece aberta ao final para mostrar sucesso ou
 o erro encontrado.
+
+Se o Maven informar `PKIX path building failed`, a falha é da cadeia do
+certificado da rede corporativa no JDK selecionado, não do código da aplicação.
+Solicite a configuração do certificado aprovado no JDK 21; não desative a
+validação TLS.
 
 ### Build do frontend
 

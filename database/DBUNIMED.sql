@@ -1,6 +1,6 @@
 -- ============================================================
 -- UNIMED TOOLS
--- Esquema completo de autenticação, MFA, sessões e acesso
+-- Esquema completo de autenticação, sessões, permissões e acesso
 -- Banco: DBUNIMED | SGBD: MariaDB / MySQL
 -- ============================================================
 
@@ -65,10 +65,6 @@ CREATE TABLE usuario (
     bloqueado_ate DATETIME(6),
     ultimo_login_em DATETIME(6),
     senha_alterada_em DATETIME(6),
-    mfa_segredo_criptografado VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin,
-    mfa_ativado BOOLEAN NOT NULL DEFAULT FALSE,
-    mfa_ativado_em DATETIME(6),
-    ultimo_passo_mfa BIGINT UNSIGNED,
     criado_por BIGINT UNSIGNED,
     atualizado_por BIGINT UNSIGNED,
     desativado_por BIGINT UNSIGNED,
@@ -120,7 +116,6 @@ CREATE TABLE sessao_usuario (
     criada_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     ultima_atividade_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     expira_em DATETIME(6) NOT NULL,
-    mfa_validada_em DATETIME(6),
     revogada_em DATETIME(6),
     motivo_revogacao VARCHAR(200),
     endereco_ip VARCHAR(45),
@@ -133,29 +128,6 @@ CREATE TABLE sessao_usuario (
     INDEX idx_sessao_usuario_expiracao (expira_em),
     INDEX idx_sessao_usuario_revogacao (revogada_em),
     INDEX idx_sessao_usuario_ativa (usuario_id, revogada_em, expira_em)
-) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
-
-CREATE TABLE desafio_autenticacao (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    usuario_id BIGINT UNSIGNED NOT NULL,
-    token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    tipo VARCHAR(30) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    mfa_segredo_criptografado VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin,
-    tentativas SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-    criado_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    expira_em DATETIME(6) NOT NULL,
-    consumido_em DATETIME(6),
-    endereco_ip VARCHAR(45),
-    user_agent VARCHAR(500),
-    CONSTRAINT pk_desafio_autenticacao PRIMARY KEY (id),
-    CONSTRAINT uk_desafio_autenticacao_token_hash UNIQUE (token_hash),
-    CONSTRAINT chk_desafio_autenticacao_tipo CHECK (
-        tipo IN ('MFA_CONFIGURACAO', 'MFA_VALIDACAO')
-    ),
-    CONSTRAINT fk_desafio_autenticacao_usuario FOREIGN KEY (usuario_id)
-        REFERENCES usuario (id) ON DELETE CASCADE ON UPDATE RESTRICT,
-    INDEX idx_desafio_usuario (usuario_id),
-    INDEX idx_desafio_expiracao (expira_em)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE ferramenta_configuravel (
@@ -186,7 +158,7 @@ CREATE TABLE auditoria_acesso (
     resultado VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     endereco_ip VARCHAR(45),
     user_agent VARCHAR(500),
-    -- Nunca incluir senha, token, segredo TOTP, API key ou dado de saúde.
+    -- Nunca incluir senha, token, API key ou dado de saúde.
     detalhes JSON,
     ocorrido_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_auditoria_acesso PRIMARY KEY (id),

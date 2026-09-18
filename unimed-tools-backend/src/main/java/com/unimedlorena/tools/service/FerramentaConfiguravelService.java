@@ -19,6 +19,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class FerramentaConfiguravelService {
 
+  private static final Set<String> FERRAMENTAS_NATIVAS = Set.of(
+    "comercial",
+    "assistencial",
+    "revisao-contas",
+    "unica",
+    "hospital",
+    "gestao-risco",
+    "ti"
+  );
+
   private final JdbcTemplate jdbc;
   private final ObjectMapper objectMapper;
   private final AuditoriaService auditoria;
@@ -43,6 +53,81 @@ public class FerramentaConfiguravelService {
       ORDER BY nome
       """,
       (rs, rowNum) -> map(rs)
+    );
+  }
+
+  public List<FerramentaDtos.NativaResponse> listarNativas() {
+    return jdbc.query(
+      """
+      SELECT ferramenta_id, nome, descricao, ativo, atualizado_em
+      FROM ferramenta_nativa_configuracao
+      ORDER BY ferramenta_id
+      """,
+      (rs, rowNum) -> mapNativa(rs)
+    );
+  }
+
+  @Transactional
+  public FerramentaDtos.NativaResponse salvarNativa(
+    String id,
+    FerramentaDtos.NativaSalvarRequest request,
+    UsuarioPrincipal principal
+  ) {
+    String ferramentaId = validarNativaId(id);
+    boolean ativo = request.ativo() == null || request.ativo();
+    if ("ti".equals(ferramentaId) && !ativo) {
+      throw new IllegalArgumentException(
+        "A área TI não pode ser ocultada para evitar bloqueio administrativo."
+      );
+    }
+
+    String nome = textoOpcional(request.nome(), 120);
+    String descricao = textoOpcional(request.descricao(), 500);
+
+    jdbc.update(
+      """
+      INSERT INTO ferramenta_nativa_configuracao
+        (ferramenta_id, nome, descricao, ativo, atualizado_por)
+      VALUES (?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        nome = VALUES(nome),
+        descricao = VALUES(descricao),
+        ativo = VALUES(ativo),
+        atualizado_por = VALUES(atualizado_por)
+      """,
+      ferramentaId,
+      nome,
+      descricao,
+      ativo,
+      principal.id()
+    );
+    auditoria.registrar(
+      principal.id(),
+      null,
+      "FERRAMENTA_NATIVA_EDITAR",
+      "SUCESSO",
+      null,
+      null,
+      Map.of("id", ferramentaId, "ativo", ativo)
+    );
+    return buscarNativa(ferramentaId);
+  }
+
+  @Transactional
+  public void resetarNativa(String id, UsuarioPrincipal principal) {
+    String ferramentaId = validarNativaId(id);
+    jdbc.update(
+      "DELETE FROM ferramenta_nativa_configuracao WHERE ferramenta_id = ?",
+      ferramentaId
+    );
+    auditoria.registrar(
+      principal.id(),
+      null,
+      "FERRAMENTA_NATIVA_RESETAR",
+      "SUCESSO",
+      null,
+      null,
+      Map.of("id", ferramentaId)
     );
   }
 
@@ -105,6 +190,20 @@ public class FerramentaConfiguravelService {
     auditoria.registrar(principal.id(), null, "FERRAMENTA_EXCLUIR", "SUCESSO", null, null, Map.of("id", id));
   }
 
+  private FerramentaDtos.NativaResponse buscarNativa(String id) {
+    return jdbc.query(
+      """
+      SELECT ferramenta_id, nome, descricao, ativo, atualizado_em
+      FROM ferramenta_nativa_configuracao
+      WHERE ferramenta_id = ?
+      """,
+      (rs, rowNum) -> mapNativa(rs),
+      id
+    ).stream().findFirst().orElseThrow(
+      () -> new IllegalArgumentException("Configuração da ferramenta não encontrada.")
+    );
+  }
+
   private FerramentaDtos.Response buscar(long id) {
     return jdbc.query(
       """
@@ -116,6 +215,16 @@ public class FerramentaConfiguravelService {
       (rs, rowNum) -> map(rs),
       id
     ).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Ferramenta não encontrada."));
+  }
+
+  private FerramentaDtos.NativaResponse mapNativa(ResultSet rs) throws SQLException {
+    return new FerramentaDtos.NativaResponse(
+      rs.getString("ferramenta_id"),
+      rs.getString("nome"),
+      rs.getString("descricao"),
+      rs.getBoolean("ativo"),
+      rs.getTimestamp("atualizado_em").toLocalDateTime()
+    );
   }
 
   private FerramentaDtos.Response map(ResultSet rs) throws SQLException {
@@ -130,6 +239,23 @@ public class FerramentaConfiguravelService {
       rs.getTimestamp("criado_em").toLocalDateTime(),
       rs.getTimestamp("atualizado_em").toLocalDateTime()
     );
+  }
+
+  private String validarNativaId(String id) {
+    String normalizado = id == null ? "" : id.trim().toLowerCase(Locale.ROOT);
+    if (!FERRAMENTAS_NATIVAS.contains(normalizado)) {
+      throw new IllegalArgumentException("Ferramenta nativa não reconhecida.");
+    }
+    return normalizado;
+  }
+
+  private String textoOpcional(String valor, int limite) {
+    if (valor == null || valor.isBlank()) return null;
+    String normalizado = valor.trim().replaceAll("\\s+", " ");
+    if (normalizado.length() > limite) {
+      throw new IllegalArgumentException("Texto maior que o limite permitido.");
+    }
+    return normalizado;
   }
 
   private Dados validar(FerramentaDtos.SalvarRequest request) {

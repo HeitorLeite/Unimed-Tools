@@ -19,7 +19,9 @@ export class HomeComponent {
   constructor(
     private readonly router: Router,
     readonly registry: ToolRegistryService,
-  ) {}
+  ) {
+    this.registry.refresh().subscribe({ error: () => undefined });
+  }
 
   get tools(): ToolDefinition[] {
     return this.registry.search(this.search);

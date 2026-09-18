@@ -32,6 +32,7 @@ export class MainLayoutComponent {
   readonly user = this.auth.user;
 
   constructor() {
+    this.registry.refresh().subscribe({ error: () => undefined });
     this.unread.set(this.notificationsService.quantidadeNaoLidas());
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe(() => this.closeMenus());

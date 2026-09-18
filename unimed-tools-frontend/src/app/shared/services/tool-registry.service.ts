@@ -1,17 +1,44 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { Observable, map, tap } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { CORE_TOOLS } from '../constants/tools.constants';
 import { CustomReportTool, ToolDefinition } from '../models/tool.model';
 import { AuthService } from './auth.service';
 
-const CUSTOM_TOOLS_KEY = 'unimed-tools.ferramentas-personalizadas.v1';
 const RECENT_TOOLS_KEY = 'unimed-tools.ferramentas-recentes.v1';
+
+interface BackendTool {
+  id: number;
+  slug: string;
+  nome: string;
+  descricao: string;
+  apiNome: string;
+  filtros: string[];
+  colunasPreview: string[];
+  criadoEm: string;
+  atualizadoEm: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ToolRegistryService {
-  constructor(private readonly auth: AuthService) {}
+  private customTools: CustomReportTool[] = [];
+  private readonly baseUrl = `${environment.apiUrl}/ferramentas`;
+
+  constructor(
+    private readonly auth: AuthService,
+    private readonly http: HttpClient,
+  ) {}
+
+  refresh(): Observable<CustomReportTool[]> {
+    return this.http.get<BackendTool[]>(this.baseUrl).pipe(
+      map((items) => items.map((item) => this.fromBackend(item))),
+      tap((items) => this.customTools = items),
+    );
+  }
 
   listAll(): ToolDefinition[] {
-    return [...CORE_TOOLS, ...this.listCustom().map((tool) => this.toDefinition(tool))];
+    return [...CORE_TOOLS, ...this.customTools.map((tool) => this.toDefinition(tool))];
   }
 
   listAccessible(): ToolDefinition[] {
@@ -31,42 +58,45 @@ export class ToolRegistryService {
   }
 
   listCustom(): CustomReportTool[] {
-    return this.read<CustomReportTool[]>(CUSTOM_TOOLS_KEY, []);
+    return [...this.customTools];
   }
 
   findCustom(slug: string): CustomReportTool | undefined {
-    return this.listCustom().find((tool) => tool.slug === slug);
+    return this.customTools.find((tool) => tool.slug === slug);
   }
 
-  saveCustom(input: Omit<CustomReportTool, 'id' | 'criadoEm' | 'atualizadoEm'> & { id?: string }): CustomReportTool {
+  saveCustom(
+    input: Omit<CustomReportTool, 'id' | 'criadoEm' | 'atualizadoEm'> & { id?: string },
+  ): Observable<CustomReportTool> {
     const slug = this.slugify(input.slug || input.nome);
     if (!slug) throw new Error('Informe um nome válido para a ferramenta.');
-    const now = new Date().toISOString();
-    const existing = this.listCustom().find((tool) => tool.id === input.id);
-    const duplicate = this.listCustom().find((tool) => tool.slug === slug && tool.id !== input.id);
-    if (duplicate || CORE_TOOLS.some((tool) => tool.route === `/ferramentas/${slug}`)) {
-      throw new Error('Já existe uma ferramenta com esse endereço.');
-    }
-    const saved: CustomReportTool = {
-      id: existing?.id ?? this.id(),
+
+    const body = {
       slug,
       nome: input.nome.trim(),
       descricao: input.descricao.trim(),
       apiNome: input.apiNome.trim(),
       filtros: [...new Set(input.filtros.map((item) => item.trim()).filter(Boolean))],
       colunasPreview: [...new Set(input.colunasPreview.map((item) => item.trim()).filter(Boolean))],
-      criadoEm: existing?.criadoEm ?? now,
-      atualizadoEm: now,
     };
-    const next = existing
-      ? this.listCustom().map((tool) => tool.id === saved.id ? saved : tool)
-      : [...this.listCustom(), saved];
-    this.write(CUSTOM_TOOLS_KEY, next);
-    return saved;
+    const request = input.id
+      ? this.http.put<BackendTool>(`${this.baseUrl}/${input.id}`, body)
+      : this.http.post<BackendTool>(this.baseUrl, body);
+    return request.pipe(
+      map((item) => this.fromBackend(item)),
+      tap((saved) => {
+        const exists = this.customTools.some((tool) => tool.id === saved.id);
+        this.customTools = exists
+          ? this.customTools.map((tool) => tool.id === saved.id ? saved : tool)
+          : [...this.customTools, saved].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      }),
+    );
   }
 
-  deleteCustom(id: string): void {
-    this.write(CUSTOM_TOOLS_KEY, this.listCustom().filter((tool) => tool.id !== id));
+  deleteCustom(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`).pipe(
+      tap(() => this.customTools = this.customTools.filter((tool) => tool.id !== id)),
+    );
   }
 
   recordOpened(id: string): void {
@@ -80,6 +110,20 @@ export class ToolRegistryService {
       .map((id) => byId.get(id))
       .filter((tool): tool is ToolDefinition => Boolean(tool))
       .slice(0, 3);
+  }
+
+  private fromBackend(item: BackendTool): CustomReportTool {
+    return {
+      id: String(item.id),
+      slug: item.slug,
+      nome: item.nome,
+      descricao: item.descricao,
+      apiNome: item.apiNome,
+      filtros: item.filtros ?? [],
+      colunasPreview: item.colunasPreview ?? [],
+      criadoEm: item.criadoEm,
+      atualizadoEm: item.atualizadoEm,
+    };
   }
 
   private toDefinition(tool: CustomReportTool): ToolDefinition {
@@ -103,12 +147,6 @@ export class ToolRegistryService {
 
   private normalize(value: string): string {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-  }
-
-  private id(): string {
-    return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   private read<T>(key: string, fallback: T): T {

@@ -40,12 +40,6 @@ export class AuthService {
       .pipe(tap((response) => this.applyResponse(response)));
   }
 
-  verifyMfa(desafioToken: string, codigo: string): Observable<AuthFlowResponse> {
-    return this.http
-      .post<AuthFlowResponse>(`${this.baseUrl}/mfa/verificar`, { desafioToken, codigo })
-      .pipe(tap((response) => this.applyResponse(response)));
-  }
-
   changePassword(senhaAtual: string, novaSenha: string): Observable<AuthFlowResponse> {
     return this.http
       .post<AuthFlowResponse>(`${this.baseUrl}/senha`, { senhaAtual, novaSenha })
@@ -88,9 +82,10 @@ export class AuthService {
   }
 
   updateUserPermissions(userId: number, permissoes: string[]): Observable<OperationResponse> {
-    return this.http.put<OperationResponse>(`${environment.apiUrl}/usuarios/${userId}/permissoes`, {
-      permissoes,
-    });
+    return this.http.put<OperationResponse>(
+      `${environment.apiUrl}/usuarios/${userId}/permissoes`,
+      { permissoes },
+    );
   }
 
   resetUserPassword(userId: number, senhaTemporaria: string): Observable<OperationResponse> {

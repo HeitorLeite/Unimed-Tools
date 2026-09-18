@@ -11,12 +11,14 @@ import { AuthService } from '../../shared/services/auth.service';
   styleUrl: './profile.component.scss',
 })
 export class ProfileComponent {
-  readonly user = this.auth.user;
+  readonly user;
 
   constructor(
     private readonly auth: AuthService,
     private readonly router: Router,
-  ) {}
+  ) {
+    this.user = auth.user;
+  }
 
   logout(): void {
     this.auth.logout().subscribe({

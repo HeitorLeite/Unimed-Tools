@@ -37,7 +37,7 @@
         <app-report-preview *ngIf="!report.loading" [title]="'Prévia de ' + report.nome" [records]="report.records" [columns]="report.columns" />
       </article>
 
-      <div class="start-state" *ngIf="!selectedReports.some(r => r.records.length || r.loading)">
+      <div class="start-state" *ngIf="!hasPreview">
         <strong>A prévia aparecerá aqui.</strong><span>Selecione a empresa e os relatórios ao lado e clique em “Gerar prévias”.</span>
       </div>
     </main>

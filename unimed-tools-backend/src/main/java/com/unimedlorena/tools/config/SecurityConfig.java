@@ -97,7 +97,7 @@ public class SecurityConfig {
         .requestMatchers(HttpMethod.POST, "/api/usuarios/*/resetar-senha")
           .hasAuthority("USUARIOS_EDITAR")
         .requestMatchers("/api/usuarios/**").denyAll()
-        .requestMatchers(HttpMethod.GET, "/api/ferramentas").hasAuthority("APLICACAO_ACESSAR")
+        .requestMatchers(HttpMethod.GET, "/api/ferramentas").authenticated()
         .requestMatchers(HttpMethod.POST, "/api/ferramentas").hasAuthority("FERRAMENTAS_ADMINISTRAR")
         .requestMatchers(HttpMethod.PUT, "/api/ferramentas/*").hasAuthority("FERRAMENTAS_ADMINISTRAR")
         .requestMatchers(HttpMethod.DELETE, "/api/ferramentas/*").hasAuthority("FERRAMENTAS_ADMINISTRAR")

@@ -31,6 +31,29 @@ public class FerramentaController {
     return service.listar();
   }
 
+  @GetMapping("/nativas")
+  public List<FerramentaDtos.NativaResponse> listarNativas() {
+    return service.listarNativas();
+  }
+
+  @PutMapping("/nativas/{id}")
+  public FerramentaDtos.NativaResponse salvarNativa(
+    @PathVariable String id,
+    @Valid @RequestBody FerramentaDtos.NativaSalvarRequest request,
+    @AuthenticationPrincipal UsuarioPrincipal principal
+  ) {
+    return service.salvarNativa(id, request, principal);
+  }
+
+  @DeleteMapping("/nativas/{id}")
+  public Map<String, String> resetarNativa(
+    @PathVariable String id,
+    @AuthenticationPrincipal UsuarioPrincipal principal
+  ) {
+    service.resetarNativa(id, principal);
+    return Map.of("mensagem", "Configuração restaurada.");
+  }
+
   @PostMapping
   public FerramentaDtos.Response criar(
     @Valid @RequestBody FerramentaDtos.SalvarRequest request,

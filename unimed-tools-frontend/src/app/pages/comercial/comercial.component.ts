@@ -80,6 +80,10 @@ export class ComercialComponent implements OnInit {
     return this.companies.find((company) => company.id === this.companyId);
   }
 
+  get hasPreview(): boolean {
+    return this.selectedReports.some((report) => report.records.length > 0 || report.loading);
+  }
+
   async generatePreview(): Promise<void> {
     this.error = '';
     if (!this.company) {

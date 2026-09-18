@@ -1,9 +1,14 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, map, tap } from 'rxjs';
+import { Observable, forkJoin, map, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { CORE_TOOLS } from '../constants/tools.constants';
-import { CustomReportTool, ToolDefinition } from '../models/tool.model';
+import {
+  CustomReportTool,
+  NativeToolAdminItem,
+  NativeToolConfig,
+  ToolDefinition,
+} from '../models/tool.model';
 import { AuthService } from './auth.service';
 
 const RECENT_TOOLS_KEY = 'unimed-tools.ferramentas-recentes.v1';
@@ -20,9 +25,18 @@ interface BackendTool {
   atualizadoEm: string;
 }
 
+interface BackendNativeTool {
+  id: string;
+  nome: string | null;
+  descricao: string | null;
+  ativo: boolean;
+  atualizadoEm: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ToolRegistryService {
   private customTools: CustomReportTool[] = [];
+  private nativeConfigs = new Map<string, NativeToolConfig>();
   private readonly baseUrl = `${environment.apiUrl}/ferramentas`;
 
   constructor(
@@ -31,14 +45,25 @@ export class ToolRegistryService {
   ) {}
 
   refresh(): Observable<CustomReportTool[]> {
-    return this.http.get<BackendTool[]>(this.baseUrl).pipe(
-      map((items) => items.map((item) => this.fromBackend(item))),
-      tap((items) => this.customTools = items),
+    return forkJoin({
+      custom: this.http.get<BackendTool[]>(this.baseUrl),
+      native: this.http.get<BackendNativeTool[]>(`${this.baseUrl}/nativas`),
+    }).pipe(
+      tap(({ custom, native }) => {
+        this.customTools = custom.map((item) => this.fromBackend(item));
+        this.nativeConfigs = new Map(
+          native.map((item) => [item.id, this.fromNativeBackend(item)]),
+        );
+      }),
+      map(() => [...this.customTools]),
     );
   }
 
   listAll(): ToolDefinition[] {
-    return [...CORE_TOOLS, ...this.customTools.map((tool) => this.toDefinition(tool))];
+    const natives = CORE_TOOLS
+      .filter((tool) => this.nativeConfigs.get(tool.id)?.ativo !== false)
+      .map((tool) => this.applyNativeConfig(tool));
+    return [...natives, ...this.customTools.map((tool) => this.toDefinition(tool))];
   }
 
   listAccessible(): ToolDefinition[] {
@@ -49,11 +74,41 @@ export class ToolRegistryService {
     });
   }
 
+  listNativeAdmin(): NativeToolAdminItem[] {
+    return CORE_TOOLS.map((original) => ({
+      tool: this.applyNativeConfig(original),
+      config: this.nativeConfigs.get(original.id) ?? null,
+    }));
+  }
+
+  saveNativeConfig(
+    id: string,
+    nome: string | null,
+    descricao: string | null,
+    ativo: boolean,
+  ): Observable<NativeToolConfig> {
+    return this.http.put<BackendNativeTool>(`${this.baseUrl}/nativas/${id}`, {
+      nome,
+      descricao,
+      ativo,
+    }).pipe(
+      map((item) => this.fromNativeBackend(item)),
+      tap((saved) => this.nativeConfigs.set(saved.id, saved)),
+    );
+  }
+
+  resetNativeConfig(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/nativas/${id}`).pipe(
+      tap(() => this.nativeConfigs.delete(id)),
+    );
+  }
+
   search(term: string): ToolDefinition[] {
     const normalized = this.normalize(term);
     if (!normalized) return this.listAccessible();
     return this.listAccessible().filter((tool) =>
-      this.normalize([tool.nome, tool.categoria, tool.descricao, ...tool.keywords].join(' ')).includes(normalized),
+      this.normalize([tool.nome, tool.categoria, tool.descricao, ...tool.keywords].join(' '))
+        .includes(normalized),
     );
   }
 
@@ -82,6 +137,7 @@ export class ToolRegistryService {
     const request = input.id
       ? this.http.put<BackendTool>(`${this.baseUrl}/${input.id}`, body)
       : this.http.post<BackendTool>(this.baseUrl, body);
+
     return request.pipe(
       map((item) => this.fromBackend(item)),
       tap((saved) => {
@@ -100,7 +156,10 @@ export class ToolRegistryService {
   }
 
   recordOpened(id: string): void {
-    const next = [id, ...this.read<string[]>(RECENT_TOOLS_KEY, []).filter((item) => item !== id)].slice(0, 5);
+    const next = [
+      id,
+      ...this.read<string[]>(RECENT_TOOLS_KEY, []).filter((item) => item !== id),
+    ].slice(0, 5);
     this.write(RECENT_TOOLS_KEY, next);
   }
 
@@ -110,6 +169,26 @@ export class ToolRegistryService {
       .map((id) => byId.get(id))
       .filter((tool): tool is ToolDefinition => Boolean(tool))
       .slice(0, 3);
+  }
+
+  private applyNativeConfig(tool: ToolDefinition): ToolDefinition {
+    const config = this.nativeConfigs.get(tool.id);
+    if (!config) return { ...tool };
+    return {
+      ...tool,
+      nome: config.nome?.trim() || tool.nome,
+      descricao: config.descricao?.trim() || tool.descricao,
+    };
+  }
+
+  private fromNativeBackend(item: BackendNativeTool): NativeToolConfig {
+    return {
+      id: item.id,
+      nome: item.nome,
+      descricao: item.descricao,
+      ativo: item.ativo,
+      atualizadoEm: item.atualizadoEm,
+    };
   }
 
   private fromBackend(item: BackendTool): CustomReportTool {
@@ -160,6 +239,8 @@ export class ToolRegistryService {
   }
 
   private write(key: string, value: unknown): void {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
   }
 }

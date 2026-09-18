@@ -3,14 +3,14 @@ import { ChangeDetectorRef } from '@angular/core';
 import { Subject, of, throwError } from 'rxjs';
 
 import { RelatorioService } from '../../shared/services/relatorio.service';
-import { RelatoriosComponent } from './relatorios.component';
+import { RelatoriosManualComponent } from './relatorios-manual/relatorios-manual.component';
 import { extrairPrimeiraInstrucaoSql } from './sql/sql-lexico';
 
-describe('RelatoriosComponent - importação SQL', () => {
-  const criarComponente = (): RelatoriosComponent => {
+describe('RelatoriosManualComponent - importação SQL', () => {
+  const criarComponente = (): RelatoriosManualComponent => {
     const relatorioService = {} as RelatorioService;
     const cdr = { detectChanges: vi.fn() } as unknown as ChangeDetectorRef;
-    return new RelatoriosComponent(relatorioService, cdr);
+    return new RelatoriosManualComponent(relatorioService, cdr);
   };
 
   const criarArquivo = (consultaSQL: string): any => ({
@@ -358,7 +358,7 @@ describe('RelatoriosComponent - importação SQL', () => {
       listarApis: vi.fn(() => resposta$.asObservable()),
     } as unknown as RelatorioService;
     const cdr = { detectChanges: vi.fn() } as unknown as ChangeDetectorRef;
-    const component = new RelatoriosComponent(relatorioService, cdr);
+    const component = new RelatoriosManualComponent(relatorioService, cdr);
 
     component.carregarApisCadastradas();
     expect(component.carregandoListaApis).toBe(true);
@@ -385,7 +385,7 @@ describe('RelatoriosComponent - importação SQL', () => {
       salvarCatalogo: vi.fn(),
     } as unknown as RelatorioService;
     const cdr = { detectChanges: vi.fn() } as unknown as ChangeDetectorRef;
-    const component = new RelatoriosComponent(relatorioService, cdr);
+    const component = new RelatoriosManualComponent(relatorioService, cdr);
     component.arquivosSqlImportados = [criarArquivo('SELECT 1 AS VALOR FROM DUAL')];
 
     await component.criarApisDosArquivos();
@@ -408,7 +408,7 @@ describe('RelatoriosComponent - importação SQL', () => {
       exportar: vi.fn(() => throwError(() => erroHttp)),
     } as unknown as RelatorioService;
     const cdr = { detectChanges: vi.fn() } as unknown as ChangeDetectorRef;
-    const component = new RelatoriosComponent(relatorioService, cdr);
+    const component = new RelatoriosManualComponent(relatorioService, cdr);
     component.selecionado = {
       id: 'relatorio-1',
       nomeExibicao: 'Relatório de teste',

@@ -29,4 +29,18 @@ public final class FerramentaDtos {
     LocalDateTime criadoEm,
     LocalDateTime atualizadoEm
   ) {}
+
+  public record NativaSalvarRequest(
+    @Size(max = 120) String nome,
+    @Size(max = 500) String descricao,
+    Boolean ativo
+  ) {}
+
+  public record NativaResponse(
+    String id,
+    String nome,
+    String descricao,
+    boolean ativo,
+    LocalDateTime atualizadoEm
+  ) {}
 }

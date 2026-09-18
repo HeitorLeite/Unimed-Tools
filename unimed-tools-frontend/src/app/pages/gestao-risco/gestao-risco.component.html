@@ -1,0 +1,36 @@
+<section class="page">
+  <header class="heading">
+    <div><span>Indicadores e rastreios</span><h1>Gestão de Risco</h1><p>Consulte os cinco relatórios da rotina em uma única tela, confira as prévias e faça o download individual ou em pacote.</p></div>
+    <button type="button" class="download-all" [disabled]="!selectedReports.length" (click)="downloadAll()">Baixar selecionados</button>
+  </header>
+
+  <div class="filters">
+    <div class="filter-copy"><span>1</span><div><strong>Defina o período</strong><small>Os filtros detectados nas APIs aparecem automaticamente.</small></div></div>
+    <label><span>Competência</span><input type="text" maxlength="6" inputmode="numeric" [(ngModel)]="competence" placeholder="202609" /></label>
+    <label *ngFor="let filter of extraFilters"><span>{{ label(filter) }}</span><input type="text" [(ngModel)]="additionalValues[filter]" /></label>
+    <button type="button" class="generate" [disabled]="generating || loadingDefinitions" (click)="generate()">{{ generating ? 'Gerando…' : 'Gerar prévias' }}</button>
+  </div>
+
+  <p class="error global-error" *ngIf="error">{{ error }}</p>
+
+  <section class="report-picker">
+    <div class="section-title"><span>2</span><div><strong>Relatórios</strong><small>Marque o que faz parte da sua rotina de hoje.</small></div></div>
+    <div class="report-grid">
+      <label *ngFor="let report of reports" [class.disabled]="!report.definition && !loadingDefinitions">
+        <input type="checkbox" [checked]="report.selected" [disabled]="!report.definition || loadingDefinitions" (change)="toggle(report)" />
+        <span><strong>{{ report.nome }}</strong><small>{{ report.error || report.descricao }}</small></span>
+      </label>
+    </div>
+  </section>
+
+  <section class="previews">
+    <div class="preview-heading"><div class="section-title"><span>3</span><div><strong>Prévia e download</strong><small>Confira antes de exportar.</small></div></div></div>
+    <article *ngFor="let report of selectedReports">
+      <header><div><small>{{ report.api }}</small><h2>{{ report.nome }}</h2></div><button type="button" [disabled]="!report.records.length" (click)="download(report)">Baixar XLSX</button></header>
+      <div class="loading" *ngIf="report.loading">Consultando…</div>
+      <p class="error" *ngIf="report.error && report.definition">{{ report.error }}</p>
+      <app-report-preview *ngIf="!report.loading" [title]="'Prévia de ' + report.nome" [records]="report.records" [columns]="report.columns" />
+    </article>
+    <div class="start" *ngIf="!hasPreview"><strong>As prévias aparecerão aqui.</strong><span>Informe a competência e gere os relatórios.</span></div>
+  </section>
+</section>

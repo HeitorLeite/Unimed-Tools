@@ -93,6 +93,11 @@ Reúne:
 
 Ferramentas configuráveis são armazenadas no MariaDB e executadas pelo componente genérico `pages/tools/custom-report/`.
 
+A apresentação das ferramentas nativas pode ser sobrescrita por
+`ferramenta_nativa_configuracao`. Esse recurso altera somente nome, descrição e
+visibilidade na Home/navbar. Rotas, permissões e implementação não são
+configuráveis pelo navegador.
+
 ## 4. Autenticação
 
 O fluxo é:
@@ -179,7 +184,8 @@ Banco existente, em ordem:
 
 - 002 — permissões por usuário;
 - 003 — ferramentas configuráveis;
-- 004 — remoção do MFA legado.
+- 004 — remoção do MFA legado;
+- 005 — configuração visual das ferramentas nativas.
 
 ## 10. Validação
 

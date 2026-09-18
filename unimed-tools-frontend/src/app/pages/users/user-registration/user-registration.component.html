@@ -5,7 +5,13 @@
       <h1>Cadastrar usuário</h1>
       <p>Crie uma conta com senha temporária. No primeiro acesso, o usuário será obrigado a definir uma senha pessoal.</p>
     </div>
-    <div class="tool-header-meta"><span><small>Acesso</small><strong>Administrador</strong></span><span><small>Senha temporária</small><strong>24 horas</strong></span></div>
+    <div class="registration-header-actions">
+      <div class="tool-header-meta">
+        <span><small>Acesso</small><strong>Administrador</strong></span>
+        <span><small>Senha temporária</small><strong>24 horas</strong></span>
+      </div>
+      <a class="btn btn-secondary" routerLink="/usuarios">Voltar ao gerenciamento</a>
+    </div>
   </header>
 
   <div class="registration-layout">
@@ -15,7 +21,7 @@
         <div class="field field-wide"><label for="name">Nome completo</label><input id="name" type="text" formControlName="nome" maxlength="150" /></div>
         <div class="field"><label for="userLogin">Login</label><input id="userLogin" type="text" formControlName="login" maxlength="80" placeholder="nome.sobrenome" /><small>Minúsculas, números, ponto, hífen ou underscore.</small></div>
         <div class="field"><label for="email">E-mail</label><input id="email" type="email" formControlName="email" maxlength="254" placeholder="opcional" /></div>
-        <div class="field field-wide"><label for="profile">Perfil de acesso</label><select id="profile" formControlName="perfilCodigo"><option value="USUARIO">Usuário operacional</option><option value="ADMINISTRADOR">Administrador</option></select><small>Administradores deverão configurar MFA no primeiro login.</small></div>
+        <div class="field field-wide"><label for="profile">Perfil de acesso</label><select id="profile" formControlName="perfilCodigo"><option value="USUARIO">Usuário operacional</option><option value="ADMINISTRADOR">Administrador</option></select><small>Administradores recebem o perfil administrativo; usuários operacionais recebem somente as permissões liberadas depois.</small></div>
       </div>
 
       <div class="form-section-heading section-border"><span>02</span><div><h2>Credencial temporária</h2><p>Entregue a senha por um canal corporativo seguro.</p></div></div>
@@ -31,7 +37,7 @@
     </form>
 
     <aside class="context-rail">
-      <div class="context-card context-card-strong"><span>Controles aplicados</span><h2>Cadastro protegido</h2><ul class="context-list"><li>Sessão administrativa validada com MFA no login</li><li>Permissão conferida novamente pelo backend</li><li>Senha armazenada somente com hash</li><li>Evento registrado na auditoria</li></ul></div>
+      <div class="context-card context-card-strong"><span>Controles aplicados</span><h2>Cadastro protegido</h2><ul class="context-list"><li>Sessão administrativa autenticada e protegida por CSRF</li><li>Permissão conferida novamente pelo backend</li><li>Senha armazenada somente com hash</li><li>Evento registrado na auditoria</li></ul></div>
       <div class="context-card success-card" *ngIf="created() as user"><span>Conta criada</span><h3>{{ user.nome }}</h3><div class="context-summary"><div><span>Login</span><strong>{{ user.login }}</strong></div><div><span>Perfil</span><strong>{{ user.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Usuário' }}</strong></div><div><span>Próxima etapa</span><strong>Trocar senha</strong></div></div></div>
     </aside>
   </div>

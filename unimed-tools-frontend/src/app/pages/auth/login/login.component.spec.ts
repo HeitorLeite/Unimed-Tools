@@ -1,4 +1,3 @@
-import { provideHttpClient } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
@@ -8,24 +7,21 @@ import { LoginComponent } from './login.component';
 describe('LoginComponent', () => {
   let fixture: ComponentFixture<LoginComponent>;
   let component: LoginComponent;
-  let auth: { login: ReturnType<typeof vi.fn>; verifyMfa: ReturnType<typeof vi.fn> };
+  let auth: { login: ReturnType<typeof vi.fn> };
+  const navigateByUrl = vi.fn();
 
   beforeEach(async () => {
     auth = {
-      login: vi.fn(),
-      verifyMfa: vi.fn().mockReturnValue(
+      login: vi.fn().mockReturnValue(
         of({
           status: 'AUTENTICADO',
-          desafioToken: null,
-          segredoMfa: null,
-          uriMfa: null,
           usuario: {
             id: 1,
             nome: 'Administrador',
             login: 'admin.teste',
             email: null,
             perfil: 'ADMINISTRADOR',
-            deveTrocarSenha: true,
+            deveTrocarSenha: false,
             permissoes: [],
           },
         }),
@@ -35,8 +31,7 @@ describe('LoginComponent', () => {
     await TestBed.configureTestingModule({
       imports: [LoginComponent],
       providers: [
-        provideHttpClient(),
-        { provide: Router, useValue: { navigateByUrl: vi.fn() } },
+        { provide: Router, useValue: { navigateByUrl } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: { get: () => null } } },
@@ -50,23 +45,15 @@ describe('LoginComponent', () => {
     fixture.detectChanges();
   });
 
-  it('envia o MFA pelo ngSubmit sem recarregar a página', () => {
-    (component as unknown as { handleFlow(response: unknown): void }).handleFlow({
-      status: 'MFA_CONFIGURACAO',
-      desafioToken: 'desafio-teste',
-      segredoMfa: 'SEGREDOBASE32',
-      uriMfa: 'otpauth://teste',
-      usuario: null,
+  it('autentica com login e senha e segue para o inicio', () => {
+    component.credentialsForm.setValue({
+      login: 'admin.teste',
+      senha: 'SenhaSegura!123',
     });
-    component.mfaForm.controls.codigo.setValue('123456');
-    fixture.detectChanges();
 
-    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
-    const event = new Event('submit', { bubbles: true, cancelable: true });
-    const dispatched = form.dispatchEvent(event);
+    component.submitCredentials();
 
-    expect(dispatched).toBe(false);
-    expect(event.defaultPrevented).toBe(true);
-    expect(auth.verifyMfa).toHaveBeenCalledWith('desafio-teste', '123456');
+    expect(auth.login).toHaveBeenCalledWith('admin.teste', 'SenhaSegura!123');
+    expect(navigateByUrl).toHaveBeenCalledWith('/');
   });
 });

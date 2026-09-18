@@ -5,10 +5,12 @@ package com.unimedlorena.tools.controller;
 
 import com.unimedlorena.tools.dto.RelatorioExportacaoRequest;
 import com.unimedlorena.tools.dto.RelatorioLoteRequest;
+import com.unimedlorena.tools.dto.HospitalRelatorioRequest;
 import com.unimedlorena.tools.dto.RelatorioPersonalizadoRequest;
 import com.unimedlorena.tools.service.ExportacaoLoteRelatorioService;
 import com.unimedlorena.tools.service.ExportacaoRelatorioService;
 import com.unimedlorena.tools.service.RelatorioPersonalizadoService;
+import com.unimedlorena.tools.service.HospitalRelatorioService;
 import com.unimedlorena.tools.service.SguRelatorioService;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
@@ -36,17 +38,20 @@ public class RelatorioController {
   private final ExportacaoRelatorioService exportacao;
   private final ExportacaoLoteRelatorioService exportacaoLote;
   private final RelatorioPersonalizadoService relatorioPersonalizado;
+  private final HospitalRelatorioService hospitalRelatorio;
 
   public RelatorioController(
     SguRelatorioService sgu,
     ExportacaoRelatorioService exportacao,
     ExportacaoLoteRelatorioService exportacaoLote,
-    RelatorioPersonalizadoService relatorioPersonalizado
+    RelatorioPersonalizadoService relatorioPersonalizado,
+    HospitalRelatorioService hospitalRelatorio
   ) {
     this.sgu = sgu;
     this.exportacao = exportacao;
     this.exportacaoLote = exportacaoLote;
     this.relatorioPersonalizado = relatorioPersonalizado;
+    this.hospitalRelatorio = hospitalRelatorio;
   }
 
   /**
@@ -85,6 +90,41 @@ public class RelatorioController {
           .filename(nomeBase + "." + arquivo.extensao(), StandardCharsets.UTF_8)
           .build()
           .toString()
+      )
+      .header("X-Total-Registros", String.valueOf(arquivo.quantidadeRegistros()))
+      .body(arquivo.conteudo());
+  }
+
+  @GetMapping("/hospital/configuracao")
+  public HospitalRelatorioService.Configuracao configuracaoHospital() {
+    return hospitalRelatorio.configuracao();
+  }
+
+  @PostMapping("/hospital/executar")
+  public Map<String, Object> executarHospital(
+    @RequestBody(required = false) HospitalRelatorioRequest request
+  ) {
+    return hospitalRelatorio.executar(request);
+  }
+
+  @PostMapping("/hospital/exportar")
+  public ResponseEntity<byte[]> exportarHospital(
+    @RequestParam(defaultValue = "xlsx") String formato,
+    @RequestBody(required = false) HospitalRelatorioRequest request
+  ) throws Exception {
+    var arquivo = hospitalRelatorio.exportar(formato, request);
+    String nomeBase = sanitizarNome(
+      request == null || request.nomeArquivo() == null
+        ? "hospital_autorizacoes"
+        : request.nomeArquivo()
+    );
+    return ResponseEntity.ok()
+      .contentType(MediaType.parseMediaType(arquivo.contentType()))
+      .header(
+        HttpHeaders.CONTENT_DISPOSITION,
+        ContentDisposition.attachment()
+          .filename(nomeBase + "." + arquivo.extensao(), StandardCharsets.UTF_8)
+          .build().toString()
       )
       .header("X-Total-Registros", String.valueOf(arquivo.quantidadeRegistros()))
       .body(arquivo.conteudo());
@@ -204,11 +244,11 @@ public class RelatorioController {
   }
 
   private void validarApiNaoReservada(String nome) {
-    if (relatorioPersonalizado.ehApiReservada(nome)) {
+    if (relatorioPersonalizado.ehApiReservada(nome) || hospitalRelatorio.ehApiReservada(nome)) {
       throw new IllegalArgumentException(
         "A API " +
-        RelatorioPersonalizadoService.API_NOME +
-        " é reservada ao construtor de relatório personalizado."
+        (hospitalRelatorio.ehApiReservada(nome) ? HospitalRelatorioService.API_NOME : RelatorioPersonalizadoService.API_NOME) +
+        " é reservada a uma ferramenta interna."
       );
     }
   }
@@ -225,9 +265,8 @@ public class RelatorioController {
       .filter(item -> {
         if (!(item instanceof Map<?, ?> api)) return true;
         Object nome = api.get("nome");
-        return !relatorioPersonalizado.ehApiReservada(
-          nome == null ? null : String.valueOf(nome)
-        );
+        String valor = nome == null ? null : String.valueOf(nome);
+        return !relatorioPersonalizado.ehApiReservada(valor) && !hospitalRelatorio.ehApiReservada(valor);
       })
       .toList();
 

@@ -126,6 +126,11 @@ Cada ferramenta configurável define:
 - filtros exibidos;
 - colunas preferenciais da prévia.
 
+A mesma área também gerencia a apresentação das páginas nativas. Para Comercial,
+Assistencial, Revisão de Contas, Única, Hospital e Gestão de Risco, a TI pode
+alterar nome, descrição e visibilidade na Home/menu. Rota e permissão permanecem
+fixas e são controladas pelo código. A própria área TI não pode ser ocultada.
+
 ## Autenticação e segurança
 
 A autenticação atual usa:
@@ -157,7 +162,8 @@ Para instalações existentes, aplique somente as migrações ainda não executa
 
 1. `002_permissoes_por_usuario.sql`;
 2. `003_ferramentas_configuraveis.sql`;
-3. `004_remove_mfa.sql`.
+3. `004_remove_mfa.sql`;
+4. `005_configuracao_ferramentas_nativas.sql`.
 
 Faça backup antes de qualquer migração.
 

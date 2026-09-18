@@ -1,8 +1,8 @@
-import { extrairPrimeiraInstrucaoSql, normalizarVariaveisBindSql } from './sql/sql-lexico';
-import { filtroDetectadoDoSql, detectarFiltrosFixosSimples, converterParametrosFixosSql, converterFiltrosFixosCteSql } from './sql/sql-filtros';
-import { ajustarEstruturaSqlImportado } from './sql/sql-estrutura';
-import { normalizarFiltros, filtrosDeNegocio, removerFiltroTecnicoDaDefinicao, prepararDefinicaoParaSgu, clonarDefinicaoApi, validarDefinicaoApi, validarCorrespondenciaBind, filtroVazio } from './sql/sgu-definicao';
-import { ArquivoSqlImportado } from './sql/sql-importacao.model';
+import { extrairPrimeiraInstrucaoSql, normalizarVariaveisBindSql } from '../sql/sql-lexico';
+import { filtroDetectadoDoSql, detectarFiltrosFixosSimples, converterParametrosFixosSql, converterFiltrosFixosCteSql } from '../sql/sql-filtros';
+import { ajustarEstruturaSqlImportado } from '../sql/sql-estrutura';
+import { normalizarFiltros, filtrosDeNegocio, removerFiltroTecnicoDaDefinicao, prepararDefinicaoParaSgu, clonarDefinicaoApi, validarDefinicaoApi, validarCorrespondenciaBind, filtroVazio } from '../sql/sgu-definicao';
+import { ArquivoSqlImportado } from '../sql/sql-importacao.model';
 /**
  * Coordena catálogo, APIs SGU, SQL importado, execução manual, templates e exportações.
  */
@@ -19,12 +19,12 @@ import {
   SguApiDefinicao,
   SguFiltro,
   SguResultado,
-} from '../../shared/models/relatorio.model';
-import { RelatorioService } from '../../shared/services/relatorio.service';
+} from '../../../shared/models/relatorio.model';
+import { RelatorioService } from '../../../shared/services/relatorio.service';
 import {
   formatReportPreviewValue,
   isProtectedBeneficiaryColumn,
-} from '../../shared/utils/report-preview.utils';
+} from '../../../shared/utils/report-preview.utils';
 
 type ModoCadastro = 'existente' | 'lista' | 'nova' | 'arquivos';
 

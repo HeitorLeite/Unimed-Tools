@@ -48,13 +48,13 @@ public class SessaoService {
     this.cookieSameSite = cookieSameSite;
   }
 
-  public String criar(long usuarioId, boolean mfaValidada, String ip, String userAgent) {
+  public String criar(long usuarioId, String ip, String userAgent) {
     String token = novoToken();
     repository.criarSessao(
       usuarioId,
       hash(token),
       LocalDateTime.now().plus(absoluteTimeout),
-      mfaValidada ? LocalDateTime.now() : null,
+      null,
       AuditoriaService.limitar(ip, 45),
       AuditoriaService.limitar(userAgent, 500)
     );
@@ -84,8 +84,7 @@ public class SessaoService {
     UsuarioRow usuario = encontrado.get();
     if (
       !usuario.perfilAtivo() ||
-      !"ATIVO".equals(usuario.status()) ||
-      ("ADMINISTRADOR".equals(usuario.perfil()) && sessao.mfaValidadaEm() == null)
+      !"ATIVO".equals(usuario.status())
     ) return Optional.empty();
 
     repository.atualizarAtividade(tokenHash);

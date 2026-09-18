@@ -54,7 +54,6 @@ public class SessaoService {
       usuarioId,
       hash(token),
       LocalDateTime.now().plus(absoluteTimeout),
-      null,
       AuditoriaService.limitar(ip, 45),
       AuditoriaService.limitar(userAgent, 500)
     );

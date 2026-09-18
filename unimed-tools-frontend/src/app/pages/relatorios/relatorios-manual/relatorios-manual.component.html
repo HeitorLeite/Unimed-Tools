@@ -1,6 +1,6 @@
   <section class="reports-manual-page" [attr.aria-busy]="operacaoRelatorioEmAndamento">
     <header class="reports-commandbar">
-      <button class="mode-back-button" type="button" (click)="voltar.emit()">
+      <button *ngIf="!embedded" class="mode-back-button" type="button" (click)="voltar.emit()">
         <span aria-hidden="true">←</span>
         <span><small>Central de relatórios</small><strong>Trocar modo</strong></span>
       </button>

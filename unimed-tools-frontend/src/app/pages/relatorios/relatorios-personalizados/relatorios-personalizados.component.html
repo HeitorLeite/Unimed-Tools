@@ -79,41 +79,9 @@
             {{ configuracao.limites.maximoMeses }} meses por consulta.
           </p>
 
-          <div class="filter-group" *ngFor="let grupo of gruposFiltros; trackBy: trackByGrupo">
-            <h3>{{ grupo.nome }}</h3>
-            <div class="fields-grid">
-              <label class="field" *ngFor="let filtro of grupo.itens; trackBy: trackById">
-                <span>{{ filtro.rotulo }} <b *ngIf="filtro.obrigatorio">obrigatório</b></span>
-                <select
-                  *ngIf="filtro.tipo === 'select'; else entrada"
-                  [(ngModel)]="valoresFiltro[filtro.id]"
-                >
-                  <option value="">Todos</option>
-                  <option *ngFor="let opcao of filtro.opcoes" [value]="opcao.valor">
-                    {{ opcao.rotulo }}
-                  </option>
-                </select>
-                <ng-template #entrada>
-                  <input
-                    [type]="
-                      filtro.tipo === 'date'
-                        ? 'date'
-                        : filtro.tipo === 'competencia'
-                          ? 'month'
-                          : 'text'
-                    "
-                    [inputMode]="
-                      filtro.tipo === 'number' || filtro.tipo === 'decimal' ? 'numeric' : 'text'
-                    "
-                    [placeholder]="filtro.placeholder"
-                    [(ngModel)]="valoresFiltro[filtro.id]"
-                    [required]="filtro.obrigatorio"
-                    autocomplete="off"
-                  />
-                </ng-template>
-              </label>
-            </div>
-          </div>
+          <app-filtros-relatorio [filtros]="configuracao.filtros" [valores]="valoresFiltro"
+            [bloqueado]="operacaoRelatorioEmAndamento" [versaoLimpeza]="versaoLimpezaFiltros"
+            (valoresChange)="atualizarFiltros($event)" />
         </div>
       </section>
 
@@ -163,72 +131,10 @@
             <code>SELECT DISTINCT</code>
           </label>
 
-          <section class="selected-column-order" *ngIf="ordemColunasSelecionadas.length">
-            <div class="selected-column-order-heading">
-              <div>
-                <span>Ordem de saída</span>
-                <strong>Organize as colunas selecionadas</strong>
-              </div>
-              <small>Prévia e arquivo seguem esta sequência</small>
-            </div>
-            <ol>
-              <li
-                *ngFor="
-                  let id of ordemColunasSelecionadas;
-                  index as indice;
-                  trackBy: trackByColunaId
-                "
-              >
-                <span class="column-position">{{ indice + 1 }}</span>
-                <strong>{{ rotuloColuna(id) }}</strong>
-                <div class="column-order-actions">
-                  <button
-                    type="button"
-                    [disabled]="indice === 0"
-                    [attr.aria-label]="'Mover ' + rotuloColuna(id) + ' para cima'"
-                    (click)="moverColuna(id, -1)"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    [disabled]="indice === ordemColunasSelecionadas.length - 1"
-                    [attr.aria-label]="'Mover ' + rotuloColuna(id) + ' para baixo'"
-                    (click)="moverColuna(id, 1)"
-                  >
-                    ↓
-                  </button>
-                </div>
-              </li>
-            </ol>
-          </section>
-
-          <div class="column-groups">
-            <div class="column-group" *ngFor="let grupo of gruposColunas; trackBy: trackByGrupo">
-              <div class="column-group-heading">
-                <h3>{{ grupo.nome }}</h3>
-                <button type="button" (click)="alternarGrupo(grupo)">
-                  {{ grupoSelecionado(grupo) ? 'Remover grupo' : 'Selecionar grupo' }}
-                </button>
-              </div>
-              <label class="column-option" *ngFor="let coluna of grupo.itens; trackBy: trackById">
-                <input
-                  type="checkbox"
-                  [checked]="colunasSelecionadas.has(coluna.id)"
-                  (change)="alternarColuna(coluna)"
-                />
-                <span
-                  ><strong>{{ coluna.rotulo }}</strong
-                  ><small *ngIf="coluna.sensivel">dado sensível</small
-                  ><small
-                    *ngIf="coluna.id === 'RECEITA' || coluna.id === 'SINISTRALIDADE'"
-                    class="metric-note"
-                    >agrega por beneficiário, contrato ou empresa</small
-                  ></span
-                >
-              </label>
-            </div>
-          </div>
+          <app-colunas-relatorio [colunas]="configuracao.colunas" [ordem]="ordemColunasSelecionadas"
+            [maximo]="configuracao.limites.maximoColunas" [bloqueado]="operacaoRelatorioEmAndamento"
+            (alternar)="alternarColuna($event)" (alternarGrupo)="alternarGrupo($event)"
+            (mover)="moverColuna($event.id, $event.deslocamento)" />
         </div>
       </aside>
     </div>

@@ -519,6 +519,13 @@ chegada do arquivo. Quando o download é preparado, a barra desaparece e uma
 notificação transitória informa quantos arquivos foram gerados ou quantas falhas
 foram registradas.
 
+Nos grupos automáticos que utilizam o filtro de empresa, o usuário seleciona a
+empresa pelo nome em um catálogo fechado. A interface resolve os códigos
+correspondentes antes de montar o lote e os envia ao SGU no mesmo filtro já
+existente. Empresas com mais de um código, como Yakult, Canção Nova ou Grupo
+Biondi, são tratadas automaticamente; os demais filtros do grupo, como
+competência, continuam independentes.
+
 ### Relatório personalizado
 
 **Status:** Atual.

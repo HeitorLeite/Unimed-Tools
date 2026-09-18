@@ -1,3 +1,5 @@
+import { ContextoEmpresa, EmpresaGrupoExecucao, FiltroGrupoExecucao, ValorFiltroGrupo } from './grupo-execucao.model';
+import { montarFiltrosGrupo, chaveLogicaFiltro, filtrosNegocio, valoresPreenchidos, nomeCurtoRelatorio, sanitizarNomeArquivo, novoValorFiltro } from './grupo-filtros.utils';
 /**
  * Gerencia grupos e combinações usadas na exportação automática de relatórios.
  */
@@ -27,37 +29,8 @@ import {
   SguFiltro,
 } from '../../../shared/models/relatorio.model';
 import { RelatorioService } from '../../../shared/services/relatorio.service';
-
-interface UsoFiltroGrupo {
-  relatorioId: string;
-  nomeFiltro: string;
-  tipoDadoFiltro: string;
-  obrigatorioFiltro: 'S' | 'N';
-}
-
-interface ValorFiltroGrupo {
-  id: string;
-  valor: string;
-}
-
-interface FiltroGrupoExecucao {
-  chave: string;
-  rotulo: string;
-  usos: UsoFiltroGrupo[];
-  obrigatorio: boolean;
-  valores: ValorFiltroGrupo[];
-}
-
-interface EmpresaGrupoExecucao {
-  id: string;
-  codigos: string;
-  nome: string;
-}
-
-interface ContextoEmpresa {
-  nome: string;
-  codigos: string;
-}
+import { EMPRESAS_RELATORIOS } from './empresa-catalogo';
+import { EmpresaSelectComponent } from './empresa-select.component';
 
 interface NotificacaoExecucao {
   tipo: 'sucesso' | 'erro';
@@ -67,7 +40,7 @@ interface NotificacaoExecucao {
 @Component({
   selector: 'app-relatorios-automaticos',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, EmpresaSelectComponent],
   templateUrl: './relatorios-automaticos.component.html',
   styleUrls: ['./relatorios-automaticos.component.scss'],
 })
@@ -80,6 +53,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
 
   filtrosExecucao: FiltroGrupoExecucao[] = [];
   empresasExecucao: EmpresaGrupoExecucao[] = [];
+  readonly empresasCatalogo = EMPRESAS_RELATORIOS;
   formatoExecucao: FormatoExportacao = 'xlsx';
   nomeArquivoZip = '';
 
@@ -181,7 +155,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     this.relatoriosGrupoSelecionados[relatorio.id] = selecionado;
 
     if (selecionado) {
-      this.nomesArquivoRelatorio[relatorio.id] ||= this.nomeCurtoRelatorio(relatorio);
+      this.nomesArquivoRelatorio[relatorio.id] ||= nomeCurtoRelatorio(relatorio);
     }
   }
 
@@ -203,8 +177,8 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
       .filter((relatorio) => this.relatoriosGrupoSelecionados[relatorio.id])
       .map((relatorio) => ({
         relatorioId: relatorio.id,
-        nomeArquivo: this.sanitizarNomeArquivo(
-          this.nomesArquivoRelatorio[relatorio.id] || this.nomeCurtoRelatorio(relatorio),
+        nomeArquivo: sanitizarNomeArquivo(
+          this.nomesArquivoRelatorio[relatorio.id] || nomeCurtoRelatorio(relatorio),
         ),
       }));
 
@@ -248,7 +222,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
   selecionarGrupo(grupo: RelatorioGrupoAutomatico): void {
     this.grupoSelecionado = grupo;
     this.formatoExecucao = grupo.formato;
-    this.nomeArquivoZip = `${this.sanitizarNomeArquivo(grupo.nome)}_${this.dataAtualCompacta()}`;
+    this.nomeArquivoZip = `${sanitizarNomeArquivo(grupo.nome)}_${this.dataAtualCompacta()}`;
     this.montarFiltrosExecucao(grupo);
     this.erro = '';
     this.sucesso = '';
@@ -309,8 +283,20 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     return this.filtrosExecucao.filter((filtro) => filtro.chave !== 'empresa');
   }
 
+  get empresasSelecionadasIds(): string[] {
+    return this.empresasExecucao.map((empresa) => empresa.catalogoId).filter(Boolean);
+  }
+
   adicionarEmpresa(): void {
     this.empresasExecucao.push(this.novaEmpresa());
+  }
+
+  selecionarEmpresaCatalogo(empresa: EmpresaGrupoExecucao, catalogoId: string): void {
+    const cadastrada = this.empresasCatalogo.find((item) => item.id === catalogoId);
+
+    empresa.catalogoId = catalogoId;
+    empresa.nome = cadastrada?.nome ?? '';
+    empresa.codigos = cadastrada?.codigos.join(',') ?? '';
   }
 
   // ── Valores informados para empresas e filtros ─────────────────────────────
@@ -322,7 +308,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
   }
 
   adicionarValorFiltro(filtro: FiltroGrupoExecucao): void {
-    filtro.valores.push(this.novoValorFiltro());
+    filtro.valores.push(novoValorFiltro());
   }
 
   removerValorFiltro(filtro: FiltroGrupoExecucao, indice: number): void {
@@ -355,7 +341,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
       if (!relatorio) return total;
 
       const usaEmpresa = relatorio.filtros.some(
-        (filtro) => this.chaveLogicaFiltro(filtro.nomeFiltro) === 'empresa',
+        (filtro) => chaveLogicaFiltro(filtro.nomeFiltro) === 'empresa',
       );
 
       return total + (usaEmpresa ? empresasValidas : 1);
@@ -410,7 +396,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
             return;
           }
 
-          const nomeZip = this.sanitizarNomeArquivo(request.nomeArquivo);
+          const nomeZip = sanitizarNomeArquivo(request.nomeArquivo);
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
@@ -504,44 +490,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
    * mesmo valor pode alimentar nomes equivalentes sem expor filtros técnicos.
    */
   private montarFiltrosExecucao(grupo: RelatorioGrupoAutomatico): void {
-    const mapa = new Map<string, FiltroGrupoExecucao>();
-
-    grupo.itens.forEach((item) => {
-      const relatorio = this.relatorios.find((atual) => atual.id === item.relatorioId);
-      if (!relatorio) return;
-
-      this.filtrosNegocio(relatorio.filtros).forEach((filtro) => {
-        const chave = this.chaveLogicaFiltro(filtro.nomeFiltro);
-        const existente = mapa.get(chave);
-        const uso: UsoFiltroGrupo = {
-          relatorioId: relatorio.id,
-          nomeFiltro: filtro.nomeFiltro,
-          tipoDadoFiltro: filtro.tipoDadoFiltro,
-          obrigatorioFiltro: filtro.obrigatorioFiltro,
-        };
-
-        if (existente) {
-          existente.usos.push(uso);
-          existente.obrigatorio ||= filtro.obrigatorioFiltro === 'S';
-        } else {
-          mapa.set(chave, {
-            chave,
-            rotulo: this.rotuloChaveFiltro(chave, filtro.nomeFiltro),
-            usos: [uso],
-            obrigatorio: filtro.obrigatorioFiltro === 'S',
-            valores: [this.novoValorFiltro()],
-          });
-        }
-      });
-    });
-
-    this.filtrosExecucao = [...mapa.values()].sort((a, b) => {
-      if (a.chave === 'empresa') return -1;
-      if (b.chave === 'empresa') return 1;
-      if (a.chave === 'competencia') return -1;
-      if (b.chave === 'competencia') return 1;
-      return a.rotulo.localeCompare(b.rotulo, 'pt-BR');
-    });
+    this.filtrosExecucao = montarFiltrosGrupo(grupo, this.relatorios);
 
     this.empresasExecucao = this.filtroEmpresa ? [this.novaEmpresa()] : [];
   }
@@ -554,34 +503,41 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     const grupo = this.grupoSelecionado;
     if (!grupo) throw new Error('Selecione um grupo automático.');
 
-    const nomeZip = this.sanitizarNomeArquivo(this.nomeArquivoZip);
+    const nomeZip = sanitizarNomeArquivo(this.nomeArquivoZip);
     if (!nomeZip) throw new Error('Informe o nome do arquivo ZIP.');
 
     const empresas = this.empresasExecucao
-      .map((empresa) => ({
-        nome: this.sanitizarNomeArquivo(empresa.nome),
-        codigos: empresa.codigos.trim(),
-      }))
-      .filter((empresa) => empresa.nome || empresa.codigos);
+      .map((empresa) => {
+        if (!empresa.catalogoId) return null;
+
+        const cadastrada = this.empresasCatalogo.find((item) => item.id === empresa.catalogoId);
+        if (!cadastrada) {
+          throw new Error('Selecione uma empresa válida da lista disponível.');
+        }
+
+        return {
+          catalogoId: cadastrada.id,
+          nome: sanitizarNomeArquivo(cadastrada.nome),
+          codigos: cadastrada.codigos.join(','),
+        };
+      })
+      .filter((empresa): empresa is { catalogoId: string; nome: string; codigos: string } =>
+        Boolean(empresa),
+      );
 
     if (this.filtroEmpresa) {
       if (!empresas.length) {
-        throw new Error('Adicione pelo menos uma empresa para gerar o grupo.');
+        throw new Error('Selecione pelo menos uma empresa para gerar o grupo.');
       }
 
-      const incompleta = empresas.find((empresa) => !empresa.nome || !empresa.codigos);
-      if (incompleta) {
-        throw new Error('Cada empresa precisa ter os códigos e o nome usado nos arquivos.');
-      }
-
-      const nomes = empresas.map((empresa) => empresa.nome.toLowerCase());
-      if (new Set(nomes).size !== nomes.length) {
-        throw new Error('Os nomes das empresas não podem ser repetidos.');
+      const ids = empresas.map((empresa) => empresa.catalogoId);
+      if (new Set(ids).size !== ids.length) {
+        throw new Error('A mesma empresa não pode ser selecionada mais de uma vez.');
       }
     }
 
     this.filtrosGerais.forEach((filtro) => {
-      const valores = this.valoresPreenchidos(filtro);
+      const valores = valoresPreenchidos(filtro);
       if (filtro.obrigatorio && !valores.length) {
         throw new Error(`Preencha o filtro obrigatório “${filtro.rotulo}”.`);
       }
@@ -594,16 +550,16 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
       const relatorio = this.relatorios.find((atual) => atual.id === itemGrupo.relatorioId);
       if (!relatorio) return;
 
-      const filtrosRelatorio = this.filtrosNegocio(relatorio.filtros);
+      const filtrosRelatorio = filtrosNegocio(relatorio.filtros);
       const usaEmpresa = filtrosRelatorio.some(
-        (filtro) => this.chaveLogicaFiltro(filtro.nomeFiltro) === 'empresa',
+        (filtro) => chaveLogicaFiltro(filtro.nomeFiltro) === 'empresa',
       );
 
       const contextos: ContextoEmpresa[] = usaEmpresa
         ? empresas
         : [
             {
-              nome: this.sanitizarNomeArquivo(grupo.nome) || 'grupo',
+              nome: sanitizarNomeArquivo(grupo.nome) || 'grupo',
               codigos: '',
             },
           ];
@@ -645,31 +601,35 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     let combinacoes: Record<string, unknown>[] = [{}];
 
     const chaves = [
-      ...new Set(filtrosRelatorio.map((filtro) => this.chaveLogicaFiltro(filtro.nomeFiltro))),
+      ...new Set(filtrosRelatorio.map((filtro) => chaveLogicaFiltro(filtro.nomeFiltro))),
     ];
 
     chaves.forEach((chave) => {
       const filtrosDaChave = filtrosRelatorio.filter(
-        (filtro) => this.chaveLogicaFiltro(filtro.nomeFiltro) === chave,
+        (filtro) => chaveLogicaFiltro(filtro.nomeFiltro) === chave,
       );
 
       if (chave === 'empresa') {
-        combinacoes = combinacoes.map((combinacao) => {
+        // NUMBER exige uma consulta por código. O backend consolida as combinações
+        // no mesmo arquivo; VARCHAR continua recebendo a lista completa de códigos.
+        const possuiNumerico = filtrosDaChave.some((filtro) => filtro.tipoDadoFiltro.toUpperCase() === 'NUMBER');
+        const codigos = possuiNumerico ? contexto.codigos.split(',') : [contexto.codigos];
+        combinacoes = combinacoes.flatMap((combinacao) => codigos.map((codigo) => {
           const atualizada = { ...combinacao };
           filtrosDaChave.forEach((filtro) => {
             atualizada[filtro.nomeFiltro] = this.converterValorFiltro(
-              contexto.codigos,
+              possuiNumerico ? codigo : contexto.codigos,
               filtro,
               relatorio,
             );
           });
           return atualizada;
-        });
+        }));
         return;
       }
 
       const unificado = this.filtrosExecucao.find((filtro) => filtro.chave === chave);
-      const valores = unificado ? this.valoresPreenchidos(unificado) : [];
+      const valores = unificado ? valoresPreenchidos(unificado) : [];
       const obrigatorioNesteRelatorio = filtrosDaChave.some(
         (filtro) => filtro.obrigatorioFiltro === 'S',
       );
@@ -742,19 +702,19 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     usaEmpresa: boolean,
   ): string {
     const partes = [
-      usaEmpresa ? contexto.nome : this.sanitizarNomeArquivo(grupo.nome) || 'grupo',
-      this.sanitizarNomeArquivo(itemGrupo.nomeArquivo) || this.nomeCurtoRelatorio(relatorio),
+      usaEmpresa ? contexto.nome : sanitizarNomeArquivo(grupo.nome) || 'grupo',
+      sanitizarNomeArquivo(itemGrupo.nomeArquivo) || nomeCurtoRelatorio(relatorio),
     ];
 
     const chavesRelatorio = new Set(
-      this.filtrosNegocio(relatorio.filtros).map((filtro) =>
-        this.chaveLogicaFiltro(filtro.nomeFiltro),
+      filtrosNegocio(relatorio.filtros).map((filtro) =>
+        chaveLogicaFiltro(filtro.nomeFiltro),
       ),
     );
 
     this.filtrosGerais.forEach((filtro) => {
       if (!chavesRelatorio.has(filtro.chave)) return;
-      const valores = this.valoresPreenchidos(filtro);
+      const valores = valoresPreenchidos(filtro);
       if (!valores.length) return;
 
       if (filtro.chave === 'competencia') {
@@ -762,7 +722,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
       } else if (valores.length > 1) {
         partes.push(
           valores
-            .map((valor) => this.sanitizarNomeArquivo(valor))
+            .map((valor) => sanitizarNomeArquivo(valor))
             .filter(Boolean)
             .join('_'),
         );
@@ -777,7 +737,7 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     const todosAnoMes = limpos.every((valor) => /^\d{6}$/.test(valor));
 
     if (!todosAnoMes) {
-      return limpos.map((valor) => this.sanitizarNomeArquivo(valor)).join('_');
+      return limpos.map((valor) => sanitizarNomeArquivo(valor)).join('_');
     }
 
     const anos = new Set(limpos.map((valor) => valor.slice(0, 4)));
@@ -785,46 +745,10 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
   }
 
   private nomeArquivoUnico(nomeBase: string, nomesUsados: Map<string, number>): string {
-    const base = this.sanitizarNomeArquivo(nomeBase) || 'relatorio';
+    const base = sanitizarNomeArquivo(nomeBase) || 'relatorio';
     const quantidade = nomesUsados.get(base) ?? 0;
     nomesUsados.set(base, quantidade + 1);
     return quantidade === 0 ? base : `${base}_${quantidade + 1}`;
-  }
-
-  private valoresPreenchidos(filtro: FiltroGrupoExecucao): string[] {
-    const vistos = new Set<string>();
-    return filtro.valores
-      .map((item) => item.valor.trim())
-      .filter((valor) => {
-        if (!valor || vistos.has(valor)) return false;
-        vistos.add(valor);
-        return true;
-      });
-  }
-
-  private chaveLogicaFiltro(nome: string): string {
-    const normalizado = nome
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '');
-
-    if (normalizado.includes('empresa')) return 'empresa';
-    if (normalizado.startsWith('compet')) return 'competencia';
-    return normalizado || 'filtro';
-  }
-
-  private rotuloChaveFiltro(chave: string, nomeOriginal: string): string {
-    if (chave === 'empresa') return 'Empresas';
-    if (chave === 'competencia') return 'Competências';
-
-    return nomeOriginal.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letra) => letra.toUpperCase());
-  }
-
-  private filtrosNegocio(filtros: SguFiltro[]): SguFiltro[] {
-    return (filtros ?? []).filter(
-      (filtro) => filtro.nomeFiltro?.trim().toLowerCase() !== 'filtrotecnico',
-    );
   }
 
   private reconciliarGrupos(): void {
@@ -856,36 +780,12 @@ export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDest
     this.relatorioService.salvarGruposAutomaticos(this.grupos);
   }
 
-  private nomeCurtoRelatorio(relatorio: RelatorioCatalogo): string {
-    const nome = relatorio.nomeExibicao
-      .replace(/\brelat[oó]rio\b/gi, '')
-      .replace(/^\s*(de|da|do|dos|das)\s+/i, '')
-      .trim();
-    return this.sanitizarNomeArquivo(nome || relatorio.apiNome);
-  }
-
-  private sanitizarNomeArquivo(valor: string): string {
-    return String(valor ?? '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^[_-]+|[_-]+$/g, '');
-  }
-
   private novaEmpresa(): EmpresaGrupoExecucao {
     return {
       id: this.gerarId(),
+      catalogoId: '',
       codigos: '',
       nome: '',
-    };
-  }
-
-  private novoValorFiltro(): ValorFiltroGrupo {
-    return {
-      id: this.gerarId(),
-      valor: '',
     };
   }
 

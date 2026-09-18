@@ -325,6 +325,10 @@
   background: rgba(15, 23, 42, 0.02);
 }
 
+.company-row-catalog {
+  grid-template-columns: minmax(260px, 1fr) auto;
+}
+
 .field {
   display: flex;
   flex-direction: column;

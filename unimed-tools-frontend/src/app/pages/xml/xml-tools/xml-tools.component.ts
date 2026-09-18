@@ -262,12 +262,16 @@ export class XmlToolsComponent {
     return this.resultados.reduce((s, r) => s + r.guiasRenomeadas.length, 0);
   }
 
+  get totalLotes() {
+    return this.resultados.reduce((total, resultado) => total + resultado.lotesRenumerados.length, 0);
+  }
+
   get tudoOk() {
     return (
       this.totalPrefixos === 0 &&
       this.totalBlocos === 0 &&
       this.totalOutrasDespesasVazias === 0 &&
-      this.totalGuias === 0
+      this.totalGuias === 0 && this.totalLotes === 0
     );
   }
 

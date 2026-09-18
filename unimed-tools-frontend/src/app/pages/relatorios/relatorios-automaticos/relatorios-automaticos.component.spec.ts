@@ -115,3 +115,77 @@ describe('RelatoriosAutomaticosComponent', () => {
     vi.useRealTimers();
   });
 });
+
+// Mantém o cenário de empresa coberto no mesmo nível em que o lote é montado.
+describe('RelatoriosAutomaticosComponent - catálogo de empresas', () => {
+  it('converte o nome selecionado nos códigos antes de exportar o lote', () => {
+    const resposta$ = new Subject<HttpResponse<Blob>>();
+    const relatorioService = {
+      exportarLote: vi.fn(() => resposta$.asObservable()),
+    } as unknown as RelatorioService;
+    const component = new RelatoriosAutomaticosComponent(relatorioService, {
+      detectChanges: vi.fn(),
+    } as unknown as ChangeDetectorRef);
+
+    const relatorio = {
+      id: 'despesa-empresa',
+      nomeExibicao: 'Despesa por empresa',
+      descricao: '',
+      apiNome: 'api-despesa-empresa',
+      filtros: [
+        {
+          nomeFiltro: 'empresa',
+          conteudoFiltro: '',
+          tipoDadoFiltro: 'VARCHAR2',
+          mascaraFiltro: '',
+          obrigatorioFiltro: 'S' as const,
+        },
+        {
+          nomeFiltro: 'competencia',
+          conteudoFiltro: '',
+          tipoDadoFiltro: 'NUMBER',
+          mascaraFiltro: '',
+          obrigatorioFiltro: 'S' as const,
+        },
+      ],
+      criadoEm: '2026-09-17T00:00:00.000Z',
+    };
+    const grupo = {
+      id: 'grupo-empresas',
+      nome: 'Empresas',
+      descricao: '',
+      formato: 'xlsx' as const,
+      itens: [{ relatorioId: relatorio.id, nomeArquivo: 'despesa' }],
+      criadoEm: '2026-09-17T00:00:00.000Z',
+    };
+
+    component.relatorios = [relatorio];
+    component.selecionarGrupo(grupo);
+    component.nomeArquivoZip = 'empresas';
+    component.selecionarEmpresaCatalogo(component.empresasExecucao[0], 'yakult');
+    component.filtrosGerais[0].valores[0].valor = '202609';
+
+    component.gerarGrupoAutomaticamente();
+
+    expect(relatorioService.exportarLote).toHaveBeenCalledWith({
+      nomeArquivo: 'empresas',
+      formato: 'xlsx',
+      itens: [
+        {
+          apiNome: 'api-despesa-empresa',
+          nomeArquivo: 'yakult_despesa_09',
+          combinacoesFiltros: [
+            {
+              empresa: '2232751,2234452',
+              competencia: 202609,
+            },
+          ],
+        },
+      ],
+    });
+
+    resposta$.next(new HttpResponse<Blob>({ body: null }));
+    resposta$.complete();
+    component.ngOnDestroy();
+  });
+});

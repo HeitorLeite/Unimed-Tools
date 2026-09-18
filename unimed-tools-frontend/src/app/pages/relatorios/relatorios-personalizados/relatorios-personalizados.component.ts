@@ -14,6 +14,8 @@ import {
   Output,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { FiltrosRelatorioComponent } from './filtros-relatorio.component';
+import { ColunasRelatorioComponent } from './colunas-relatorio.component';
 import { finalize } from 'rxjs';
 
 import {
@@ -40,7 +42,7 @@ type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
 @Component({
   selector: 'app-relatorios-personalizados',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, FiltrosRelatorioComponent, ColunasRelatorioComponent],
   templateUrl: './relatorios-personalizados.component.html',
   styleUrls: ['./relatorios-personalizados.component.scss'],
 })
@@ -51,6 +53,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   gruposFiltros: Grupo<RelatorioPersonalizadoFiltro>[] = [];
   gruposColunas: Grupo<RelatorioPersonalizadoColuna>[] = [];
   valoresFiltro: Record<string, string> = {};
+  versaoLimpezaFiltros = 0;
   colunasSelecionadas = new Set<string>();
   ordemColunasSelecionadas: string[] = [];
 
@@ -333,6 +336,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   }
 
   limparFiltros(): void {
+    this.versaoLimpezaFiltros++;
     const competenciaAtual = this.competenciaAtual();
     Object.keys(this.valoresFiltro).forEach((chave) => (this.valoresFiltro[chave] = ''));
     this.valoresFiltro['competencia_inicio'] = competenciaAtual;
@@ -346,6 +350,11 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
 
   rotuloColuna(id: string): string {
     return this.configuracao?.colunas.find((coluna) => coluna.id === id)?.rotulo ?? id;
+  }
+
+  atualizarFiltros(valores: Record<string, string>): void {
+    this.valoresFiltro = valores;
+    this.limparPrevia();
   }
 
   valorCelula(coluna: string, valor: unknown): string {

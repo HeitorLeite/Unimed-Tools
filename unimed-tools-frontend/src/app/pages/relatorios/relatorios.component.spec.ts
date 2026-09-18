@@ -4,6 +4,7 @@ import { Subject, of, throwError } from 'rxjs';
 
 import { RelatorioService } from '../../shared/services/relatorio.service';
 import { RelatoriosComponent } from './relatorios.component';
+import { extrairPrimeiraInstrucaoSql } from './sql/sql-lexico';
 
 describe('RelatoriosComponent - importação SQL', () => {
   const criarComponente = (): RelatoriosComponent => {
@@ -296,7 +297,7 @@ describe('RelatoriosComponent - importação SQL', () => {
 
   it('ignora anotações após o ponto e vírgula da consulta principal', () => {
     const component = criarComponente();
-    const resultado = (component as any).extrairPrimeiraInstrucaoSql(`
+    const resultado = extrairPrimeiraInstrucaoSql(`
       SELECT 'texto; preservado' valor
       FROM dual
       -- comentário com ; preservado

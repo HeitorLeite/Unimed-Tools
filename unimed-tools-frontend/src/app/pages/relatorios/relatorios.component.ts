@@ -1,3 +1,8 @@
+import { extrairPrimeiraInstrucaoSql, normalizarVariaveisBindSql } from './sql/sql-lexico';
+import { filtroDetectadoDoSql, detectarFiltrosFixosSimples, converterParametrosFixosSql, converterFiltrosFixosCteSql } from './sql/sql-filtros';
+import { ajustarEstruturaSqlImportado } from './sql/sql-estrutura';
+import { normalizarFiltros, filtrosDeNegocio, removerFiltroTecnicoDaDefinicao, prepararDefinicaoParaSgu, clonarDefinicaoApi, validarDefinicaoApi, validarCorrespondenciaBind, filtroVazio } from './sql/sgu-definicao';
+import { ArquivoSqlImportado } from './sql/sql-importacao.model';
 /**
  * Coordena catálogo, APIs SGU, SQL importado, execução manual, templates e exportações.
  */
@@ -26,48 +31,6 @@ import { RelatoriosPersonalizadosComponent } from './relatorios-personalizados/r
 
 type ModoCadastro = 'existente' | 'lista' | 'nova' | 'arquivos';
 type ModoPaginaRelatorios = 'selecao' | 'manual' | 'automatico' | 'personalizado';
-
-type StatusArquivoSql = 'pendente' | 'criando' | 'sucesso' | 'erro';
-
-interface FiltroFixoSqlDetectado {
-  id: string;
-  assinatura: string;
-  predicadoOriginal: string;
-  marcador: string;
-  filtro: SguFiltro;
-}
-
-interface ArquivoSqlImportado {
-  id: string;
-  arquivoNome: string;
-  tamanhoBytes: number;
-  apiNome: string;
-  nomeExibicao: string;
-  descricao: string;
-  consultaSQL: string;
-  ordenacao: string;
-  filtros: SguFiltro[];
-  filtrosFixosDetectados: FiltroFixoSqlDetectado[];
-  filtrosFixosIgnorados: string[];
-  ajustesAplicados: string[];
-  detalhesAbertos: boolean;
-  status: StatusArquivoSql;
-  erro: string;
-}
-
-interface TokenSqlNivelZero {
-  palavra: string;
-  inicio: number;
-  fim: number;
-}
-
-interface EstruturaConsultaPrincipal {
-  select: TokenSqlNivelZero;
-  where?: TokenSqlNivelZero;
-  limiteCondicoes: number;
-  fimRamo: number;
-  operadorConjunto?: TokenSqlNivelZero;
-}
 
 @Component({
   selector: 'app-relatorios',
@@ -125,7 +88,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   novaDescricao = '';
   novaConsultaSql = '';
   novaOrdenacao = '';
-  novosFiltros: SguFiltro[] = [this.filtroVazio()];
+  novosFiltros: SguFiltro[] = [filtroVazio()];
 
   arquivosSqlImportados: ArquivoSqlImportado[] = [];
   carregandoArquivosSql = false;
@@ -144,7 +107,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   editarDescricao = '';
   editarConsultaSql = '';
   editarOrdenacao = '';
-  filtrosEdicao: SguFiltro[] = [this.filtroVazio()];
+  filtrosEdicao: SguFiltro[] = [filtroVazio()];
 
   carregandoListaApis = false;
   listaApisCarregada = false;
@@ -170,7 +133,6 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   private intervaloExportacao?: ReturnType<typeof setInterval>;
   private inicioGeracao = 0;
   private readonly timeoutGeracaoMs = 120_000;
-  private readonly nomeFiltroTecnicoSemFiltros = 'filtrotecnico';
   private readonly valoresFiltroPorRelatorio: Record<string, Record<string, string | number>> = {};
 
   get operacaoRelatorioEmAndamento(): boolean {
@@ -276,7 +238,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     this.novaDescricao = '';
     this.novaConsultaSql = '';
     this.novaOrdenacao = '';
-    this.novosFiltros = [this.filtroVazio()];
+    this.novosFiltros = [filtroVazio()];
     this.arquivosSqlImportados = [];
     this.carregandoArquivosSql = false;
     this.criandoApisEmLote = false;
@@ -333,7 +295,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (api) => {
-          this.apiEncontrada = this.removerFiltroTecnicoDaDefinicao(api);
+          this.apiEncontrada = removerFiltroTecnicoDaDefinicao(api);
           this.novoNomeExibicao ||= this.tituloAPartirDoNome(api.nome);
         },
         error: (err) => {
@@ -441,7 +403,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   }
 
   adicionarFiltro(): void {
-    this.novosFiltros.push(this.filtroVazio());
+    this.novosFiltros.push(filtroVazio());
   }
 
   removerFiltro(indice: number): void {
@@ -456,7 +418,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
 
     if (!nome || !conteudo || conteudo === 'and') return '';
 
-    return this.validarCorrespondenciaBind(filtro);
+    return validarCorrespondenciaBind(filtro);
   }
 
   criarNovaApi(): void {
@@ -464,7 +426,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       nome: this.novoApiNome.trim(),
       consultaSQL: this.novaConsultaSql.trim(),
       ordenacao: this.novaOrdenacao.trim(),
-      filtros: this.normalizarFiltros(this.novosFiltros),
+      filtros: normalizarFiltros(this.novosFiltros),
     };
 
     const validacao = this.validarNovaApi(definicaoNegocio);
@@ -474,7 +436,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const definicaoSgu = this.prepararDefinicaoParaSgu(definicaoNegocio);
+    const definicaoSgu = prepararDefinicaoParaSgu(definicaoNegocio);
 
     this.salvandoApi = true;
     this.erro = '';
@@ -548,7 +510,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   }
 
   adicionarFiltroArquivoSql(arquivo: ArquivoSqlImportado): void {
-    arquivo.filtros.push(this.filtroVazio());
+    arquivo.filtros.push(filtroVazio());
     this.ajustarArquivoSql(arquivo);
   }
 
@@ -592,9 +554,9 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   ajustarArquivoSql(arquivo: ArquivoSqlImportado): void {
     if (this.criandoApisEmLote) return;
 
-    const parametrosConvertidos = this.converterParametrosFixosSql(arquivo.consultaSQL);
-    const filtrosCteConvertidos = this.converterFiltrosFixosCteSql(parametrosConvertidos.sql);
-    const bindsNormalizados = this.normalizarVariaveisBindSql(filtrosCteConvertidos.sql);
+    const parametrosConvertidos = converterParametrosFixosSql(arquivo.consultaSQL);
+    const filtrosCteConvertidos = converterFiltrosFixosCteSql(parametrosConvertidos.sql);
+    const bindsNormalizados = normalizarVariaveisBindSql(filtrosCteConvertidos.sql);
 
     const nomesExistentes = new Set(
       arquivo.filtros.map((filtro) => filtro.nomeFiltro.trim().toLowerCase()),
@@ -602,12 +564,12 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
 
     for (const nome of bindsNormalizados.variaveis) {
       if (!nomesExistentes.has(nome)) {
-        arquivo.filtros.push(this.filtroDetectadoDoSql(nome));
+        arquivo.filtros.push(filtroDetectadoDoSql(nome));
         nomesExistentes.add(nome);
       }
     }
 
-    const filtrosSimples = this.detectarFiltrosFixosSimples(
+    const filtrosSimples = detectarFiltrosFixosSimples(
       bindsNormalizados.sql,
       nomesExistentes,
       new Set(arquivo.filtrosFixosIgnorados),
@@ -625,7 +587,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
      * marcador preparado; no payload será incluído um filtro técnico
      * opcional e invisível para o usuário quando necessário.
      */
-    const resultado = this.ajustarEstruturaSqlImportado(filtrosSimples.sql, true);
+    const resultado = ajustarEstruturaSqlImportado(filtrosSimples.sql, true);
 
     arquivo.consultaSQL = resultado.sql;
     arquivo.ajustesAplicados = Array.from(
@@ -665,12 +627,12 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       return `A API “${arquivo.apiNome.trim()}” já está no catálogo. Use a opção Editar API.`;
     }
 
-    return this.validarDefinicaoApi(
+    return validarDefinicaoApi(
       {
         nome: arquivo.apiNome.trim(),
         consultaSQL: arquivo.consultaSQL,
         ordenacao: arquivo.ordenacao.trim(),
-        filtros: this.normalizarFiltros(arquivo.filtros),
+        filtros: normalizarFiltros(arquivo.filtros),
       },
       arquivo.nomeExibicao,
     );
@@ -782,7 +744,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
         nomeExibicao: arquivo.nomeExibicao.trim(),
         descricao: arquivo.descricao.trim(),
         apiNome: definicao.nome,
-        filtros: this.filtrosDeNegocio(definicao.filtros),
+        filtros: filtrosDeNegocio(definicao.filtros),
         criadoEm: agora,
       }));
 
@@ -848,11 +810,11 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (api) => {
-          this.apiOriginalEdicao = this.clonarDefinicaoApi(api);
+          this.apiOriginalEdicao = clonarDefinicaoApi(api);
           this.editarApiNome = api.nome;
           this.editarConsultaSql = api.consultaSQL ?? '';
           this.editarOrdenacao = api.ordenacao ?? '';
-          this.filtrosEdicao = this.filtrosDeNegocio(api.filtros);
+          this.filtrosEdicao = filtrosDeNegocio(api.filtros);
         },
         error: (err) => {
           this.erro = this.mensagemErro(
@@ -874,7 +836,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   }
 
   adicionarFiltroEdicao(): void {
-    this.filtrosEdicao.push(this.filtroVazio());
+    this.filtrosEdicao.push(filtroVazio());
   }
 
   removerFiltroEdicao(indice: number): void {
@@ -890,20 +852,20 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       nome: this.editarApiNome.trim(),
       consultaSQL: this.editarConsultaSql.trim(),
       ordenacao: this.editarOrdenacao.trim(),
-      filtros: this.normalizarFiltros(this.filtrosEdicao),
+      filtros: normalizarFiltros(this.filtrosEdicao),
     };
 
-    const validacao = this.validarDefinicaoApi(novaDefinicaoNegocio, this.editarNomeExibicao);
+    const validacao = validarDefinicaoApi(novaDefinicaoNegocio, this.editarNomeExibicao);
 
     if (validacao) {
       this.erro = validacao;
       return;
     }
 
-    const novaDefinicaoSgu = this.prepararDefinicaoParaSgu(novaDefinicaoNegocio);
+    const novaDefinicaoSgu = prepararDefinicaoParaSgu(novaDefinicaoNegocio);
     const nomeAnterior = this.relatorioEmEdicao.apiNome;
     const idRelatorio = this.relatorioEmEdicao.id;
-    const definicaoAnterior = this.clonarDefinicaoApi(this.apiOriginalEdicao);
+    const definicaoAnterior = clonarDefinicaoApi(this.apiOriginalEdicao);
 
     this.salvandoEdicao = true;
     this.erro = '';
@@ -925,7 +887,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
             nomeExibicao: this.editarNomeExibicao.trim(),
             descricao: this.editarDescricao.trim(),
             apiNome: novaDefinicaoSgu.nome,
-            filtros: this.filtrosDeNegocio(novaDefinicaoSgu.filtros),
+            filtros: filtrosDeNegocio(novaDefinicaoSgu.filtros),
           };
 
           this.atualizarRelatorioEditado(atualizado);
@@ -1423,7 +1385,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
         validos.map(async (arquivo) => {
           const textoOriginal = await arquivo.text();
           const textoSemBom = textoOriginal.replace(/^\uFEFF/, '').trim();
-          const instrucaoPrincipal = this.extrairPrimeiraInstrucaoSql(textoSemBom);
+          const instrucaoPrincipal = extrairPrimeiraInstrucaoSql(textoSemBom);
           const nomeBase = arquivo.name.replace(/\.(sql|txt)$/i, '');
 
           const importado: ArquivoSqlImportado = {
@@ -1473,11 +1435,11 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   }
 
   private definicaoDoArquivoSql(arquivo: ArquivoSqlImportado): SguApiDefinicao {
-    return this.prepararDefinicaoParaSgu({
+    return prepararDefinicaoParaSgu({
       nome: arquivo.apiNome.trim(),
       consultaSQL: arquivo.consultaSQL,
       ordenacao: arquivo.ordenacao.trim(),
-      filtros: this.normalizarFiltros(arquivo.filtros),
+      filtros: normalizarFiltros(arquivo.filtros),
     });
   }
 
@@ -1493,1484 +1455,10 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
     return `0090-${base || 'nova-api'}`;
   }
 
-  /**
-   * Arquivos usados pela equipe podem manter consultas auxiliares ou notas
-   * depois do SELECT principal. O SGU aceita uma única instrução e rejeita o
-   * terminador `;`, por isso somente o primeiro terminador fora de textos e
-   * comentários delimita o SQL importado.
-   */
-  private extrairPrimeiraInstrucaoSql(sqlOriginal: string): {
-    sql: string;
-    conteudoPosteriorIgnorado: boolean;
-  } {
-    let indice = 0;
-    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
-
-    while (indice < sqlOriginal.length) {
-      const atual = sqlOriginal[indice];
-      const proximo = sqlOriginal[indice + 1] ?? '';
-
-      if (estado === 'texto') {
-        if (atual === "'" && proximo === "'") {
-          indice += 2;
-          continue;
-        }
-        if (atual === "'") estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'identificador') {
-        if (atual === '"' && proximo === '"') {
-          indice += 2;
-          continue;
-        }
-        if (atual === '"') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'linha') {
-        if (atual === '\n') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'bloco') {
-        if (atual === '*' && proximo === '/') {
-          estado = 'normal';
-          indice += 2;
-          continue;
-        }
-        indice += 1;
-        continue;
-      }
-
-      if (atual === "'") estado = 'texto';
-      else if (atual === '"') estado = 'identificador';
-      else if (atual === '-' && proximo === '-') {
-        estado = 'linha';
-        indice += 2;
-        continue;
-      } else if (atual === '/' && proximo === '*') {
-        estado = 'bloco';
-        indice += 2;
-        continue;
-      } else if (atual === ';') {
-        const trechoPrincipal = sqlOriginal.slice(0, indice).trim();
-        const semComentariosFinais = this.removerComentariosFinaisSql(trechoPrincipal);
-        const posterior = sqlOriginal.slice(indice + 1).trim();
-        return {
-          sql: semComentariosFinais.sql,
-          conteudoPosteriorIgnorado:
-            posterior.length > 0 || semComentariosFinais.comentariosRemovidos,
-        };
-      }
-
-      indice += 1;
-    }
-
-    const semComentariosFinais = this.removerComentariosFinaisSql(sqlOriginal.trim());
-
-    return {
-      sql: semComentariosFinais.sql,
-      conteudoPosteriorIgnorado: semComentariosFinais.comentariosRemovidos,
-    };
-  }
-
-  /**
-   * Comentários após o último token executável são anotações do arquivo,
-   * não parte da consulta. Removê-los evita que o SGU reposicione o marcador
-   * de filtros dentro de um bloco comentado ao persistir a definição.
-   */
-  private removerComentariosFinaisSql(sqlOriginal: string): {
-    sql: string;
-    comentariosRemovidos: boolean;
-  } {
-    let indice = 0;
-    let fimExecutavel = 0;
-    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
-
-    while (indice < sqlOriginal.length) {
-      const atual = sqlOriginal[indice];
-      const proximo = sqlOriginal[indice + 1] ?? '';
-
-      if (estado === 'texto') {
-        fimExecutavel = indice + 1;
-        if (atual === "'" && proximo === "'") {
-          fimExecutavel = indice + 2;
-          indice += 2;
-          continue;
-        }
-        if (atual === "'") estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'identificador') {
-        fimExecutavel = indice + 1;
-        if (atual === '"' && proximo === '"') {
-          fimExecutavel = indice + 2;
-          indice += 2;
-          continue;
-        }
-        if (atual === '"') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'linha') {
-        if (atual === '\n') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'bloco') {
-        if (atual === '*' && proximo === '/') {
-          estado = 'normal';
-          indice += 2;
-          continue;
-        }
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '-' && proximo === '-') {
-        estado = 'linha';
-        indice += 2;
-        continue;
-      }
-
-      if (atual === '/' && proximo === '*') {
-        estado = 'bloco';
-        indice += 2;
-        continue;
-      }
-
-      if (atual === "'") estado = 'texto';
-      else if (atual === '"') estado = 'identificador';
-
-      if (!/\s/.test(atual)) fimExecutavel = indice + 1;
-      indice += 1;
-    }
-
-    // Um delimitador aberto deve permanecer no texto para a validação acusar
-    // o erro, em vez de ser silenciosamente descartado como comentário final.
-    if (estado === 'bloco' || estado === 'texto' || estado === 'identificador') {
-      return { sql: sqlOriginal.trim(), comentariosRemovidos: false };
-    }
-
-    const sqlSemEspacosFinais = sqlOriginal.trimEnd();
-    const comentariosRemovidos = fimExecutavel < sqlSemEspacosFinais.length;
-
-    return {
-      sql: comentariosRemovidos
-        ? sqlOriginal.slice(0, fimExecutavel).trimEnd()
-        : sqlSemEspacosFinais,
-      comentariosRemovidos,
-    };
-  }
-
-  private validarDelimitadoresSql(sql: string): string {
-    let indice = 0;
-    let linha = 1;
-    let linhaAbertura = 1;
-    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
-
-    while (indice < sql.length) {
-      const atual = sql[indice];
-      const proximo = sql[indice + 1] ?? '';
-
-      if (estado === 'texto') {
-        if (atual === "'" && proximo === "'") {
-          indice += 2;
-          continue;
-        }
-        if (atual === "'") estado = 'normal';
-        if (atual === '\n') linha += 1;
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'identificador') {
-        if (atual === '"' && proximo === '"') {
-          indice += 2;
-          continue;
-        }
-        if (atual === '"') estado = 'normal';
-        if (atual === '\n') linha += 1;
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'linha') {
-        if (atual === '\n') {
-          linha += 1;
-          estado = 'normal';
-        }
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'bloco') {
-        if (atual === '*' && proximo === '/') {
-          estado = 'normal';
-          indice += 2;
-          continue;
-        }
-        if (atual === '\n') linha += 1;
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '-' && proximo === '-') {
-        estado = 'linha';
-        indice += 2;
-        continue;
-      }
-
-      if (atual === '/' && proximo === '*') {
-        linhaAbertura = linha;
-        estado = 'bloco';
-        indice += 2;
-        continue;
-      }
-
-      if (atual === '*' && proximo === '/') {
-        return `A consulta SQL possui um fechamento de comentário */ sem abertura na linha ${linha}.`;
-      }
-
-      if (atual === "'") {
-        linhaAbertura = linha;
-        estado = 'texto';
-      } else if (atual === '"') {
-        linhaAbertura = linha;
-        estado = 'identificador';
-      } else if (atual === '\n') {
-        linha += 1;
-      }
-
-      indice += 1;
-    }
-
-    if (estado === 'bloco') {
-      return `A consulta SQL possui um comentário /* sem fechamento, iniciado na linha ${linhaAbertura}.`;
-    }
-
-    if (estado === 'texto') {
-      return `A consulta SQL possui um texto entre aspas simples sem fechamento, iniciado na linha ${linhaAbertura}.`;
-    }
-
-    if (estado === 'identificador') {
-      return `A consulta SQL possui um identificador entre aspas duplas sem fechamento, iniciado na linha ${linhaAbertura}.`;
-    }
-
-    return '';
-  }
-
-  private filtroDetectadoDoSql(nome: string): SguFiltro {
-    const tipo = this.inferirTipoFiltroSql(nome);
-
-    if (nome === 'competencia' || nome === 'compet') {
-      return {
-        nomeFiltro: nome,
-        conteudoFiltro: `and TO_NUMBER(:${nome}) BETWEEN 190001 AND 299912`,
-        tipoDadoFiltro: 'NUMBER',
-        mascaraFiltro: '',
-        obrigatorioFiltro: 'S',
-      };
-    }
-
-    return {
-      nomeFiltro: nome,
-      conteudoFiltro: `and :${nome} is not null`,
-      tipoDadoFiltro: tipo,
-      mascaraFiltro: tipo === 'DATE' ? 'DD/MM/YYYY' : '',
-      obrigatorioFiltro: 'S',
-    };
-  }
-
-  private inferirTipoFiltroSql(nome: string): string {
-    const normalizado = nome.toLowerCase();
-
-    if (
-      /(^|_)(data|dt)(_|$)/.test(normalizado) ||
-      normalizado.includes('nascimento') ||
-      normalizado.includes('vencimento')
-    ) {
-      return 'DATE';
-    }
-
-    if (/(empresas|itens|codigos|nomes|lista|ids)$/.test(normalizado)) {
-      return 'VARCHAR(4000)';
-    }
-
-    if (/(competencia|ano|mes|codigo|cod|id|numero|nro|grupo|unimed|empresa)$/.test(normalizado)) {
-      return 'NUMBER';
-    }
-
-    return 'VARCHAR(4000)';
-  }
-
-  /**
-   * Identifica comparações literais simples e as transforma em filtros
-   * editáveis. Casos ambíguos permanecem no SQL para evitar alterar a consulta
-   * silenciosamente.
-   */
-  private detectarFiltrosFixosSimples(
-    sqlOriginal: string,
-    nomesExistentes: Set<string>,
-    assinaturasIgnoradas: Set<string>,
-  ): {
-    sql: string;
-    deteccoes: FiltroFixoSqlDetectado[];
-    ajustes: string[];
-  } {
-    let sql = sqlOriginal;
-    const deteccoes: FiltroFixoSqlDetectado[] = [];
-    const ajustes: string[] = [];
-    const sqlMascarado = this.mascaraSqlSemTextosEComentarios(sqlOriginal);
-    const estruturaPrincipal = this.localizarConsultaPrincipal(sqlOriginal);
-    const inicioWherePrincipal = estruturaPrincipal?.where?.fim ?? -1;
-    const fimWherePrincipal = estruturaPrincipal?.limiteCondicoes ?? -1;
-    const candidatos: Array<{
-      inicio: number;
-      fim: number;
-      coluna: string;
-      operador: 'IN' | '=';
-      valores: string[];
-      predicadoOriginal: string;
-    }> = [];
-
-    const identificador = '((?:[A-Za-z_][A-Za-z0-9_$#]*\\.)?[A-Za-z_][A-Za-z0-9_$#]*)';
-    const literal = "(?:-?\\d+(?:\\.\\d+)?|'(?:''|[^'])*')";
-    const regexIn = new RegExp(
-      `\\b${identificador}\\s+IN\\s*\\(\\s*(${literal}(?:\\s*,\\s*${literal})*)\\s*\\)`,
-      'gi',
-    );
-    let correspondencia: RegExpExecArray | null;
-
-    while ((correspondencia = regexIn.exec(sqlOriginal)) !== null) {
-      if (!this.ehTrechoSqlExecutavel(sqlMascarado, correspondencia.index, correspondencia[1])) {
-        continue;
-      }
-
-      candidatos.push({
-        inicio: correspondencia.index,
-        fim: correspondencia.index + correspondencia[0].length,
-        coluna: correspondencia[1],
-        operador: 'IN',
-        valores: this.extrairLiteraisSql(correspondencia[2]),
-        predicadoOriginal: sqlOriginal.slice(
-          correspondencia.index,
-          correspondencia.index + correspondencia[0].length,
-        ),
-      });
-    }
-
-    const regexIgual = new RegExp(`\\b${identificador}\\s*=\\s*(${literal})`, 'gi');
-
-    while ((correspondencia = regexIgual.exec(sqlOriginal)) !== null) {
-      const inicio = correspondencia.index;
-      const fim = correspondencia.index + correspondencia[0].length;
-
-      if (!this.ehTrechoSqlExecutavel(sqlMascarado, inicio, correspondencia[1])) continue;
-
-      if (candidatos.some((candidato) => inicio >= candidato.inicio && fim <= candidato.fim)) {
-        continue;
-      }
-
-      candidatos.push({
-        inicio,
-        fim,
-        coluna: correspondencia[1],
-        operador: '=',
-        valores: [correspondencia[2].trim()],
-        predicadoOriginal: sqlOriginal.slice(inicio, fim),
-      });
-    }
-
-    const candidatosValidos = candidatos
-      .map((candidato) => ({
-        ...candidato,
-        nomeFiltro: this.nomeFiltroPorColunaSql(candidato.coluna),
-      }))
-      .filter(
-        (candidato) =>
-          Boolean(candidato.nomeFiltro) &&
-          (candidato.operador === 'IN' ||
-            this.nomeFiltroConhecidoPorColunaSql(candidato.coluna) !== null) &&
-          inicioWherePrincipal >= 0 &&
-          candidato.inicio >= inicioWherePrincipal &&
-          candidato.fim <= fimWherePrincipal &&
-          !nomesExistentes.has(candidato.nomeFiltro!),
-      )
-      .sort((a, b) => b.inicio - a.inicio);
-
-    for (const candidato of candidatosValidos) {
-      const nomeFiltro = candidato.nomeFiltro!;
-
-      if (nomesExistentes.has(nomeFiltro)) continue;
-
-      const assinatura = this.assinaturaFiltroFixo(
-        candidato.coluna,
-        candidato.operador,
-        candidato.valores,
-      );
-
-      if (assinaturasIgnoradas.has(assinatura)) continue;
-
-      const id = this.gerarId();
-      const marcador = `/*AUTO_FILTRO_FIXO:${id}*/`;
-      const filtro = this.criarFiltroDeCondicaoFixa(
-        nomeFiltro,
-        candidato.coluna,
-        candidato.operador,
-        candidato.valores,
-      );
-
-      sql = sql.slice(0, candidato.inicio) + `1 = 1 ${marcador}` + sql.slice(candidato.fim);
-
-      const deteccao: FiltroFixoSqlDetectado = {
-        id,
-        assinatura,
-        predicadoOriginal: candidato.predicadoOriginal.trim(),
-        marcador,
-        filtro,
-      };
-
-      deteccoes.unshift(deteccao);
-      nomesExistentes.add(nomeFiltro);
-      ajustes.push(
-        `A condição fixa “${deteccao.predicadoOriginal}” foi transformada no filtro :${nomeFiltro}.`,
-      );
-    }
-
-    return { sql, deteccoes, ajustes };
-  }
-
-  private nomeFiltroPorColunaSql(colunaCompleta: string): string | null {
-    const conhecido = this.nomeFiltroConhecidoPorColunaSql(colunaCompleta);
-    if (conhecido) return conhecido;
-
-    const coluna = colunaCompleta.split('.').pop()!.toUpperCase();
-
-    if (coluna === 'RNUM' || coluna === 'ROWNUM' || coluna === 'RN') return null;
-
-    const generico = coluna
-      .toLowerCase()
-      .replace(/[^a-z0-9_]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 60);
-
-    return generico || null;
-  }
-
-  private nomeFiltroConhecidoPorColunaSql(colunaCompleta: string): string | null {
-    const coluna = colunaCompleta.split('.').pop()!.toUpperCase();
-
-    if (coluna.includes('COMPET')) return 'competencia';
-
-    if (coluna === 'GRBNF_COD') return 'grbnf_cod';
-
-    if (
-      coluna === 'GRUPO_COD' ||
-      coluna === 'COD_GRUPO' ||
-      coluna === 'GRPRE_COD' ||
-      coluna.endsWith('_COD_GRUPO')
-    ) {
-      return 'grupo';
-    }
-
-    if (
-      coluna === 'EMPCN_COD_PESSOA' ||
-      coluna === 'COD_EMPRESA' ||
-      coluna === 'EMPRESA_COD' ||
-      coluna === 'COD_PESSOA_EMPRESA'
-    ) {
-      return 'empresas';
-    }
-
-    if (
-      coluna === 'GUIA_COD_UNIMED_EXECUT' ||
-      coluna === 'COD_UNIMED_EXECUT' ||
-      coluna === 'UNIMED_EXECUTORA'
-    ) {
-      return 'unimedexecutora';
-    }
-
-    if (
-      coluna === 'ITEM_COD' ||
-      coluna === 'COD_TUSS' ||
-      coluna === 'COD_AMB' ||
-      coluna === 'COD_PROCEDIMENTO'
-    ) {
-      return 'itens';
-    }
-
-    return null;
-  }
-
-  private criarFiltroDeCondicaoFixa(
-    nomeFiltro: string,
-    coluna: string,
-    operador: 'IN' | '=',
-    valores: string[],
-  ): SguFiltro {
-    const filtroLista = nomeFiltro === 'empresas' || nomeFiltro === 'itens' || operador === 'IN';
-
-    if (filtroLista) {
-      return {
-        nomeFiltro,
-        conteudoFiltro: `and instr(',' || replace(:${nomeFiltro}, ' ', '') || ',', ',' || to_char(${coluna}) || ',') > 0`,
-        tipoDadoFiltro: 'VARCHAR(4000)',
-        mascaraFiltro: '',
-        obrigatorioFiltro: 'S',
-      };
-    }
-
-    return {
-      nomeFiltro,
-      conteudoFiltro: `and ${coluna} = :${nomeFiltro}`,
-      tipoDadoFiltro: valores.every((valor) => this.ehLiteralTextoSql(valor))
-        ? 'VARCHAR(4000)'
-        : 'NUMBER',
-      mascaraFiltro: '',
-      obrigatorioFiltro: 'S',
-    };
-  }
-
-  private assinaturaFiltroFixo(coluna: string, operador: string, valores: string[]): string {
-    return `${coluna.toUpperCase()}|${operador.toUpperCase()}|${valores.join(',')}`;
-  }
-
-  private extrairLiteraisSql(lista: string): string[] {
-    return lista.match(/'(?:''|[^'])*'|-?\d+(?:\.\d+)?/g)?.map((valor) => valor.trim()) ?? [];
-  }
-
-  private ehLiteralTextoSql(valor: string): boolean {
-    return /^'(?:''|[^'])*'$/.test(valor.trim());
-  }
-
-  private ehTrechoSqlExecutavel(sqlMascarado: string, inicio: number, coluna: string): boolean {
-    return sqlMascarado.slice(inicio, inicio + coluna.length).trim().length > 0;
-  }
-
-  /**
-   * Produz uma máscara com o mesmo comprimento do SQL original. Preservar as
-   * posições permite localizar tokens sem confundir palavras em strings ou
-   * comentários com cláusulas reais da consulta.
-   */
-  private mascaraSqlSemTextosEComentarios(sql: string): string {
-    let resultado = '';
-    let indice = 0;
-    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
-
-    while (indice < sql.length) {
-      const atual = sql[indice];
-      const proximo = sql[indice + 1] ?? '';
-
-      if (estado === 'texto') {
-        if (atual === "'" && proximo === "'") {
-          resultado += '  ';
-          indice += 2;
-          continue;
-        }
-
-        resultado += atual === '\n' ? '\n' : ' ';
-        if (atual === "'") estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'identificador') {
-        resultado += atual === '\n' ? '\n' : ' ';
-        if (atual === '"') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'linha') {
-        resultado += atual === '\n' ? '\n' : ' ';
-        if (atual === '\n') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'bloco') {
-        if (atual === '*' && proximo === '/') {
-          resultado += '  ';
-          indice += 2;
-          estado = 'normal';
-          continue;
-        }
-
-        resultado += atual === '\n' ? '\n' : ' ';
-        indice += 1;
-        continue;
-      }
-
-      if (atual === "'") {
-        resultado += ' ';
-        estado = 'texto';
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '"') {
-        resultado += ' ';
-        estado = 'identificador';
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '-' && proximo === '-') {
-        resultado += '  ';
-        indice += 2;
-        estado = 'linha';
-        continue;
-      }
-
-      if (atual === '/' && proximo === '*') {
-        resultado += '  ';
-        indice += 2;
-        estado = 'bloco';
-        continue;
-      }
-
-      resultado += atual;
-      indice += 1;
-    }
-
-    return resultado;
-  }
-
-  private converterParametrosFixosSql(sqlOriginal: string): {
-    sql: string;
-    ajustes: string[];
-  } {
-    let sql = sqlOriginal;
-    const ajustes: string[] = [];
-    const regexCte = /\b(PARAM|PARAMETROS)\s+AS\s*\(/gi;
-    let correspondencia: RegExpExecArray | null;
-
-    while ((correspondencia = regexCte.exec(sql)) !== null) {
-      const inicioAbertura = correspondencia.index + correspondencia[0].lastIndexOf('(');
-      const fimAbertura = this.encontrarFechamentoParentesesSql(sql, inicioAbertura);
-
-      if (fimAbertura < 0) continue;
-
-      const blocoOriginal = sql.slice(inicioAbertura + 1, fimAbertura);
-
-      if (/:competencia\b/i.test(blocoOriginal)) {
-        continue;
-      }
-
-      const indicaCompetencia =
-        /\bAS\s+COMPET(?:ENCIA)?\b/i.test(blocoOriginal) ||
-        /filtros?\s*:?\s*compet[eê]ncia/i.test(blocoOriginal);
-
-      if (!indicaCompetencia) continue;
-
-      const valoresEncontrados = new Set<string>();
-      let blocoAjustado = blocoOriginal;
-
-      blocoAjustado = blocoAjustado.replace(
-        /TO_DATE\s*\(\s*'(\d{6})'\s*,\s*'YYYYMM'\s*\)/gi,
-        (_trecho, valor: string) => {
-          valoresEncontrados.add(valor);
-          return "TO_DATE(TO_CHAR(:competencia), 'YYYYMM')";
-        },
-      );
-
-      blocoAjustado = blocoAjustado.replace(
-        /'(\d{6})'\s+AS\s+(COMPET(?:ENCIA)?)\b/gi,
-        (_trecho, valor: string, alias: string) => {
-          valoresEncontrados.add(valor);
-          return `TO_CHAR(:competencia) AS ${alias}`;
-        },
-      );
-
-      blocoAjustado = blocoAjustado.replace(
-        /\b(\d{6})\s+AS\s+(COMPET(?:ENCIA)?)\b/gi,
-        (_trecho, valor: string, alias: string) => {
-          valoresEncontrados.add(valor);
-          return `TO_NUMBER(:competencia) AS ${alias}`;
-        },
-      );
-
-      if (blocoAjustado === blocoOriginal) continue;
-
-      sql = sql.slice(0, inicioAbertura + 1) + blocoAjustado + sql.slice(fimAbertura);
-
-      const valores = Array.from(valoresEncontrados);
-      const cteNome = correspondencia[1].toUpperCase();
-
-      ajustes.push(
-        valores.length
-          ? `A competência fixa ${valores.join(
-              ', ',
-            )} da CTE ${cteNome} foi transformada no filtro :competencia.`
-          : `A competência fixa da CTE ${cteNome} foi transformada no filtro :competencia.`,
-      );
-
-      break;
-    }
-
-    return { sql, ajustes };
-  }
-
-  /**
-   * Converte filtros que precisam permanecer dentro da CTE porque utilizam
-   * aliases locais. Datas repetidas só compartilham um bind quando todas as
-   * ocorrências literais da CTE possuem o mesmo valor.
-   */
-  private converterFiltrosFixosCteSql(sqlOriginal: string): {
-    sql: string;
-    ajustes: string[];
-  } {
-    let sql = sqlOriginal;
-    const ajustes: string[] = [];
-    const nomesBindReservados = new Set(this.normalizarVariaveisBindSql(sqlOriginal).variaveis);
-    const bindsPorFiltro = new Map<string, string>();
-
-    const bindPara = (nomeBase: string): string => {
-      const existente = bindsPorFiltro.get(nomeBase);
-      if (existente) return existente;
-
-      let nome = nomeBase;
-      let sufixo = 2;
-
-      while (nomesBindReservados.has(nome)) {
-        nome = `${nomeBase}_${sufixo}`;
-        sufixo += 1;
-      }
-
-      nomesBindReservados.add(nome);
-      bindsPorFiltro.set(nomeBase, nome);
-      return nome;
-    };
-
-    const sqlMascarado = this.mascaraSqlSemTextosEComentarios(sqlOriginal);
-    const regexCte =
-      /\bWITH\s+([A-Za-z_][A-Za-z0-9_$#]*)\s+AS\s*\(|,\s*([A-Za-z_][A-Za-z0-9_$#]*)\s+AS\s*\(/gi;
-    const blocos: Array<{
-      nome: string;
-      inicioConteudo: number;
-      fimConteudo: number;
-    }> = [];
-    let correspondencia: RegExpExecArray | null;
-
-    while ((correspondencia = regexCte.exec(sqlMascarado)) !== null) {
-      const inicioAbertura = correspondencia.index + correspondencia[0].lastIndexOf('(');
-      const fimAbertura = this.encontrarFechamentoParentesesSql(sqlOriginal, inicioAbertura);
-
-      if (fimAbertura < 0) continue;
-
-      blocos.push({
-        nome: (correspondencia[1] ?? correspondencia[2]).toUpperCase(),
-        inicioConteudo: inicioAbertura + 1,
-        fimConteudo: fimAbertura,
-      });
-    }
-
-    for (const bloco of blocos.sort((a, b) => b.inicioConteudo - a.inicioConteudo)) {
-      const conteudoOriginal = sql.slice(bloco.inicioConteudo, bloco.fimConteudo);
-      let conteudoAjustado = conteudoOriginal;
-
-      const regexData = /TO_DATE\s*\(\s*'(\d{2}\/\d{2}\/\d{4})'\s*,\s*'DD\/MM\/YYYY'\s*\)/gi;
-      const datas = Array.from(conteudoOriginal.matchAll(regexData), (item) => item[1]);
-      const datasUnicas = new Set(datas);
-
-      if (datas.length > 1 && datasUnicas.size === 1) {
-        const dataOriginal = datas[0];
-        const nomeBindData = bindPara('data_referencia');
-
-        conteudoAjustado = conteudoAjustado.replace(regexData, `:${nomeBindData}`);
-        ajustes.push(
-          `As ${datas.length} ocorrências da data fixa ${dataOriginal} na CTE ${bloco.nome} foram vinculadas ao filtro :${nomeBindData}.`,
-        );
-      }
-
-      const regexListaVazia =
-        /\b((?:[A-Za-z_][A-Za-z0-9_$#]*\.)?[A-Za-z_][A-Za-z0-9_$#]*)\s+IN\s*\(\s*\)/gi;
-
-      conteudoAjustado = conteudoAjustado.replace(
-        regexListaVazia,
-        (predicadoOriginal: string, coluna: string) => {
-          const nomeFiltro = this.nomeFiltroPorColunaSql(coluna);
-
-          if (nomeFiltro !== 'empresas' && nomeFiltro !== 'itens') {
-            return predicadoOriginal;
-          }
-
-          const nomeBind = bindPara(nomeFiltro);
-          ajustes.push(
-            `A lista vazia “${predicadoOriginal.trim()}” da CTE ${bloco.nome} foi transformada no filtro :${nomeBind}.`,
-          );
-
-          return `instr(',' || replace(:${nomeBind}, ' ', '') || ',', ',' || to_char(${coluna}) || ',') > 0`;
-        },
-      );
-
-      const comparacoesFixas = this.converterComparacoesFixasWhereCte(
-        conteudoAjustado,
-        bloco.nome,
-        bindPara,
-      );
-      conteudoAjustado = comparacoesFixas.sql;
-      ajustes.push(...comparacoesFixas.ajustes);
-
-      if (conteudoAjustado !== conteudoOriginal) {
-        sql = sql.slice(0, bloco.inicioConteudo) + conteudoAjustado + sql.slice(bloco.fimConteudo);
-      }
-    }
-
-    return { sql, ajustes };
-  }
-
-  /**
-   * Condições literais de uma CTE precisam manter o predicado no próprio
-   * bloco, pois seus aliases não existem no WHERE externo onde o SGU injeta
-   * filtros. Somente comparações simples no WHERE principal da CTE são
-   * convertidas; expressões, subconsultas e operadores ambíguos permanecem
-   * intactos para revisão manual.
-   */
-  private converterComparacoesFixasWhereCte(
-    conteudoOriginal: string,
-    nomeCte: string,
-    bindPara: (nomeBase: string) => string,
-  ): { sql: string; ajustes: string[] } {
-    const estrutura = this.localizarConsultaPrincipal(conteudoOriginal);
-    if (!estrutura?.where) return { sql: conteudoOriginal, ajustes: [] };
-
-    const inicioWhere = estrutura.where.fim;
-    const fimWhere = estrutura.limiteCondicoes;
-    const sqlMascarado = this.mascaraSqlSemTextosEComentarios(conteudoOriginal);
-    const identificador = '((?:[A-Za-z_][A-Za-z0-9_$#]*\\.)?[A-Za-z_][A-Za-z0-9_$#]*)';
-    const literal = "(?:-?\\d+(?:\\.\\d+)?|'(?:''|[^'])*')";
-    const candidatos: Array<{
-      inicio: number;
-      fim: number;
-      coluna: string;
-      operador: 'IN' | '=';
-      valores: string[];
-      original: string;
-    }> = [];
-
-    const adicionar = (match: RegExpExecArray, operador: 'IN' | '='): void => {
-      const inicio = match.index;
-      const fim = inicio + match[0].length;
-      if (
-        inicio < inicioWhere ||
-        fim > fimWhere ||
-        !this.ehTrechoSqlExecutavel(sqlMascarado, inicio, match[1])
-      ) {
-        return;
-      }
-
-      candidatos.push({
-        inicio,
-        fim,
-        coluna: match[1],
-        operador,
-        valores: this.extrairLiteraisSql(match[2]),
-        original: conteudoOriginal.slice(inicio, fim).trim(),
-      });
-    };
-
-    let match: RegExpExecArray | null;
-    const regexIn = new RegExp(
-      `\\b${identificador}\\s+IN\\s*\\(\\s*(${literal}(?:\\s*,\\s*${literal})*)\\s*\\)`,
-      'gi',
-    );
-    while ((match = regexIn.exec(conteudoOriginal)) !== null) adicionar(match, 'IN');
-
-    const regexIgual = new RegExp(`\\b${identificador}\\s*=\\s*(${literal})`, 'gi');
-    while ((match = regexIgual.exec(conteudoOriginal)) !== null) {
-      const fim = match.index + match[0].length;
-      if (candidatos.some((item) => match!.index >= item.inicio && fim <= item.fim)) continue;
-      adicionar(match, '=');
-    }
-
-    let sql = conteudoOriginal;
-    const ajustes: string[] = [];
-    const nomesUsados = new Set<string>();
-
-    for (const candidato of candidatos.sort((a, b) => b.inicio - a.inicio)) {
-      if (
-        candidato.operador === '=' &&
-        this.nomeFiltroConhecidoPorColunaSql(candidato.coluna) === null
-      ) {
-        continue;
-      }
-
-      let nomeBase = this.nomeFiltroPorColunaSql(candidato.coluna);
-      if (!nomeBase || !candidato.valores.length) continue;
-
-      if (candidato.operador === 'IN' && candidato.valores.length > 1) {
-        nomeBase = `${nomeBase}_lista`;
-      }
-
-      let nomeUnico = nomeBase;
-      let sufixo = 2;
-      while (nomesUsados.has(nomeUnico)) nomeUnico = `${nomeBase}_${sufixo++}`;
-      nomesUsados.add(nomeUnico);
-
-      const nomeBind = bindPara(nomeUnico);
-      const predicado =
-        candidato.operador === 'IN' && candidato.valores.length > 1
-          ? `instr(',' || replace(:${nomeBind}, ' ', '') || ',', ',' || to_char(${candidato.coluna}) || ',') > 0`
-          : `${candidato.coluna} = :${nomeBind}`;
-
-      sql = sql.slice(0, candidato.inicio) + predicado + sql.slice(candidato.fim);
-      ajustes.unshift(
-        `A condição fixa “${candidato.original}” da CTE ${nomeCte} foi transformada no filtro :${nomeBind}.`,
-      );
-    }
-
-    return { sql, ajustes };
-  }
-
-  // ── Análise estrutural e ajustes seguros do SQL importado ──────────────────
-
-  private encontrarFechamentoParentesesSql(sql: string, indiceAbertura: number): number {
-    let profundidade = 0;
-    let indice = indiceAbertura;
-    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
-
-    while (indice < sql.length) {
-      const atual = sql[indice];
-      const proximo = sql[indice + 1] ?? '';
-
-      if (estado === 'texto') {
-        if (atual === "'" && proximo === "'") {
-          indice += 2;
-          continue;
-        }
-
-        if (atual === "'") estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'identificador') {
-        if (atual === '"' && proximo === '"') {
-          indice += 2;
-          continue;
-        }
-
-        if (atual === '"') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'linha') {
-        if (atual === '\n') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'bloco') {
-        if (atual === '*' && proximo === '/') {
-          indice += 2;
-          estado = 'normal';
-          continue;
-        }
-
-        indice += 1;
-        continue;
-      }
-
-      if (atual === "'") {
-        estado = 'texto';
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '"') {
-        estado = 'identificador';
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '-' && proximo === '-') {
-        estado = 'linha';
-        indice += 2;
-        continue;
-      }
-
-      if (atual === '/' && proximo === '*') {
-        estado = 'bloco';
-        indice += 2;
-        continue;
-      }
-
-      if (atual === '(') {
-        profundidade += 1;
-      } else if (atual === ')') {
-        profundidade -= 1;
-
-        if (profundidade === 0) {
-          return indice;
-        }
-      }
-
-      indice += 1;
-    }
-
-    return -1;
-  }
-
-  private normalizarVariaveisBindSql(sql: string): {
-    sql: string;
-    variaveis: string[];
-  } {
-    let resultado = '';
-    let indice = 0;
-    let estado: 'normal' | 'texto' | 'linha' | 'bloco' = 'normal';
-    const variaveis: string[] = [];
-
-    while (indice < sql.length) {
-      const atual = sql[indice];
-      const proximo = sql[indice + 1] ?? '';
-
-      if (estado === 'texto') {
-        resultado += atual;
-
-        if (atual === "'" && proximo === "'") {
-          resultado += proximo;
-          indice += 2;
-          continue;
-        }
-
-        if (atual === "'") estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'linha') {
-        resultado += atual;
-        if (atual === '\n') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'bloco') {
-        resultado += atual;
-        if (atual === '*' && proximo === '/') {
-          resultado += proximo;
-          indice += 2;
-          estado = 'normal';
-          continue;
-        }
-        indice += 1;
-        continue;
-      }
-
-      if (atual === "'") {
-        resultado += atual;
-        estado = 'texto';
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '-' && proximo === '-') {
-        resultado += atual + proximo;
-        indice += 2;
-        estado = 'linha';
-        continue;
-      }
-
-      if (atual === '/' && proximo === '*') {
-        resultado += atual + proximo;
-        indice += 2;
-        estado = 'bloco';
-        continue;
-      }
-
-      if (atual === ':' && /[A-Za-z_]/.test(proximo)) {
-        let fim = indice + 2;
-        while (fim < sql.length && /[A-Za-z0-9_]/.test(sql[fim])) {
-          fim += 1;
-        }
-
-        const nome = sql.slice(indice + 1, fim).toLowerCase();
-        resultado += `:${nome}`;
-
-        if (!variaveis.includes(nome)) {
-          variaveis.push(nome);
-        }
-
-        indice = fim;
-        continue;
-      }
-
-      resultado += atual;
-      indice += 1;
-    }
-
-    return { sql: resultado, variaveis };
-  }
-
-  /**
-   * Garante que o marcador aceito pelo SGU esteja no WHERE da consulta
-   * principal. Subconsultas são deliberadamente ignoradas nesta decisão.
-   */
-  private ajustarEstruturaSqlImportado(
-    sqlOriginal: string,
-    possuiFiltros: boolean,
-  ): { sql: string; ajustes: string[] } {
-    const ajustes: string[] = [];
-    const semComentariosFinais = this.removerComentariosFinaisSql(
-      sqlOriginal.replace(/^\uFEFF/, '').trim(),
-    );
-    let sql = semComentariosFinais.sql.replace(/;\s*$/, '');
-
-    if (semComentariosFinais.comentariosRemovidos) {
-      ajustes.push('Comentários e anotações após o fim da consulta foram removidos.');
-    }
-
-    if (!sql) return { sql, ajustes };
-    if (this.validarDelimitadoresSql(sql)) return { sql, ajustes };
-
-    let estrutura = this.localizarConsultaPrincipal(sql);
-    if (!estrutura) return { sql, ajustes };
-
-    if (possuiFiltros) {
-      const marcador = '/*FILTROS*/';
-      const posicaoMarcador = sql.indexOf(marcador);
-
-      if (posicaoMarcador >= estrutura.select.inicio && posicaoMarcador < estrutura.fimRamo) {
-        sql = sql.slice(0, posicaoMarcador) + sql.slice(posicaoMarcador + marcador.length);
-        ajustes.push('O marcador /*FILTROS*/ foi reposicionado no final do WHERE principal.');
-        estrutura = this.localizarConsultaPrincipal(sql);
-
-        if (!estrutura) return { sql, ajustes };
-      }
-    }
-
-    if (estrutura.where) {
-      const trechoCondicoes = sql.slice(estrutura.where.fim, estrutura.limiteCondicoes);
-      const trechoAnalisavel = this.removerComentariosSql(
-        trechoCondicoes.replace(/\/\*FILTROS\*\//g, ''),
-      );
-
-      if (!/\b1\s*=\s*1\b/i.test(trechoAnalisavel)) {
-        const possuiCondicao = trechoAnalisavel.trim().length > 0;
-        const complemento = possuiCondicao ? ' 1 = 1\n  AND' : ' 1 = 1';
-
-        sql = sql.slice(0, estrutura.where.fim) + complemento + sql.slice(estrutura.where.fim);
-        ajustes.push('Foi adicionado 1 = 1 ao WHERE principal.');
-        estrutura = this.localizarConsultaPrincipal(sql);
-
-        if (!estrutura) return { sql, ajustes };
-      }
-    } else {
-      sql = this.inserirClausulaSql(sql, estrutura.limiteCondicoes, 'WHERE 1 = 1');
-      ajustes.push('Foi adicionada a cláusula WHERE 1 = 1.');
-      estrutura = this.localizarConsultaPrincipal(sql);
-
-      if (!estrutura) return { sql, ajustes };
-    }
-
-    if (possuiFiltros && !sql.includes('/*FILTROS*/')) {
-      sql = this.inserirClausulaSql(sql, estrutura.limiteCondicoes, '  /*FILTROS*/');
-      ajustes.push('Foi adicionado o marcador /*FILTROS*/.');
-    }
-
-    if (estrutura.operadorConjunto) {
-      ajustes.push(
-        'A consulta usa UNION, MINUS ou INTERSECT; revise se o marcador ficou no bloco correto.',
-      );
-    }
-
-    return {
-      sql: sql.trim().replace(/;\s*$/, ''),
-      ajustes: Array.from(new Set(ajustes)),
-    };
-  }
-
-  private localizarConsultaPrincipal(sql: string): EstruturaConsultaPrincipal | null {
-    const tokens = this.tokensSqlNivelZero(sql);
-    const indiceSelect = tokens.findIndex((token) => token.palavra === 'SELECT');
-
-    if (indiceSelect < 0) return null;
-
-    const select = tokens[indiceSelect];
-    const tokensDepoisSelect = tokens.slice(indiceSelect + 1);
-    const operadorConjunto = tokensDepoisSelect.find((token) =>
-      ['UNION', 'MINUS', 'INTERSECT'].includes(token.palavra),
-    );
-    const fimRamo = operadorConjunto?.inicio ?? sql.length;
-
-    const tokensDoRamo = tokensDepoisSelect.filter((token) => token.inicio < fimRamo);
-    const where = tokensDoRamo.find((token) => token.palavra === 'WHERE');
-
-    const inicioBuscaLimite = where?.fim ?? select.fim;
-    const palavrasLimite = new Set([
-      'GROUP',
-      'HAVING',
-      'ORDER',
-      'CONNECT',
-      'START',
-      'MODEL',
-      'QUALIFY',
-      'FETCH',
-      'OFFSET',
-      'FOR',
-    ]);
-
-    const proximaClausula = tokensDoRamo.find(
-      (token) => token.inicio >= inicioBuscaLimite && palavrasLimite.has(token.palavra),
-    );
-
-    return {
-      select,
-      where,
-      limiteCondicoes: proximaClausula?.inicio ?? fimRamo,
-      fimRamo,
-      operadorConjunto,
-    };
-  }
-
-  /**
-   * Tokeniza apenas o nível externo da consulta, preservando posições do texto
-   * original. Isso evita interpretar WHERE e ORDER BY de subconsultas como se
-   * pertencessem à consulta principal.
-   */
-  private tokensSqlNivelZero(sql: string): TokenSqlNivelZero[] {
-    const tokens: TokenSqlNivelZero[] = [];
-    let indice = 0;
-    let profundidade = 0;
-    let estado: 'normal' | 'texto' | 'identificador' | 'linha' | 'bloco' = 'normal';
-
-    while (indice < sql.length) {
-      const atual = sql[indice];
-      const proximo = sql[indice + 1] ?? '';
-
-      if (estado === 'texto') {
-        if (atual === "'" && proximo === "'") {
-          indice += 2;
-          continue;
-        }
-
-        if (atual === "'") estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'identificador') {
-        if (atual === '"' && proximo === '"') {
-          indice += 2;
-          continue;
-        }
-
-        if (atual === '"') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'linha') {
-        if (atual === '\n') estado = 'normal';
-        indice += 1;
-        continue;
-      }
-
-      if (estado === 'bloco') {
-        if (atual === '*' && proximo === '/') {
-          indice += 2;
-          estado = 'normal';
-          continue;
-        }
-
-        indice += 1;
-        continue;
-      }
-
-      if (atual === "'") {
-        estado = 'texto';
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '"') {
-        estado = 'identificador';
-        indice += 1;
-        continue;
-      }
-
-      if (atual === '-' && proximo === '-') {
-        estado = 'linha';
-        indice += 2;
-        continue;
-      }
-
-      if (atual === '/' && proximo === '*') {
-        estado = 'bloco';
-        indice += 2;
-        continue;
-      }
-
-      if (atual === '(') {
-        profundidade += 1;
-        indice += 1;
-        continue;
-      }
-
-      if (atual === ')') {
-        profundidade = Math.max(0, profundidade - 1);
-        indice += 1;
-        continue;
-      }
-
-      if (profundidade === 0 && /[A-Za-z_]/.test(atual)) {
-        let fim = indice + 1;
-
-        while (fim < sql.length && /[A-Za-z0-9_$#]/.test(sql[fim])) {
-          fim += 1;
-        }
-
-        tokens.push({
-          palavra: sql.slice(indice, fim).toUpperCase(),
-          inicio: indice,
-          fim,
-        });
-        indice = fim;
-        continue;
-      }
-
-      indice += 1;
-    }
-
-    return tokens;
-  }
-
-  private removerComentariosSql(sql: string): string {
-    return sql.replace(/--[^\r\n]*/g, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ');
-  }
-
-  private inserirClausulaSql(sql: string, posicao: number, clausula: string): string {
-    const antes = sql.slice(0, posicao).replace(/[ \t]+$/g, '');
-    const depois = sql.slice(posicao).replace(/^[ \t]+/g, '');
-    const quebraAntes = antes.endsWith('\n') ? '' : '\n';
-    const quebraDepois = depois ? (depois.startsWith('\n') ? '' : '\n') : '';
-
-    return `${antes}${quebraAntes}${clausula}${quebraDepois}${depois}`;
-  }
-
   formatarTamanhoArquivo(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  private normalizarFiltros(filtros: SguFiltro[]): SguFiltro[] {
-    return (filtros ?? [])
-      .map((filtro): SguFiltro => ({
-        nomeFiltro: filtro.nomeFiltro.trim(),
-        conteudoFiltro: filtro.conteudoFiltro.trim(),
-        tipoDadoFiltro: filtro.tipoDadoFiltro.trim().toUpperCase(),
-        mascaraFiltro: filtro.mascaraFiltro.trim(),
-        obrigatorioFiltro: filtro.obrigatorioFiltro === 'S' ? 'S' : 'N',
-      }))
-      .filter(
-        (filtro) =>
-          Boolean(filtro.nomeFiltro) ||
-          Boolean(filtro.conteudoFiltro && filtro.conteudoFiltro.toLowerCase() !== 'and'),
-      );
-  }
-
-  // ── Normalização, compatibilidade e persistência local ─────────────────────
-
-  /**
-   * O SGU exige uma definição técnica mesmo para consultas sem filtros de
-   * negócio. Esse filtro sentinela nunca deve ser apresentado ao usuário.
-   */
-  private filtroTecnicoSemFiltros(): SguFiltro {
-    return {
-      nomeFiltro: this.nomeFiltroTecnicoSemFiltros,
-      conteudoFiltro: `and :${this.nomeFiltroTecnicoSemFiltros} is null`,
-      tipoDadoFiltro: 'VARCHAR(1)',
-      mascaraFiltro: '',
-      obrigatorioFiltro: 'N',
-    };
-  }
-
-  private ehFiltroTecnicoSemFiltros(filtro: SguFiltro): boolean {
-    return (
-      filtro?.nomeFiltro?.trim().toLowerCase() === this.nomeFiltroTecnicoSemFiltros &&
-      filtro?.conteudoFiltro?.trim().toLowerCase() ===
-        `and :${this.nomeFiltroTecnicoSemFiltros} is null` &&
-      filtro?.obrigatorioFiltro !== 'S'
-    );
-  }
-
-  private filtrosDeNegocio(filtros: SguFiltro[] | null | undefined): SguFiltro[] {
-    return this.normalizarFiltros(filtros ?? [])
-      .filter((filtro) => !this.ehFiltroTecnicoSemFiltros(filtro))
-      .map((filtro) => ({ ...filtro }));
-  }
-
-  private removerFiltroTecnicoDaDefinicao(api: SguApiDefinicao): SguApiDefinicao {
-    return {
-      ...api,
-      filtros: this.filtrosDeNegocio(api.filtros),
-    };
-  }
-
-  private prepararDefinicaoParaSgu(api: SguApiDefinicao): SguApiDefinicao {
-    const filtrosNegocio = this.filtrosDeNegocio(api.filtros);
-    const filtrosOriginais = filtrosNegocio.length
-      ? filtrosNegocio
-      : [this.filtroTecnicoSemFiltros()];
-
-    const sqlAjustado = this.ajustarEstruturaSqlImportado(api.consultaSQL, true);
-    let consultaSQL = sqlAjustado.sql;
-    const filtrosSgu = filtrosOriginais.map((filtro) => {
-      const nomeOriginal = filtro.nomeFiltro.trim();
-      const nomeSgu = this.nomeFiltroSgu(nomeOriginal);
-
-      consultaSQL = this.substituirBindSql(consultaSQL, nomeOriginal, nomeSgu);
-
-      return {
-        ...filtro,
-        nomeFiltro: nomeSgu,
-        conteudoFiltro: this.substituirBindSql(filtro.conteudoFiltro, nomeOriginal, nomeSgu),
-      };
-    });
-
-    return {
-      nome: api.nome.trim(),
-      consultaSQL,
-      ordenacao: api.ordenacao?.trim() ?? '',
-      filtros: filtrosSgu,
-    };
-  }
-
-  /**
-   * O SGU rejeita underscore em nomeFiltro e recomenda hífen, mas o mesmo nome
-   * precisa ser um bind Oracle válido. Remover os separadores atende aos dois
-   * contratos: data_referencia torna-se datareferencia e :datareferencia.
-   */
-  private nomeFiltroSgu(nome: string): string {
-    return nome.trim().toLowerCase().replace(/[_-]+/g, '');
-  }
-
-  private substituirBindSql(sql: string, nomeOriginal: string, nomeSgu: string): string {
-    if (!nomeOriginal || nomeOriginal === nomeSgu) return sql;
-
-    const nomeEscapado = nomeOriginal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return sql.replace(new RegExp(`:${nomeEscapado}(?![A-Za-z0-9_])`, 'g'), `:${nomeSgu}`);
-  }
-
-  private clonarDefinicaoApi(api: SguApiDefinicao): SguApiDefinicao {
-    return {
-      nome: api.nome,
-      consultaSQL: api.consultaSQL ?? '',
-      ordenacao: api.ordenacao ?? '',
-      filtros: Array.isArray(api.filtros) ? api.filtros.map((filtro) => ({ ...filtro })) : [],
-    };
   }
 
   private atualizarRelatorioEditado(atualizado: RelatorioCatalogo): void {
@@ -3006,7 +1494,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
       nomeExibicao: this.novoNomeExibicao.trim() || this.tituloAPartirDoNome(api.nome),
       descricao: this.novaDescricao.trim(),
       apiNome: api.nome,
-      filtros: this.filtrosDeNegocio(api.filtros),
+      filtros: filtrosDeNegocio(api.filtros),
       criadoEm: existente?.criadoEm ?? new Date().toISOString(),
     };
 
@@ -3072,263 +1560,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
   }
 
   private validarNovaApi(api: SguApiDefinicao): string {
-    return this.validarDefinicaoApi(api, this.novoNomeExibicao);
-  }
-
-  private validarDefinicaoApi(api: SguApiDefinicao, nomeExibicao: string): string {
-    if (!api.nome) return 'Informe o nome da API.';
-    if (!api.consultaSQL) return 'Informe a consulta SQL.';
-
-    if (!nomeExibicao.trim()) {
-      return 'Informe o nome de exibição do relatório.';
-    }
-
-    const erroDelimitadores = this.validarDelimitadoresSql(api.consultaSQL);
-    if (erroDelimitadores) return erroDelimitadores;
-
-    const aliasDuplicado = this.detectarAliasDuplicadoSql(api.consultaSQL);
-    if (aliasDuplicado) {
-      return (
-        `O alias SQL “${aliasDuplicado.alias}” foi declarado mais de uma vez no mesmo SELECT ` +
-        `(linhas ${aliasDuplicado.primeiraLinha} e ${aliasDuplicado.linhaDuplicada}). ` +
-        'Renomeie ou remova uma das associações duplicadas.'
-      );
-    }
-
-    const colunaDuplicada = this.detectarAliasColunaDuplicadoSql(api.consultaSQL);
-    if (colunaDuplicada) {
-      return (
-        `A coluna de saída “${colunaDuplicada.alias}” foi definida mais de uma vez no mesmo SELECT ` +
-        `(linhas ${colunaDuplicada.primeiraLinha} e ${colunaDuplicada.linhaDuplicada}). ` +
-        'Use nomes diferentes para evitar ORA-00918 durante a execução.'
-      );
-    }
-
-    if (!api.filtros.length) {
-      if (!/\bwhere\s+1\s*=\s*1\b/i.test(api.consultaSQL)) {
-        return 'Consultas sem filtros devem conter WHERE 1 = 1.';
-      }
-
-      return '';
-    }
-
-    if (!api.consultaSQL.includes('/*FILTROS*/')) {
-      return 'A consulta SQL deve conter o marcador /*FILTROS*/ quando possuir filtros.';
-    }
-
-    for (const [indice, filtro] of api.filtros.entries()) {
-      if (!filtro.nomeFiltro || !/^[a-z0-9_-]+$/.test(filtro.nomeFiltro)) {
-        return `Filtro ${indice + 1}: o nome deve estar em minúsculo, sem espaços e usar apenas letras, números, underscore ou hífen.`;
-      }
-
-      if (!filtro.conteudoFiltro.startsWith('and ')) {
-        return `O conteúdo do filtro “${filtro.nomeFiltro}” deve começar com “and ” em minúsculo.`;
-      }
-
-      const erroBind = this.validarCorrespondenciaBind(filtro);
-      if (erroBind) return erroBind;
-
-      if (!/^(NUMBER|DATE|VARCHAR\(\d+\))$/i.test(filtro.tipoDadoFiltro)) {
-        return `Tipo inválido no filtro “${filtro.nomeFiltro}”. Use NUMBER, DATE ou VARCHAR(tamanho).`;
-      }
-    }
-
-    const nomesSgu = new Map<string, string>();
-    for (const filtro of api.filtros) {
-      const nomeSgu = this.nomeFiltroSgu(filtro.nomeFiltro);
-      const nomeAnterior = nomesSgu.get(nomeSgu);
-      if (!nomeSgu) {
-        return `O filtro “${filtro.nomeFiltro}” precisa conter ao menos uma letra ou um número.`;
-      }
-      if (nomeAnterior !== undefined) {
-        return (
-          `Os filtros “${nomeAnterior}” e “${filtro.nomeFiltro}” resultam no mesmo nome ` +
-          `aceito pelo SGU: “${nomeSgu}”. Renomeie um deles.`
-        );
-      }
-      nomesSgu.set(nomeSgu, filtro.nomeFiltro);
-    }
-
-    return '';
-  }
-
-  /**
-   * Detecta aliases de tabela repetidos no mesmo bloco SELECT. O escopo leva
-   * em conta a profundidade dos parênteses e o SELECT mais recente, evitando
-   * confundir aliases legítimos reutilizados em CTEs e subconsultas distintas.
-   */
-  private detectarAliasDuplicadoSql(
-    sql: string,
-  ): { alias: string; primeiraLinha: number; linhaDuplicada: number } | null {
-    const mascarado = this.mascaraSqlSemTextosEComentarios(sql);
-    const profundidades = new Int32Array(mascarado.length);
-    let profundidade = 0;
-
-    for (let indice = 0; indice < mascarado.length; indice += 1) {
-      const caractere = mascarado[indice];
-      if (caractere === ')') profundidade = Math.max(0, profundidade - 1);
-      profundidades[indice] = profundidade;
-      if (caractere === '(') profundidade += 1;
-    }
-
-    const selectsPorProfundidade = new Map<number, number[]>();
-    for (const correspondencia of mascarado.matchAll(/\bselect\b/gi)) {
-      const inicio = correspondencia.index ?? 0;
-      const nivel = profundidades[inicio] ?? 0;
-      const selects = selectsPorProfundidade.get(nivel) ?? [];
-      selects.push(inicio);
-      selectsPorProfundidade.set(nivel, selects);
-    }
-
-    const palavrasReservadas = new Set([
-      'connect',
-      'cross',
-      'full',
-      'group',
-      'having',
-      'inner',
-      'join',
-      'left',
-      'on',
-      'order',
-      'outer',
-      'right',
-      'start',
-      'union',
-      'where',
-    ]);
-    const aliasesPorEscopo = new Map<string, Map<string, number>>();
-    const regexAlias =
-      /\b(?:from|join)\s+[a-z_][\w$#]*(?:\s*\.\s*[a-z_][\w$#]*){0,2}\s+(?:as\s+)?([a-z_][\w$#]*)/gi;
-
-    for (const correspondencia of mascarado.matchAll(regexAlias)) {
-      const aliasOriginal = correspondencia[1];
-      const alias = aliasOriginal.toLowerCase();
-      if (palavrasReservadas.has(alias)) continue;
-
-      const inicio = correspondencia.index ?? 0;
-      const nivel = profundidades[inicio] ?? 0;
-      const selects = selectsPorProfundidade.get(nivel) ?? [];
-      let inicioSelect = -1;
-      for (const posicaoSelect of selects) {
-        if (posicaoSelect >= inicio) break;
-        inicioSelect = posicaoSelect;
-      }
-      if (inicioSelect < 0) continue;
-
-      const chaveEscopo = `${nivel}:${inicioSelect}`;
-      const aliases = aliasesPorEscopo.get(chaveEscopo) ?? new Map<string, number>();
-      const primeiraPosicao = aliases.get(alias);
-      const linhaAtual = mascarado.slice(0, inicio).split('\n').length;
-
-      if (primeiraPosicao !== undefined) {
-        return {
-          alias: aliasOriginal.toUpperCase(),
-          primeiraLinha: mascarado.slice(0, primeiraPosicao).split('\n').length,
-          linhaDuplicada: linhaAtual,
-        };
-      }
-
-      aliases.set(alias, inicio);
-      aliasesPorEscopo.set(chaveEscopo, aliases);
-    }
-
-    return null;
-  }
-
-  /**
-   * O SGU pagina a consulta usando um SELECT externo. Nesse cenário, duas
-   * expressões com o mesmo alias de saída causam ORA-00918 mesmo que o Oracle
-   * aceite executar o SELECT isolado.
-   */
-  private detectarAliasColunaDuplicadoSql(
-    sql: string,
-  ): { alias: string; primeiraLinha: number; linhaDuplicada: number } | null {
-    const mascarado = this.mascaraSqlSemTextosEComentarios(sql);
-    const profundidades = new Int32Array(mascarado.length);
-    let profundidade = 0;
-
-    for (let indice = 0; indice < mascarado.length; indice += 1) {
-      const caractere = mascarado[indice];
-      if (caractere === ')') profundidade = Math.max(0, profundidade - 1);
-      profundidades[indice] = profundidade;
-      if (caractere === '(') profundidade += 1;
-    }
-
-    const selectsPorProfundidade = new Map<number, number[]>();
-    for (const correspondencia of mascarado.matchAll(/\bselect\b/gi)) {
-      const inicio = correspondencia.index ?? 0;
-      const nivel = profundidades[inicio] ?? 0;
-      const selects = selectsPorProfundidade.get(nivel) ?? [];
-      selects.push(inicio);
-      selectsPorProfundidade.set(nivel, selects);
-    }
-
-    const aliasesPorEscopo = new Map<string, Map<string, number>>();
-    for (const correspondencia of mascarado.matchAll(/\bas\s+([a-z_][\w$#]*)/gi)) {
-      const inicio = correspondencia.index ?? 0;
-      const nivel = profundidades[inicio] ?? 0;
-      const selects = selectsPorProfundidade.get(nivel) ?? [];
-      let inicioSelect = -1;
-      for (const posicaoSelect of selects) {
-        if (posicaoSelect >= inicio) break;
-        inicioSelect = posicaoSelect;
-      }
-      if (inicioSelect < 0) continue;
-
-      const aliasOriginal = correspondencia[1];
-      const alias = aliasOriginal.toLowerCase();
-      const chaveEscopo = `${nivel}:${inicioSelect}`;
-      const aliases = aliasesPorEscopo.get(chaveEscopo) ?? new Map<string, number>();
-      const primeiraPosicao = aliases.get(alias);
-      const linhaAtual = mascarado.slice(0, inicio).split('\n').length;
-
-      if (primeiraPosicao !== undefined) {
-        return {
-          alias: aliasOriginal.toUpperCase(),
-          primeiraLinha: mascarado.slice(0, primeiraPosicao).split('\n').length,
-          linhaDuplicada: linhaAtual,
-        };
-      }
-
-      aliases.set(alias, inicio);
-      aliasesPorEscopo.set(chaveEscopo, aliases);
-    }
-
-    return null;
-  }
-
-  private validarCorrespondenciaBind(filtro: SguFiltro): string {
-    const nome = filtro.nomeFiltro.trim();
-    const variaveis = Array.from(
-      filtro.conteudoFiltro.matchAll(/:([A-Za-z_][A-Za-z0-9_-]*)/g),
-      (resultado) => resultado[1],
-    );
-    const variaveisUnicas = Array.from(new Set(variaveis));
-
-    if (!variaveisUnicas.length) {
-      return `O filtro “${nome}” não possui uma variável de bind. Use :${nome} no conteúdo SQL.`;
-    }
-
-    const divergentes = variaveisUnicas.filter((variavel) => variavel !== nome);
-
-    if (divergentes.length || !variaveisUnicas.includes(nome)) {
-      return `O nome do filtro “${nome}” deve ser exatamente igual à variável do conteúdo SQL. Variável encontrada: ${variaveisUnicas
-        .map((variavel) => `:${variavel}`)
-        .join(', ')}. Corrija para :${nome}.`;
-    }
-
-    return '';
-  }
-
-  private filtroVazio(): SguFiltro {
-    return {
-      nomeFiltro: '',
-      conteudoFiltro: 'and ',
-      tipoDadoFiltro: 'VARCHAR(120)',
-      mascaraFiltro: '',
-      obrigatorioFiltro: 'N',
-    };
+    return validarDefinicaoApi(api, this.novoNomeExibicao);
   }
 
   private normalizarListaApis(apis: SguApiDefinicao[]): SguApiDefinicao[] {
@@ -3343,7 +1575,7 @@ export class RelatoriosComponent implements OnInit, OnDestroy {
         nome,
         consultaSQL: api.consultaSQL ?? '',
         ordenacao: api.ordenacao ?? '',
-        filtros: this.filtrosDeNegocio(api.filtros),
+        filtros: filtrosDeNegocio(api.filtros),
       });
     }
 

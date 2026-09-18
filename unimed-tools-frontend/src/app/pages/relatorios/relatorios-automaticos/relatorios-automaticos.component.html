@@ -8,7 +8,7 @@
 
     <div class="commandbar-title">
       <span>Execução em lote</span>
-      <h1>Modo automático</h1>
+      <h1>Relatórios em grupo</h1>
     </div>
 
     <button class="btn btn-primary" type="button" (click)="abrirNovoGrupo()">＋ Novo grupo</button>
@@ -138,7 +138,9 @@
             <span class="step-number">1</span>
             <div>
               <h3>Empresas</h3>
-              <p *ngIf="filtroEmpresa; else nenhumFiltroEmpresa">Informe os códigos da empresas.</p>
+              <p *ngIf="filtroEmpresa; else nenhumFiltroEmpresa">
+                Selecione a empresa pelo nome. Os códigos são preenchidos automaticamente.
+              </p>
               <ng-template #nenhumFiltroEmpresa>
                 <p>Nenhum relatório deste grupo utiliza filtro de empresa.</p>
               </ng-template>
@@ -156,33 +158,19 @@
 
         <div class="company-list" *ngIf="filtroEmpresa">
           <div
-            class="company-row"
+            class="company-row company-row-catalog"
             *ngFor="let empresa of empresasExecucao; let i = index; trackBy: trackByEmpresaId"
           >
-            <div class="field company-codes">
-              <label [for]="'empresa-codigos-' + empresa.id">
-                Código(s) da empresa <span class="required">*</span>
-              </label>
-              <input
-                [id]="'empresa-codigos-' + empresa.id"
-                type="text"
-                [(ngModel)]="empresa.codigos"
-                placeholder="Ex.: 2232751,2234452"
-              />
-              <small>Use vírgula quando uma empresa possuir mais de um código.</small>
-            </div>
-
             <div class="field company-name">
-              <label [for]="'empresa-nome-' + empresa.id">
-                Nome nos arquivos <span class="required">*</span>
-              </label>
-              <input
-                [id]="'empresa-nome-' + empresa.id"
-                type="text"
-                [(ngModel)]="empresa.nome"
-                placeholder="Ex.: yakult"
-              />
-              <small>Exemplo de saída: yakult_despesa_01_02.xlsx</small>
+              <app-empresa-select [id]="'empresa-nome-' + empresa.id" [selecionada]="empresa.catalogoId"
+                [ocupadas]="empresasSelecionadasIds" [bloqueado]="executando"
+                (selecionadaChange)="selecionarEmpresaCatalogo(empresa, $event)" />
+              <small *ngIf="empresa.codigos; else dicaEmpresa">
+                Códigos identificados automaticamente: {{ empresa.codigos }}
+              </small>
+              <ng-template #dicaEmpresa>
+                <small>O usuário não precisa informar nenhum código.</small>
+              </ng-template>
             </div>
 
             <button

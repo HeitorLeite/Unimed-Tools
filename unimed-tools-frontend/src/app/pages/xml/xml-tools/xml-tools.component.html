@@ -40,7 +40,7 @@
             <div class="workflow-step-heading">
               <span>Operação</span>
               <h2>O que precisa ser corrigido?</h2>
-              <p>A opção completa reúne as três rotinas atuais em uma única análise.</p>
+              <p>Guias e números de lote repetidos entre arquivos são diferenciados em todas as operações.</p>
             </div>
             <div class="op-options">
               <label class="op-card" [class.selected]="operacao === 'ambos'">
@@ -56,7 +56,7 @@
                   </svg>
                 </span>
                 <span class="op-label">Todas as correções</span>
-                <span class="op-desc">Prefixos + blocos zerados/vazios + guias duplicadas</span>
+                <span class="op-desc">Prefixos + blocos zerados/vazios + guias e lotes duplicados</span>
               </label>
               <label class="op-card" [class.selected]="operacao === 'corretor'">
                 <input type="radio" name="op" value="corretor" [(ngModel)]="operacao" />
@@ -315,6 +315,10 @@
               <span class="stat-num">{{ resultados.length }}</span>
               <span class="stat-label">arquivo(s) no lote</span>
             </div>
+            <div class="summary-stat" [class.has-issue]="totalLotes > 0">
+              <span class="stat-num">{{ totalLotes }}</span>
+              <span class="stat-label">lote(s) renumerado(s)</span>
+            </div>
           </div>
           <div class="summary-actions">
             <button
@@ -361,6 +365,7 @@
               </svg>
               <span class="accordion-name">{{ r.nome }}</span>
               <div class="accordion-badges">
+                <span class="mini-badge info" *ngIf="r.lotesRenumerados.length">{{ r.lotesRenumerados.length }} lote(s)</span>
                 <span class="mini-badge error" *ngIf="r.prefixos.length"
                   >{{ r.prefixos.length }} prefixo(s)</span
                 >
@@ -379,7 +384,7 @@
                     !r.prefixos.length &&
                     !r.blocos.length &&
                     !r.outrasDespesasVazias.length &&
-                    !r.guiasRenomeadas.length
+                    !r.guiasRenomeadas.length && !r.lotesRenumerados.length
                   "
                 >
                   OK
@@ -421,6 +426,17 @@
           </div>
 
           <div class="accordion-body" *ngIf="arquivoExpandido === r.nome">
+            <div class="section-block" *ngIf="r.lotesRenumerados.length">
+              <p class="block-title">Números de lote repetidos entre arquivos</p>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Lote original</th><th>Novo lote</th></tr></thead>
+                  <tbody><tr *ngFor="let lote of r.lotesRenumerados">
+                    <td class="mono">{{ lote.original }}</td><td class="mono">{{ lote.novo }}</td>
+                  </tr></tbody>
+                </table>
+              </div>
+            </div>
             <!-- Guias renomeadas -->
             <div class="section-block" *ngIf="r.guiasRenomeadas.length">
               <p class="block-title">
@@ -546,7 +562,7 @@
                 !r.prefixos.length &&
                 !r.blocos.length &&
                 !r.outrasDespesasVazias.length &&
-                !r.guiasRenomeadas.length
+                !r.guiasRenomeadas.length && !r.lotesRenumerados.length
               "
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

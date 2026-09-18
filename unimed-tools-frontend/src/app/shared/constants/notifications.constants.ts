@@ -6,6 +6,14 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
+    id: '7.8.0-empresas-relatorios-automaticos',
+    versao: '7.8.0',
+    titulo: 'Empresas por nome nos relatórios automáticos',
+    resumo:
+      'Permite selecionar a empresa pelo nome e aplica automaticamente seus códigos na geração em lote.',
+    publicadaEm: '2026-09-17',
+  },
+  {
     id: '7.7.0-filtro-id-guia',
     versao: '7.7.0',
     titulo: 'Filtro por ID da guia',

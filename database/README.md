@@ -17,6 +17,7 @@ O esquema atual contém:
 - `usuario_permissao`;
 - `sessao_usuario`;
 - `ferramenta_configuravel`;
+- `ferramenta_nativa_configuracao`;
 - `auditoria_acesso`.
 
 O fluxo atual **não utiliza MFA/TOTP** e instalações novas não criam campos ou tabelas para segundo fator.
@@ -31,7 +32,8 @@ Faça backup e execute somente as migrações ainda não aplicadas, em ordem:
 
 1. `002_permissoes_por_usuario.sql` — permissões individuais;
 2. `003_ferramentas_configuraveis.sql` — cards/ferramentas publicados pela TI;
-3. `004_remove_mfa.sql` — remove campos TOTP e a antiga tabela de desafios.
+3. `004_remove_mfa.sql` — remove campos TOTP e a antiga tabela de desafios;
+4. `005_configuracao_ferramentas_nativas.sql` — permite personalizar nome, descrição e visibilidade dos cards nativos.
 
 A migração 004 preserva:
 

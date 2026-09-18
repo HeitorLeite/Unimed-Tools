@@ -2,9 +2,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef } from '@angular/core';
 import { Subject, of, throwError } from 'rxjs';
 
-import { RelatorioService } from '../../shared/services/relatorio.service';
-import { RelatoriosManualComponent } from './relatorios-manual/relatorios-manual.component';
-import { extrairPrimeiraInstrucaoSql } from './sql/sql-lexico';
+import { RelatorioService } from '../../../shared/services/relatorio.service';
+import { RelatoriosManualComponent } from './relatorios-manual.component';
+import { extrairPrimeiraInstrucaoSql } from '../sql/sql-lexico';
 
 describe('RelatoriosManualComponent - importação SQL', () => {
   const criarComponente = (): RelatoriosManualComponent => {

@@ -1,35 +1,66 @@
-<section class="tool-page management-page">
-  <header class="tool-page-header">
-    <div class="tool-header-copy">
-      <span class="badge">Administração de acesso</span>
+<section class="users-admin">
+  <header class="heading">
+    <div>
+      <span>Administração de acesso</span>
       <h1>Gerenciamento de usuários</h1>
-      <p>Cadastre contas, defina quais módulos cada usuário operacional pode acessar e gere uma nova senha temporária quando necessário.</p>
+      <p>Cadastre contas, organize permissões e resolva problemas de acesso sem misturar essas tarefas com as ferramentas operacionais.</p>
     </div>
-    <div class="tool-header-meta"><span><small>Acesso</small><strong>Somente administradores</strong></span></div>
+    <div class="admin-badge"><i></i><span>Somente administradores</span></div>
   </header>
 
+  <section class="quick-guide">
+    <div><span>1</span><p><strong>Crie a conta</strong><small>Nome, login, e-mail e senha temporária.</small></p></div>
+    <div><span>2</span><p><strong>Libere os acessos</strong><small>Escolha apenas as ferramentas necessárias.</small></p></div>
+    <div><span>3</span><p><strong>Acompanhe a conta</strong><small>Edite dados ou redefina a senha quando preciso.</small></p></div>
+  </section>
+
   <div class="management-grid">
-    <a class="management-card" routerLink="/usuarios/cadastrados">
+    <a class="management-card primary-card" routerLink="/usuarios/cadastrados">
       <span class="management-number">01</span>
-      <div><small>Contas</small><h2>Usuários cadastrados</h2><p>Consulte todas as contas ativas, altere nome, e-mail ou tipo de acesso e exclua usuários.</p></div>
-      <strong>Acessar usuários →</strong>
+      <div>
+        <small>Contas</small>
+        <h2>Usuários cadastrados</h2>
+        <p>Veja todas as contas ativas, edite informações e desative acessos que não devem mais permanecer disponíveis.</p>
+      </div>
+      <strong>Ver usuários <b>→</b></strong>
     </a>
+
     <a class="management-card" routerLink="/usuarios/novo">
       <span class="management-number">02</span>
-      <div><small>Contas</small><h2>Cadastrar usuário</h2><p>Crie uma conta com senha temporária e troca obrigatória no primeiro acesso.</p></div>
-      <strong>Abrir cadastro →</strong>
+      <div>
+        <small>Novo acesso</small>
+        <h2>Cadastrar usuário</h2>
+        <p>Crie uma nova conta com senha temporária e troca obrigatória no primeiro acesso.</p>
+      </div>
+      <strong>Criar conta <b>→</b></strong>
     </a>
+
     <a class="management-card" routerLink="/usuarios/permissoes">
       <span class="management-number">03</span>
-      <div><small>Autorização</small><h2>Permissões de acesso</h2><p>Escolha individualmente os módulos liberados para cada usuário operacional.</p></div>
-      <strong>Gerenciar permissões →</strong>
+      <div>
+        <small>Ferramentas</small>
+        <h2>Permissões de acesso</h2>
+        <p>Escolha quais módulos aparecem e podem ser utilizados por cada usuário operacional.</p>
+      </div>
+      <strong>Ajustar permissões <b>→</b></strong>
     </a>
+
     <a class="management-card" routerLink="/usuarios/resetar-senha">
       <span class="management-number">04</span>
-      <div><small>Credenciais</small><h2>Resetar senha</h2><p>Defina uma nova senha temporária e encerre as sessões abertas da conta.</p></div>
-      <strong>Gerar senha temporária →</strong>
+      <div>
+        <small>Credenciais</small>
+        <h2>Resetar senha</h2>
+        <p>Gere uma senha temporária e encerre as sessões abertas quando alguém perder o acesso.</p>
+      </div>
+      <strong>Redefinir senha <b>→</b></strong>
     </a>
   </div>
 
-  <aside class="management-note"><strong>Princípio do menor privilégio</strong><span>Novos usuários operacionais começam sem acesso a módulos. Toda liberação é explícita, validada no servidor e auditada.</span></aside>
+  <aside class="management-note">
+    <span class="note-icon">✓</span>
+    <div>
+      <strong>Acesso por necessidade</strong>
+      <p>Usuários comuns começam sem módulos operacionais. As permissões são liberadas individualmente e validadas pelo servidor.</p>
+    </div>
+  </aside>
 </section>

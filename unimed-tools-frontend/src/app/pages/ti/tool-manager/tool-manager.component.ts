@@ -6,11 +6,12 @@ import { CustomReportTool } from '../../../shared/models/tool.model';
 import { SguApiDefinicao } from '../../../shared/models/relatorio.model';
 import { RelatorioService } from '../../../shared/services/relatorio.service';
 import { ToolRegistryService } from '../../../shared/services/tool-registry.service';
+import { NativeToolManagerComponent } from '../native-tool-manager/native-tool-manager.component';
 
 @Component({
   selector: 'app-tool-manager',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, NativeToolManagerComponent],
   templateUrl: './tool-manager.component.html',
   styleUrl: './tool-manager.component.scss',
 })

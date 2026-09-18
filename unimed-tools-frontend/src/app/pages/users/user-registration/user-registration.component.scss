@@ -1,4 +1,7 @@
 :host { display: block; }
+.registration-header-actions { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.registration-header-actions .tool-header-meta { display: flex; gap: 10px; }
+
 .registration-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 22px; align-items: start; }
 .registration-form { padding: 0; overflow: hidden; }
 .form-section-heading { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 13px; padding: 23px 25px 17px; }
@@ -16,5 +19,7 @@
 .form-error { margin: 0 25px 17px 72px; padding: 10px 12px; border: 1px solid #ecc5c2; border-radius: 6px; background: var(--error-bg); color: var(--error); font-size: 11px; }
 .submit-button { margin: 0 25px 25px 72px; }
 .success-card { border-color: #b9d9c3; background: var(--success-bg); }
-@media (max-width: 900px) { .registration-layout { grid-template-columns: 1fr; } .context-rail { display: grid; grid-template-columns: 1fr 1fr; } }
+@media (max-width: 900px) {
+  .registration-header-actions { align-items: stretch; flex-direction: column; }
+ .registration-layout { grid-template-columns: 1fr; } .context-rail { display: grid; grid-template-columns: 1fr 1fr; } }
 @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; padding-left: 25px; } .field-wide { grid-column: auto; } .form-error { margin-left: 25px; } .submit-button { width: calc(100% - 50px); margin-left: 25px; } .context-rail { display: flex; } }

@@ -489,11 +489,15 @@ A Central de Relatórios permite cadastrar, localizar, executar, visualizar e ex
 
 **Status:** Atual e disponível no ambiente local.
 
-A página oferece três modos:
+A página oferece três fluxos:
 
-- **Manual:** catálogo local de APIs do SGU, com filtros e exportação sob demanda;
-- **Automático:** execução e exportação em lote dos grupos salvos no navegador;
-- **Personalizado:** construtor guiado com filtros e colunas previamente autorizados pelo backend.
+- **Importar SQL e consultar:** cria ou importa APIs do SGU, organiza o catálogo local, mostra prévia e permite exportação individual;
+- **Relatórios em grupo:** reutiliza relatórios já cadastrados, combina empresas e competências e exporta o lote em ZIP;
+- **Relatório personalizado:** construtor guiado com filtros e colunas previamente autorizados pelo backend.
+
+A rota mantém apenas a navegação entre esses fluxos. Importação/consulta,
+automação e relatório personalizado possuem componentes independentes, evitando
+que a Central concentre novamente todas as responsabilidades em um único arquivo.
 
 **Atual:** a permissão `RELATORIOS_ACESSAR` libera todos os modos e operações
 da Central de Relatórios, inclusive importar SQL, criar, editar e excluir APIs
@@ -506,7 +510,7 @@ máscara. O modo Automático gera o lote diretamente e não apresenta prévia de
 registros. A proteção é exclusiva da interface: os arquivos CSV, TXT, XLSX e ZIP
 continuam recebendo os valores originais devolvidos pelo backend.
 
-No modo Manual, a identificação é feita dinamicamente pelo nome da coluna e
+No fluxo de importação e consulta individual, a identificação é feita dinamicamente pelo nome da coluna e
 também contempla aliases legados, como `PES_NOM_COMP`, `NM_PACIENTE`,
 `BENEFICIARIO`, `NOME_COMP`, `NOME_COMPLETO` e qualquer coluna que contenha
 `CPF`. Por isso, relatórios cadastrados antes desta versão recebem a proteção

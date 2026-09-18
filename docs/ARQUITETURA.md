@@ -101,18 +101,21 @@ Diretório: `unimed-tools-frontend/`
 
 As rotas utilizam carregamento sob demanda e permanecem centralizadas em `src/app/app.routes.ts`.
 
-A rota `/relatorios` agrega quatro componentes de tela:
+A rota `/relatorios` usa um componente de orquestração e quatro fluxos de tela:
 
-| Componente                       | Responsabilidade                                        |
-| -------------------------------- | ------------------------------------------------------- |
-| `relatorios-inicio`              | Seleção entre os modos disponíveis.                     |
-| `relatorios`                     | Orquestração do modo selecionado.                       |
-| `relatorios-automaticos`         | Grupos e exportações em lote.                           |
-| `relatorios-personalizados`      | Filtros, colunas, prévia paginada e exportação guiada.  |
+| Componente                       | Responsabilidade                                                     |
+| -------------------------------- | -------------------------------------------------------------------- |
+| `relatorios`                     | Navegação entre modos e resumo do catálogo local.                    |
+| `relatorios-inicio`              | Explica e seleciona o fluxo adequado para a tarefa.                  |
+| `relatorios-manual`              | Importação SQL/API, catálogo, templates, prévia e exportação unitária. |
+| `relatorios-automaticos`         | Grupos e exportações em lote, incluindo seleção de empresa por nome. |
+| `relatorios-personalizados`      | Filtros, colunas, prévia paginada e exportação guiada.               |
 
 `RelatorioService` concentra a comunicação HTTP e o acesso aos catálogos do
-`localStorage`. O modo personalizado não persiste filtros digitados: eles ficam
-somente no estado da página atual.
+`localStorage`. O componente `relatorios` não mantém regras de importação ou
+execução: cada modo possui estado próprio, reduzindo o acoplamento da rota. O
+modo personalizado não persiste filtros digitados: eles ficam somente no estado
+da página atual.
 
 **Status: Atual.** Na importação manual de SQL, o componente preserva o escopo
 dos aliases de CTE. Datas literais repetidas e iguais dentro de uma CTE usam um

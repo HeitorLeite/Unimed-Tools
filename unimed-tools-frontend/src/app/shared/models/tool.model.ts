@@ -26,3 +26,17 @@ export interface CustomReportTool {
   criadoEm: string;
   atualizadoEm: string;
 }
+
+
+export interface NativeToolConfig {
+  id: string;
+  nome: string | null;
+  descricao: string | null;
+  ativo: boolean;
+  atualizadoEm: string;
+}
+
+export interface NativeToolAdminItem {
+  tool: ToolDefinition;
+  config: NativeToolConfig | null;
+}

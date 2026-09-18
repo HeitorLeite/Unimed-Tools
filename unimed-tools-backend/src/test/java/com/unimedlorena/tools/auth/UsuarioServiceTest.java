@@ -45,7 +45,7 @@ class UsuarioServiceTest {
 
   @BeforeEach
   void configurarAdministrador() {
-    when(repository.buscarUsuarioPorId(1)).thenReturn(Optional.of(usuario(1, "ADMINISTRADOR", "segredo")));
+    when(repository.buscarUsuarioPorId(1)).thenReturn(Optional.of(usuario(1, "ADMINISTRADOR")));
   }
 
   @Test
@@ -66,7 +66,7 @@ class UsuarioServiceTest {
 
   @Test
   void deveConcederSomentePermissoesOperacionaisEAdicionarAcessoBase() {
-    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO", null)));
+    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
     when(repository.buscarPermissoesOperacionaisAtivas(Set.of("XML_ACESSAR")))
       .thenReturn(Set.of("XML_ACESSAR"));
 
@@ -85,7 +85,7 @@ class UsuarioServiceTest {
 
   @Test
   void deveRevogarSessoesAoRedefinirSenha() {
-    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO", null)));
+    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
     when(encoder.encode("Caju#804")).thenReturn("hash");
 
     service.redefinirSenha(
@@ -101,8 +101,8 @@ class UsuarioServiceTest {
 
   @Test
   void deveRemoverPermissoesERevogarSessoesAoAlterarPerfil() {
-    UsuarioRow operacional = usuario(2, "USUARIO", null);
-    UsuarioRow administrador = usuario(2, "ADMINISTRADOR", null);
+    UsuarioRow operacional = usuario(2, "USUARIO");
+    UsuarioRow administrador = usuario(2, "ADMINISTRADOR");
     when(repository.buscarUsuarioPorId(2))
       .thenReturn(Optional.of(operacional), Optional.of(administrador));
     when(repository.buscarPermissoes(2)).thenReturn(Set.of("APLICACAO_ACESSAR"));
@@ -132,7 +132,7 @@ class UsuarioServiceTest {
 
   @Test
   void deveDesativarUsuarioERevogarSessoesAoExcluir() {
-    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO", null)));
+    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
 
     service.excluir(
       principalAdmin,
@@ -160,7 +160,7 @@ class UsuarioServiceTest {
     verify(repository, never()).desativarUsuario(anyLong(), anyLong());
   }
 
-  private UsuarioRow usuario(long id, String perfil, String segredoMfa) {
+  private UsuarioRow usuario(long id, String perfil) {
     return new UsuarioRow(
       id,
       perfil.equals("ADMINISTRADOR") ? "Admin" : "Operacional",
@@ -173,9 +173,6 @@ class UsuarioServiceTest {
       false,
       null,
       0,
-      null,
-      segredoMfa,
-      segredoMfa != null,
       null
     );
   }

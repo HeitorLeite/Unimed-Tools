@@ -83,8 +83,7 @@ public class SecurityConfig {
         .requestMatchers(
           "/health",
           "/api/auth/csrf",
-          "/api/auth/login",
-          "/api/auth/mfa/verificar"
+          "/api/auth/login"
         ).permitAll()
         .requestMatchers("/api/auth/**").authenticated()
         .requestMatchers(HttpMethod.GET, "/api/usuarios", "/api/usuarios/permissoes-disponiveis")

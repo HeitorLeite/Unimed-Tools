@@ -1,34 +1,90 @@
-<section class="tool-page permission-page">
-  <header class="tool-page-header">
-    <div class="tool-header-copy"><span class="badge">Administração de acesso</span><h1>Permissões dos usuários</h1><p>Selecione um usuário operacional e libere somente os módulos necessários para a função dele.</p></div>
+<section class="permission-page">
+  <header class="page-heading">
+    <div>
+      <span>Administração de acesso</span>
+      <h1>Permissões de acesso</h1>
+      <p>Escolha um usuário e marque exatamente as áreas da aplicação que ele poderá utilizar.</p>
+    </div>
     <a class="btn btn-secondary" routerLink="/usuarios">Voltar ao gerenciamento</a>
   </header>
 
-  <div class="permission-layout">
-    <form class="card permission-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-      <div class="section-heading"><span>01</span><div><h2>Usuário operacional</h2><p>Administradores recebem permissões pelo perfil e não aparecem nesta lista.</p></div></div>
-      <div class="field select-field">
-        <label for="permissionUser">Usuário</label>
-        <select id="permissionUser" formControlName="usuarioId">
-          <option [ngValue]="null">Selecione uma conta</option>
-          <option *ngFor="let user of users()" [ngValue]="user.id">{{ user.nome }} · {{ user.login }}</option>
-        </select>
-        <small *ngIf="!loading() && users().length === 0">Nenhum usuário operacional cadastrado.</small>
+  <section class="permission-card" [formGroup]="form">
+    <div class="user-selection">
+      <div>
+        <span class="step-number">1</span>
+        <div><strong>Selecione o usuário</strong><small>Somente contas operacionais aparecem aqui.</small></div>
       </div>
+      <select formControlName="usuarioId">
+        <option [ngValue]="null">Selecione uma conta</option>
+        <option *ngFor="let user of users()" [ngValue]="user.id">
+          {{ user.nome }} · {{ user.login }}
+        </option>
+      </select>
+    </div>
 
-      <div class="section-heading section-border"><span>02</span><div><h2>Módulos autorizados</h2><p>Sem nenhuma opção marcada, o usuário continuará sem acesso às ferramentas.</p></div></div>
-      <div class="permission-grid" [class.permission-grid-disabled]="!form.controls.usuarioId.value">
-        <label class="permission-option" *ngFor="let permission of permissions()" [class.selected]="isSelected(permission.codigo)">
-          <input type="checkbox" [checked]="isSelected(permission.codigo)" [disabled]="!form.controls.usuarioId.value" (change)="toggle(permission.codigo)" />
-          <span><small>{{ permission.modulo }}</small><strong>{{ permission.descricao }}</strong></span>
+    <div class="selected-user" *ngIf="selectedUser as user">
+      <span class="avatar">{{ user.nome.charAt(0).toUpperCase() }}</span>
+      <div>
+        <strong>{{ user.nome }}</strong>
+        <small>{{ user.login }} · {{ user.email || 'sem e-mail' }}</small>
+      </div>
+      <b>{{ selectedPermissions().size }} ferramenta(s)</b>
+    </div>
+
+    <div class="permission-section">
+      <header>
+        <div>
+          <span class="step-number">2</span>
+          <div>
+            <strong>Ferramentas liberadas</strong>
+            <small>As opções correspondem às áreas atuais exibidas na Home.</small>
+          </div>
+        </div>
+        <div class="selection-actions">
+          <button type="button" [disabled]="!selectedUser" (click)="selectAll()">Selecionar todas</button>
+          <button type="button" [disabled]="!selectedUser" (click)="clearAll()">Limpar</button>
+        </div>
+      </header>
+
+      <div class="permissions-grid" [class.disabled]="!selectedUser">
+        <label
+          *ngFor="let permission of permissions()"
+          [class.selected]="isSelected(permission.codigo)"
+        >
+          <input
+            type="checkbox"
+            [checked]="isSelected(permission.codigo)"
+            [disabled]="!selectedUser"
+            (change)="toggle(permission.codigo)"
+          />
+          <span>
+            <small>{{ permission.modulo.replace('_', ' ') }}</small>
+            <strong>{{ permission.descricao }}</strong>
+          </span>
         </label>
       </div>
 
-      <div class="form-message error" role="alert" *ngIf="error()">{{ error() }}</div>
-      <div class="form-message success" role="status" *ngIf="success()">{{ success() }}</div>
-      <button class="btn btn-primary btn-lg submit-button" type="submit" [disabled]="loading() || saving() || !form.controls.usuarioId.value">{{ saving() ? 'Salvando…' : 'Salvar permissões' }}</button>
-    </form>
+      <div class="empty-permissions" *ngIf="!loading() && !permissions().length">
+        Nenhuma permissão atual foi encontrada. Verifique se a migração 006 foi aplicada ao banco.
+      </div>
+    </div>
 
-    <aside class="context-rail"><div class="context-card context-card-strong"><span>Controle aplicado</span><h2>Negado por padrão</h2><p>O acesso é validado novamente pelo backend em cada requisição. Ocultar o menu não é usado como mecanismo de segurança.</p><ul class="context-list"><li>Permissões administrativas não podem ser delegadas aqui</li><li>Alterações entram em vigor imediatamente</li><li>A ação fica registrada na auditoria</li></ul></div></aside>
-  </div>
+    <div class="form-message error" role="alert" *ngIf="error()">{{ error() }}</div>
+    <div class="form-message success" role="status" *ngIf="success()">{{ success() }}</div>
+
+    <footer>
+      <div>
+        <strong>Negado por padrão</strong>
+        <small>Sem opções marcadas, o usuário não verá ferramentas operacionais na Home.</small>
+      </div>
+      <button
+        class="btn btn-primary"
+        type="button"
+        [disabled]="loading() || saving() || !selectedUser"
+        (click)="submit()"
+      >
+        {{ saving() ? 'Salvando…' : 'Salvar permissões' }}
+      </button>
+    </footer>
+  </section>
 </section>

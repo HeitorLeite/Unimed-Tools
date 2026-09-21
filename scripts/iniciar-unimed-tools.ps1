@@ -15,6 +15,8 @@ $backendLog = Join-Path $runtimeDir 'backend.log'
 $backendErrorLog = Join-Path $runtimeDir 'backend-error.log'
 $backendPidFile = Join-Path $runtimeDir 'backend.pid'
 $backendRuntimeJar = Join-Path $runtimeDir 'unimed-tools-backend.jar'
+$localFrontendUrl = 'http://localhost/unimed-tools/'
+$lanFrontendUrl = 'http://192.168.3.242/unimed-tools/'
 
 function Write-Step([string]$message) {
   Write-Host "`n==> $message" -ForegroundColor Cyan
@@ -101,6 +103,30 @@ function Wait-LocalPort([int]$port, [int]$seconds, [string]$serviceName) {
   throw "$serviceName nao respondeu na porta $port dentro de $seconds segundos."
 }
 
+function Stop-XamppService(
+  [string]$processName,
+  [string]$stopScript,
+  [string]$serviceName
+) {
+  $running = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+  if (-not $running.Count) { return }
+
+  Write-Host "Encerrando $serviceName anterior..." -ForegroundColor Yellow
+  $scriptPath = Join-Path $xamppDir $stopScript
+  if (Test-Path -LiteralPath $scriptPath -PathType Leaf) {
+    Start-Process -FilePath $env:ComSpec -ArgumentList @('/c', ('"' + $scriptPath + '"')) -WorkingDirectory $xamppDir -WindowStyle Hidden -Wait | Out-Null
+  }
+
+  $deadline = [DateTime]::UtcNow.AddSeconds(20)
+  do {
+    $stillRunning = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+    if (-not $stillRunning.Count) { return }
+    Start-Sleep -Milliseconds 400
+  } while ([DateTime]::UtcNow -lt $deadline)
+
+  Write-Host "$serviceName nao encerrou pelo script; finalizando os processos restantes..." -ForegroundColor DarkYellow
+  Get-Process -Name $processName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction Stop
+}
 function Start-XamppService(
   [string]$processName,
   [string]$startScript,
@@ -146,6 +172,23 @@ function Stop-UnimedBackend {
   }
 }
 
+function Wait-HttpUrl([string]$url, [int]$seconds, [string]$serviceName) {
+  $deadline = [DateTime]::UtcNow.AddSeconds($seconds)
+  do {
+    try {
+      $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
+      if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {
+        Write-Host "$serviceName respondeu em $url" -ForegroundColor Green
+        return
+      }
+    } catch {
+      # O Apache ou o frontend pode ainda estar subindo.
+    }
+    Start-Sleep -Milliseconds 500
+  } while ([DateTime]::UtcNow -lt $deadline)
+
+  throw "$serviceName nao respondeu em '$url' dentro de $seconds segundos."
+}
 function Wait-UnimedBackend([System.Diagnostics.Process]$backendProcess) {
   $deadline = [DateTime]::UtcNow.AddSeconds(60)
   do {
@@ -188,19 +231,15 @@ try {
     throw 'As pastas do frontend e do backend nao foram encontradas ao lado do iniciador.'
   }
 
-  $mfaKey = Get-ConfiguredValue 'AUTH_MFA_ENCRYPTION_KEY'
   $sguKey = Get-ConfiguredValue 'SGU_API_KEY'
-  if ([string]::IsNullOrWhiteSpace($mfaKey)) {
-    throw "Configure AUTH_MFA_ENCRYPTION_KEY nas variaveis de ambiente do usuario antes de iniciar."
-  }
   if ([string]::IsNullOrWhiteSpace($sguKey)) {
     throw "Configure SGU_API_KEY nas variaveis de ambiente do usuario antes de iniciar."
   }
 
   New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 
-  Write-Step 'Iniciando Apache e MariaDB do XAMPP'
-  Start-XamppService 'httpd' 'apache_start.bat' 80 'Apache'
+  Write-Step 'Preparando os servicos locais'
+  # O MariaDB nao precisa ser reiniciado a cada atualizacao; basta garantir que esteja ativo.
   Start-XamppService 'mysqld' 'mysql_start.bat' 3306 'MariaDB'
 
   Write-Step 'Testando e gerando o frontend para a rede local'
@@ -235,7 +274,6 @@ try {
   if ([string]::IsNullOrWhiteSpace($env:DB_USERNAME)) { $env:DB_USERNAME = 'root' }
   $configuredDbPassword = Get-ConfiguredValue 'DB_PASSWORD'
   $env:DB_PASSWORD = if ($null -eq $configuredDbPassword) { '' } else { $configuredDbPassword }
-  $env:AUTH_MFA_ENCRYPTION_KEY = $mfaKey
   $env:SERVER_ADDRESS = '127.0.0.1'
   $env:SGU_API_KEY = $sguKey
   $configuredHeaders = Get-ConfiguredValue 'SGU_API_KEY_HEADERS'
@@ -245,17 +283,29 @@ try {
     $configuredHeaders
   }
 
-  Write-Step 'Publicando os arquivos e reiniciando o backend'
+  Write-Step 'Reiniciando frontend e backend'
+
+  # Localhost e 192.168.3.242 usam o mesmo frontend estatico servido pelo Apache.
+  # Reiniciar o Apache e substituir a pasta inteira evita bundles antigos no XAMPP.
+  Stop-XamppService 'httpd' 'apache_stop.bat' 'Apache'
+
   Stop-UnimedBackend
   if (Test-LocalPort 8080) {
     throw 'A porta 8080 esta ocupada por outro processo. Libere a porta antes de iniciar.'
   }
+
   # O Windows bloqueia o JAR em execucao. A copia fora de target permite
   # compilar a proxima versao antes de encerrar o backend atual.
   Copy-Item -LiteralPath $backendJar.FullName -Destination $backendRuntimeJar -Force
+
+  if (Test-Path -LiteralPath $frontendDestination -PathType Container) {
+    Remove-Item -LiteralPath $frontendDestination -Recurse -Force
+  }
   New-Item -ItemType Directory -Path $frontendDestination -Force | Out-Null
   Copy-Item -Path (Join-Path $frontendBuild '*') -Destination $frontendDestination -Recurse -Force
-  Write-Host "Frontend publicado em $frontendDestination." -ForegroundColor Green
+  Write-Host "Frontend republicado do zero em $frontendDestination." -ForegroundColor Green
+
+  Start-XamppService 'httpd' 'apache_start.bat' 80 'Apache'
 
   $backendProcess = Start-Process `
     -FilePath $javaPath `
@@ -268,8 +318,13 @@ try {
   Set-Content -LiteralPath $backendPidFile -Value $backendProcess.Id -Encoding ascii
   Wait-UnimedBackend $backendProcess
 
-  Write-Step 'Unimed Tools atualizada e iniciada'
-  Write-Host 'Aplicacao: http://localhost/unimed-tools/' -ForegroundColor Green
+  Write-Step 'Validando os dois enderecos do frontend'
+  Wait-HttpUrl $localFrontendUrl 30 'Frontend local'
+  Wait-HttpUrl $lanFrontendUrl 30 'Frontend da rede'
+
+  Write-Step 'Unimed Tools atualizada e reiniciada'
+  Write-Host "Local: $localFrontendUrl" -ForegroundColor Green
+  Write-Host "Rede:  $lanFrontendUrl" -ForegroundColor Green
   Write-Host "Backend: PID $($backendProcess.Id) - logs em $runtimeDir" -ForegroundColor Green
   exit 0
 } catch {

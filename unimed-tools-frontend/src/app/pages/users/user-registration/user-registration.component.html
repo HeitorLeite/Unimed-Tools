@@ -22,18 +22,29 @@
         <div class="form-grid">
           <label class="field field-wide">
             <span>Nome completo</span>
-            <input type="text" formControlName="nome" maxlength="150" placeholder="Nome da pessoa" />
+            <input
+              type="text"
+              formControlName="nome"
+              maxlength="150"
+              placeholder="Nome da pessoa"
+            />
           </label>
 
           <label class="field">
             <span>Login</span>
-            <input type="text" formControlName="login" maxlength="80" placeholder="nome.sobrenome" />
+            <input
+              type="text"
+              formControlName="login"
+              maxlength="80"
+              placeholder="nome.sobrenome"
+            />
             <small>Use minúsculas, números, ponto, hífen ou underscore.</small>
           </label>
 
           <label class="field">
             <span>E-mail</span>
             <input type="email" formControlName="email" maxlength="254" placeholder="Opcional" />
+            <small>Será usado para recuperação de senha e notificações.</small>
           </label>
         </div>
       </section>
@@ -43,18 +54,27 @@
           <span>2</span>
           <div>
             <h2>Tipo e acessos</h2>
-            <p>Administradores recebem acesso completo. Usuários operacionais recebem somente as ferramentas marcadas.</p>
+            <p>
+              Administradores recebem acesso completo. Usuários operacionais recebem somente as
+              ferramentas marcadas.
+            </p>
           </div>
         </header>
 
         <div class="profile-choice">
           <label [class.active]="form.controls.perfilCodigo.value === 'USUARIO'">
             <input type="radio" formControlName="perfilCodigo" value="USUARIO" />
-            <span><strong>Usuário operacional</strong><small>Escolha as ferramentas abaixo.</small></span>
+            <span
+              ><strong>Usuário operacional</strong
+              ><small>Escolha as ferramentas abaixo.</small></span
+            >
           </label>
           <label [class.active]="form.controls.perfilCodigo.value === 'ADMINISTRADOR'">
             <input type="radio" formControlName="perfilCodigo" value="ADMINISTRADOR" />
-            <span><strong>Administrador</strong><small>Acesso completo e gerenciamento da plataforma.</small></span>
+            <span
+              ><strong>Administrador</strong
+              ><small>Acesso completo e gerenciamento da plataforma.</small></span
+            >
           </label>
         </div>
 
@@ -62,7 +82,10 @@
           <div class="permission-heading">
             <div>
               <strong>Ferramentas liberadas</strong>
-              <small>{{ selectedPermissions().size }} de {{ permissions().length }} selecionada(s)</small>
+              <small
+                >{{ selectedPermissions().size }} de
+                {{ permissions().length }} selecionada(s)</small
+              >
             </div>
             <div>
               <button type="button" (click)="selectAllPermissions()">Selecionar todas</button>
@@ -145,7 +168,11 @@
 
       <footer class="form-footer">
         <a class="btn btn-secondary" routerLink="/usuarios">Cancelar</a>
-        <button class="btn btn-primary" type="submit" [disabled]="loading() || loadingPermissions()">
+        <button
+          class="btn btn-primary"
+          type="submit"
+          [disabled]="loading() || loadingPermissions()"
+        >
           {{ loading() ? 'Cadastrando…' : 'Cadastrar usuário' }}
         </button>
       </footer>
@@ -166,8 +193,14 @@
         <span>Conta criada</span>
         <h2>{{ user.nome }}</h2>
         <dl>
-          <div><dt>Login</dt><dd>{{ user.login }}</dd></div>
-          <div><dt>Perfil</dt><dd>{{ user.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Operacional' }}</dd></div>
+          <div>
+            <dt>Login</dt>
+            <dd>{{ user.login }}</dd>
+          </div>
+          <div>
+            <dt>Perfil</dt>
+            <dd>{{ user.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Operacional' }}</dd>
+          </div>
         </dl>
         <a routerLink="/usuarios/cadastrados">Ver usuários cadastrados →</a>
       </section>

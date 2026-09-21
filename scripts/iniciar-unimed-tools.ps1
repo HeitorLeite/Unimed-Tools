@@ -172,6 +172,23 @@ function Stop-UnimedBackend {
   }
 }
 
+function Wait-HttpUrl([string]$url, [int]$seconds, [string]$serviceName) {
+  $deadline = [DateTime]::UtcNow.AddSeconds($seconds)
+  do {
+    try {
+      $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
+      if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {
+        Write-Host "$serviceName respondeu em $url" -ForegroundColor Green
+        return
+      }
+    } catch {
+      # O Apache ou o frontend pode ainda estar subindo.
+    }
+    Start-Sleep -Milliseconds 500
+  } while ([DateTime]::UtcNow -lt $deadline)
+
+  throw "$serviceName nao respondeu em '$url' dentro de $seconds segundos."
+}
 function Wait-UnimedBackend([System.Diagnostics.Process]$backendProcess) {
   $deadline = [DateTime]::UtcNow.AddSeconds(60)
   do {

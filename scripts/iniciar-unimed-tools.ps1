@@ -15,6 +15,8 @@ $backendLog = Join-Path $runtimeDir 'backend.log'
 $backendErrorLog = Join-Path $runtimeDir 'backend-error.log'
 $backendPidFile = Join-Path $runtimeDir 'backend.pid'
 $backendRuntimeJar = Join-Path $runtimeDir 'unimed-tools-backend.jar'
+$localFrontendUrl = 'http://localhost/unimed-tools/'
+$lanFrontendUrl = 'http://192.168.3.242/unimed-tools/'
 
 function Write-Step([string]$message) {
   Write-Host "`n==> $message" -ForegroundColor Cyan

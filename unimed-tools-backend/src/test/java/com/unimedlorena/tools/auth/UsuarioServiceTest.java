@@ -88,6 +88,49 @@ class UsuarioServiceTest {
   }
 
   @Test
+  void deveCadastrarUsuarioComFerramentasAtuaisEPermissoesTecnicasNecessarias() {
+    when(repository.existeLoginOuEmail("novo.usuario", null)).thenReturn(false);
+    when(repository.buscarPermissoesOperacionaisAtivas(
+      Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR")
+    )).thenReturn(Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR"));
+    when(encoder.encode("Caju#8042")).thenReturn("hash-novo");
+    when(repository.criarUsuario(
+      eq("Novo Usuário"),
+      eq("novo.usuario"),
+      eq(null),
+      eq("hash-novo"),
+      eq("USUARIO"),
+      eq(1L),
+      any()
+    )).thenReturn(9L);
+
+    service.criar(
+      principalAdmin,
+      new UsuarioDtos.CriacaoRequest(
+        "Novo Usuário",
+        "novo.usuario",
+        null,
+        "Caju#8042",
+        "USUARIO",
+        Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR")
+      ),
+      info
+    );
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Set<String>> permissoes = ArgumentCaptor.forClass(Set.class);
+    verify(repository).substituirPermissoesUsuario(eq(9L), permissoes.capture(), eq(1L));
+
+    assertThat(permissoes.getValue()).containsExactlyInAnyOrder(
+      "APLICACAO_ACESSAR",
+      "COMERCIAL_ACESSAR",
+      "RELATORIOS_ACESSAR",
+      "REVISAO_CONTAS_ACESSAR",
+      "XML_ACESSAR"
+    );
+  }
+
+  @Test
   void deveRevogarSessoesAoRedefinirSenha() {
     when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
     when(encoder.encode("Caju#804")).thenReturn("hash");

@@ -4,16 +4,21 @@
       <span class="eyebrow">Empresas e contratos</span>
       <h1>Comercial</h1>
       <p>
-        Gere o conjunto de relatórios da empresa sem precisar informar códigos ou abrir cada API
-        separadamente.
+        Selecione uma ou várias empresas, confira uma amostra da primeira e gere os arquivos
+        completos com todas as empresas escolhidas.
       </p>
     </div>
+
     <div class="batch-action">
       <button
         class="btn btn-primary batch-download"
         type="button"
         [disabled]="
-          !company || !selectedReports.length || generating || downloadingAll || loadingDefinitions
+          !selectedCompanies.length ||
+          !selectedReports.length ||
+          generating ||
+          downloadingAll ||
+          loadingDefinitions
         "
         [attr.aria-busy]="downloadingAll"
         (click)="downloadAll()"
@@ -27,10 +32,12 @@
             stroke-linejoin="round"
           />
         </svg>
-        {{ downloadingAll ? 'Preparando ZIP…' : 'Baixar todos selecionados' }}
-        <span class="batch-count">{{ selectedReports.length }}</span>
+        {{ downloadingAll ? 'Preparando ZIP…' : 'Baixar todos os relatórios' }}
+        <span class="batch-count">{{ selectedCompanies.length }}</span>
       </button>
-      <small>Um único ZIP com os relatórios em XLSX.</small>
+      <small>
+        {{ selectedCompanies.length || 0 }} empresa(s) · {{ selectedReports.length }} relatório(s)
+      </small>
     </div>
   </header>
 
@@ -38,20 +45,88 @@
     <aside class="setup-panel">
       <div class="step">
         <span>1</span>
-        <div><strong>Empresa e período</strong><small>Defina o contexto da geração.</small></div>
+        <div>
+          <strong>Empresas</strong>
+          <small>Você pode selecionar quantas precisar.</small>
+        </div>
       </div>
-      <div class="field">
-        <app-empresa-select
-          id="commercial-company"
-          [selecionada]="companyId"
-          [ocupadas]="[]"
-          [bloqueado]="generating || downloadingAll"
-          (selecionadaChange)="selectCompany($event)"
+
+      <label class="company-search">
+        <span>Buscar empresa</span>
+        <input
+          type="search"
+          [(ngModel)]="companySearch"
+          [disabled]="generating || downloadingAll"
+          placeholder="Ex.: Canção Nova"
         />
+      </label>
+
+      <div class="company-toolbar">
+        <button
+          type="button"
+          [disabled]="generating || downloadingAll || !filteredCompanies.length"
+          (click)="selectVisibleCompanies()"
+        >
+          Selecionar exibidas
+        </button>
+        <button
+          type="button"
+          [disabled]="generating || downloadingAll || !selectedCompanies.length"
+          (click)="clearCompanies()"
+        >
+          Limpar
+        </button>
       </div>
+
+      <div class="company-list" *ngIf="filteredCompanies.length; else noCompanies">
+        <label
+          class="company-option"
+          *ngFor="let company of filteredCompanies"
+          [class.selected]="isCompanySelected(company.id)"
+        >
+          <input
+            type="checkbox"
+            [checked]="isCompanySelected(company.id)"
+            [disabled]="generating || downloadingAll"
+            (change)="toggleCompany(company.id)"
+          />
+          <span>
+            <strong>{{ company.nome }}</strong>
+            <small>{{ company.codigos.length }} contrato(s)</small>
+          </span>
+        </label>
+      </div>
+
+      <ng-template #noCompanies>
+        <div class="company-empty">Nenhuma empresa encontrada para esta busca.</div>
+      </ng-template>
+
+      <div class="selected-companies" *ngIf="selectedCompanies.length">
+        <span class="selected-label">Selecionadas</span>
+        <div class="selected-chips">
+          <button
+            type="button"
+            *ngFor="let company of selectedCompanies"
+            [disabled]="generating || downloadingAll"
+            (click)="removeCompany(company.id)"
+            [attr.aria-label]="'Remover ' + company.nome"
+          >
+            {{ company.nome }} <b>×</b>
+          </button>
+        </div>
+      </div>
+
+      <div class="step period-step">
+        <span>2</span>
+        <div>
+          <strong>Período</strong>
+          <small>Defina competência e referência.</small>
+        </div>
+      </div>
+
       <div class="field">
-        <label for="commercial-competence">Competência</label
-        ><input
+        <label for="commercial-competence">Competência</label>
+        <input
           id="commercial-competence"
           type="text"
           maxlength="6"
@@ -61,9 +136,10 @@
           placeholder="AAAAMM"
         />
       </div>
+
       <div class="field">
-        <label for="commercial-reference">Data de referência da faixa etária</label
-        ><input
+        <label for="commercial-reference">Data de referência da faixa etária</label>
+        <input
           id="commercial-reference"
           type="date"
           [(ngModel)]="referenceDate"
@@ -72,9 +148,13 @@
       </div>
 
       <div class="step reports-step">
-        <span>2</span>
-        <div><strong>Relatórios</strong><small>Escolha o que fará parte da geração.</small></div>
+        <span>3</span>
+        <div>
+          <strong>Relatórios</strong>
+          <small>Escolha os arquivos que deseja gerar.</small>
+        </div>
       </div>
+
       <div class="report-options">
         <label
           *ngFor="let report of reports"
@@ -86,67 +166,100 @@
             [disabled]="!report.definition || loadingDefinitions || generating || downloadingAll"
             (change)="toggleReport(report)"
           />
-          <span
-            ><strong>{{ report.nome }}</strong
-            ><small>{{ report.error || report.descricao }}</small></span
-          >
+          <span>
+            <strong>{{ report.nome }}</strong>
+            <small>{{ report.error || report.descricao }}</small>
+          </span>
         </label>
       </div>
+
       <p class="error" role="alert" *ngIf="error">{{ error }}</p>
       <p class="loading-copy" role="status" *ngIf="loadingDefinitions">
         Carregando relatórios disponíveis…
       </p>
+
       <button
         class="primary"
         type="button"
-        [disabled]="generating || loadingDefinitions || downloadingAll"
+        [disabled]="
+          generating ||
+          loadingDefinitions ||
+          downloadingAll ||
+          !selectedCompanies.length ||
+          !selectedReports.length
+        "
         (click)="generatePreview()"
       >
-        {{ generating ? 'Gerando prévias…' : 'Gerar prévias' }}
+        {{ generating ? 'Gerando prévias…' : 'Gerar prévia' }}
       </button>
     </aside>
 
     <main class="results">
       <div class="results-intro">
         <div>
-          <span>3</span>
+          <span>4</span>
           <div>
-            <strong>Conferência</strong><small>Confira os registros antes de baixar.</small>
+            <strong>Conferência</strong>
+            <small>A prévia é somente uma amostra da primeira empresa selecionada.</small>
           </div>
         </div>
-        <span *ngIf="company">{{ company.nome }} · {{ competence }}</span>
+
+        <div class="preview-company" *ngIf="previewCompany as company">
+          <span>Prévia</span>
+          <strong>{{ company.nome }}</strong>
+        </div>
       </div>
 
-      <ng-container *ngFor="let report of selectedReports">
-        <article class="report-result" *ngIf="report.previewed">
-          <header>
+      <div class="preview-notice" *ngIf="selectedCompanies.length > 1">
+        <strong>Prévia resumida</strong>
+        <p>
+          Para manter a consulta rápida, a tela mostra somente
+          <b>{{ previewCompany?.nome }}</b>. Os arquivos baixados incluem os dados de todas as
+          {{ selectedCompanies.length }} empresas selecionadas.
+        </p>
+      </div>
+
+      <article class="report-result" *ngFor="let report of selectedReports">
+        <header>
+          <div>
+            <small>{{ report.api }}</small>
             <h2>{{ report.nome }}</h2>
-            <button
-              type="button"
-              [disabled]="
-                !report.records.length || report.downloading || generating || downloadingAll
-              "
-              (click)="download(report)"
-            >
-              {{ report.downloading ? 'Preparando…' : 'Baixar XLSX' }}
-            </button>
-          </header>
-          <div class="loading" role="status" *ngIf="report.loading">Consultando o relatório…</div>
-          <p class="error result-error" *ngIf="report.error && report.definition">
-            {{ report.error }}
-          </p>
-          <app-report-preview
-            *ngIf="!report.loading && (report.records.length || !report.error)"
-            [title]="'Prévia de ' + report.nome"
-            [records]="report.records"
-            [columns]="report.columns"
-          />
-        </article>
-      </ng-container>
+          </div>
+          <button
+            type="button"
+            [disabled]="!selectedCompanies.length || report.downloading || generating"
+            (click)="download(report)"
+          >
+            {{
+              report.downloading
+                ? 'Preparando…'
+                : selectedCompanies.length > 1
+                  ? 'Baixar todas as empresas'
+                  : 'Baixar XLSX'
+            }}
+          </button>
+        </header>
+
+        <div class="loading" *ngIf="report.loading">Consultando o SGU…</div>
+        <p class="error result-error" *ngIf="report.error && report.definition">{{ report.error }}</p>
+
+        <app-report-preview
+          *ngIf="!report.loading && report.previewed"
+          [title]="'Prévia de ' + report.nome"
+          [records]="report.records"
+          [columns]="report.columns"
+        />
+
+        <div class="not-previewed" *ngIf="!report.loading && !report.previewed">
+          Gere a prévia para conferir uma amostra antes do download.
+        </div>
+      </article>
 
       <div class="start-state" *ngIf="!hasPreview">
-        <strong>A prévia aparecerá aqui.</strong
-        ><span>Selecione a empresa e os relatórios ao lado e clique em “Gerar prévias”.</span>
+        <strong>Selecione as empresas e gere uma prévia.</strong>
+        <span>
+          A primeira empresa serve como amostra. O download consolida todas as empresas escolhidas.
+        </span>
       </div>
     </main>
   </div>

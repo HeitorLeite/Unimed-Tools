@@ -67,20 +67,24 @@ class UsuarioServiceTest {
   @Test
   void deveConcederSomentePermissoesOperacionaisEAdicionarAcessoBase() {
     when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
-    when(repository.buscarPermissoesOperacionaisAtivas(Set.of("XML_ACESSAR")))
-      .thenReturn(Set.of("XML_ACESSAR"));
+    when(repository.buscarPermissoesOperacionaisAtivas(Set.of("REVISAO_CONTAS_ACESSAR")))
+      .thenReturn(Set.of("REVISAO_CONTAS_ACESSAR"));
 
     service.atualizarPermissoes(
       principalAdmin,
       2,
-      new UsuarioDtos.AtualizacaoPermissoesRequest(Set.of("XML_ACESSAR")),
+      new UsuarioDtos.AtualizacaoPermissoesRequest(Set.of("REVISAO_CONTAS_ACESSAR")),
       info
     );
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Set<String>> permissoes = ArgumentCaptor.forClass(Set.class);
     verify(repository).substituirPermissoesUsuario(eq(2L), permissoes.capture(), eq(1L));
-    assertThat(permissoes.getValue()).containsExactlyInAnyOrder("APLICACAO_ACESSAR", "XML_ACESSAR");
+    assertThat(permissoes.getValue()).containsExactlyInAnyOrder(
+      "APLICACAO_ACESSAR",
+      "REVISAO_CONTAS_ACESSAR",
+      "XML_ACESSAR"
+    );
   }
 
   @Test

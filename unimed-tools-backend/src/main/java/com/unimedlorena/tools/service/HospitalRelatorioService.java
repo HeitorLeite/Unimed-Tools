@@ -231,7 +231,7 @@ public class HospitalRelatorioService {
       if (valor.length() > 240)
         throw new IllegalArgumentException("Filtro muito longo: " + id + ".");
 
-      if (Set.of("convenio", "nomebenef", "descricao").contains(id)) {
+      if (Set.of("convenio", "nomebenef", "descricao", "procedimento").contains(id)) {
         normalizados.put(id, "%" + valor.toUpperCase(Locale.ROOT) + "%");
       } else if ("status".equals(id)) {
         if (!Set.of("1", "2", "3").contains(valor))

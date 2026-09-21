@@ -1,14 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { HttpEventType } from '@angular/common/http';
-<<<<<<< HEAD
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, finalize, firstValueFrom, forkJoin, of } from 'rxjs';
-=======
-import { Component, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { catchError, firstValueFrom, forkJoin, of } from 'rxjs';
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 import { ReportPreviewComponent } from '../../shared/components/report-preview/report-preview.component';
 import { SguApiDefinicao, SguResultado } from '../../shared/models/relatorio.model';
 import { RelatorioService } from '../../shared/services/relatorio.service';
@@ -26,11 +20,8 @@ interface ComercialReport {
   records: Record<string, unknown>[];
   columns: string[];
   loading: boolean;
-<<<<<<< HEAD
   previewed?: boolean;
   downloading?: boolean;
-=======
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   error: string;
 }
 
@@ -52,7 +43,6 @@ export class ComercialComponent implements OnInit {
   error = '';
 
   reports: ComercialReport[] = [
-<<<<<<< HEAD
     {
       api: '0090-beneficiario-empresa',
       nome: 'Beneficiários',
@@ -103,15 +93,6 @@ export class ComercialComponent implements OnInit {
     private readonly reportsService: RelatorioService,
     private readonly cdr: ChangeDetectorRef,
   ) {}
-=======
-    { api: '0090-beneficiario-empresa', nome: 'Beneficiários', descricao: 'Base de beneficiários vinculados à empresa escolhida.', arquivo: 'beneficiarios', selected: true, records: [], columns: [], loading: false, error: '' },
-    { api: '0090-receita-empresa-com-grupo', nome: 'Receita', descricao: 'Receita da empresa no período informado.', arquivo: 'receita', selected: true, records: [], columns: [], loading: false, error: '' },
-    { api: '0090-despesa-empresas', nome: 'Despesas', descricao: 'Despesas assistenciais da empresa no período informado.', arquivo: 'despesas', selected: true, records: [], columns: [], loading: false, error: '' },
-    { api: '0090-faixa-etaria', nome: 'Faixa etária', descricao: 'Distribuição etária calculada na data de referência.', arquivo: 'faixa_etaria', selected: true, records: [], columns: [], loading: false, error: '' },
-  ];
-
-  constructor(private readonly reportsService: RelatorioService) {}
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 
   ngOnInit(): void {
     forkJoin(
@@ -124,10 +105,7 @@ export class ComercialComponent implements OnInit {
         else this.reports[index].error = 'API não encontrada no SGU.';
       });
       this.loadingDefinitions = false;
-<<<<<<< HEAD
       this.cdr.markForCheck();
-=======
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
     });
   }
 
@@ -149,18 +127,11 @@ export class ComercialComponent implements OnInit {
   }
 
   get hasPreview(): boolean {
-<<<<<<< HEAD
     return this.selectedReports.some((report) => report.previewed || report.loading);
   }
 
   async generatePreview(): Promise<void> {
     if (this.generating || this.downloadingAll) return;
-=======
-    return this.selectedReports.some((report) => report.records.length > 0 || report.loading);
-  }
-
-  async generatePreview(): Promise<void> {
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
     this.error = '';
     if (!this.company) {
       this.error = 'Selecione a empresa para continuar.';
@@ -177,17 +148,13 @@ export class ComercialComponent implements OnInit {
 
     this.generating = true;
     for (const report of this.selectedReports) {
-<<<<<<< HEAD
       report.previewed = true;
-=======
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       report.loading = true;
       report.error = '';
       report.records = [];
       report.columns = [];
       try {
         const response = await firstValueFrom(
-<<<<<<< HEAD
           this.reportsService.executar(report.api, {
             ...this.parameters(report),
             page: 1,
@@ -236,34 +203,6 @@ export class ComercialComponent implements OnInit {
       return;
     this.downloadingAll = true;
     this.error = '';
-=======
-          this.reportsService.executar(report.api, { ...this.parameters(report), page: 1, size: 20 }),
-        );
-        this.applyPreview(report, response);
-      } catch (error: any) {
-        report.error = error?.error?.message || error?.message || 'Não foi possível gerar a prévia.';
-      } finally {
-        report.loading = false;
-      }
-    }
-    this.generating = false;
-  }
-
-  download(report: ComercialReport): void {
-    if (!report.definition || !this.company) return;
-    const filename = `${this.safe(this.company.nome)}_${report.arquivo}_${this.competence}`;
-    this.reportsService.exportar(report.api, 'xlsx', this.parameters(report), filename).subscribe({
-      next: (event) => {
-        if (event.type === HttpEventType.Response && event.body) this.saveBlob(event.body, `${filename}.xlsx`);
-      },
-      error: (error: any) => report.error = error?.error?.message || 'Falha ao baixar o relatório.',
-    });
-  }
-
-  downloadAll(): void {
-    if (!this.company || !this.selectedReports.length || this.downloadingAll) return;
-    this.downloadingAll = true;
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
     const request = {
       nomeArquivo: `comercial_${this.safe(this.company.nome)}_${this.competence}`,
       formato: 'xlsx' as const,
@@ -273,7 +212,6 @@ export class ComercialComponent implements OnInit {
         combinacoesFiltros: [this.parameters(report)],
       })),
     };
-<<<<<<< HEAD
     this.reportsService
       .exportarLote(request)
       .pipe(
@@ -290,18 +228,6 @@ export class ComercialComponent implements OnInit {
           this.error = 'Não foi possível gerar o pacote de relatórios.';
         },
       });
-=======
-    this.reportsService.exportarLote(request).subscribe({
-      next: (response) => {
-        if (response.body) this.saveBlob(response.body, `${request.nomeArquivo}.zip`);
-        this.downloadingAll = false;
-      },
-      error: () => {
-        this.error = 'Não foi possível gerar o pacote de relatórios.';
-        this.downloadingAll = false;
-      },
-    });
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 
   private parameters(report: ComercialReport): Record<string, unknown> {
@@ -316,14 +242,10 @@ export class ComercialComponent implements OnInit {
       } else if (logical === 'competencia' || normalized.includes('competencia')) {
         params[filter.nomeFiltro] = Number(this.competence);
       } else if (normalized.includes('datareferencia') || normalized.includes('referencia')) {
-<<<<<<< HEAD
         params[filter.nomeFiltro] = this.formatDateForFilter(
           this.referenceDate,
           filter.mascaraFiltro,
         );
-=======
-        params[filter.nomeFiltro] = this.formatDateForFilter(this.referenceDate, filter.mascaraFiltro);
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       }
     }
     return params;
@@ -335,16 +257,12 @@ export class ComercialComponent implements OnInit {
   }
 
   private clearPreview(): void {
-<<<<<<< HEAD
     this.reports.forEach((report) => {
       report.records = [];
       report.columns = [];
       report.error = '';
       report.previewed = false;
     });
-=======
-    this.reports.forEach((report) => { report.records = []; report.columns = []; report.error = ''; });
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 
   private formatDateForFilter(value: string, mask: string): string {
@@ -362,7 +280,6 @@ export class ComercialComponent implements OnInit {
   }
 
   private safe(value: string): string {
-<<<<<<< HEAD
     return value
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -377,27 +294,16 @@ export class ComercialComponent implements OnInit {
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '');
-=======
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  }
-
-  private normalize(value: string): string {
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 
   private saveBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-<<<<<<< HEAD
     link.href = url;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
-=======
-    link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 }

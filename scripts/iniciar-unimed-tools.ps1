@@ -103,6 +103,30 @@ function Wait-LocalPort([int]$port, [int]$seconds, [string]$serviceName) {
   throw "$serviceName nao respondeu na porta $port dentro de $seconds segundos."
 }
 
+function Stop-XamppService(
+  [string]$processName,
+  [string]$stopScript,
+  [string]$serviceName
+) {
+  $running = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+  if (-not $running.Count) { return }
+
+  Write-Host "Encerrando $serviceName anterior..." -ForegroundColor Yellow
+  $scriptPath = Join-Path $xamppDir $stopScript
+  if (Test-Path -LiteralPath $scriptPath -PathType Leaf) {
+    Start-Process -FilePath $env:ComSpec -ArgumentList @('/c', ('"' + $scriptPath + '"')) -WorkingDirectory $xamppDir -WindowStyle Hidden -Wait | Out-Null
+  }
+
+  $deadline = [DateTime]::UtcNow.AddSeconds(20)
+  do {
+    $stillRunning = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+    if (-not $stillRunning.Count) { return }
+    Start-Sleep -Milliseconds 400
+  } while ([DateTime]::UtcNow -lt $deadline)
+
+  Write-Host "$serviceName nao encerrou pelo script; finalizando os processos restantes..." -ForegroundColor DarkYellow
+  Get-Process -Name $processName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction Stop
+}
 function Start-XamppService(
   [string]$processName,
   [string]$startScript,

@@ -72,15 +72,40 @@ export class HospitalComponent implements OnInit {
       )
       .subscribe({
         next: (response) => {
-          this.records = Array.isArray(response.content) ? response.content : [];
+          const rawRecords = Array.isArray(response.content) ? response.content : [];
+
+          this.records = rawRecords.map((row) => {
+            const normalized: Record<string, unknown> = {};
+
+            for (const [key, value] of Object.entries(row)) {
+              const normalizedKey = key.toUpperCase();
+
+              if (normalizedKey === 'RNUM') {
+                continue;
+              }
+
+              normalized[normalizedKey] = value;
+            }
+
+            return normalized;
+          });
+
           this.columns = this.config!.colunas;
 
           this.page = page;
           this.last = Boolean(response.last) || this.records.length < this.pageSize;
 
           const totalValue = response.totalElements ?? response.numberOfElements;
+
           const parsed = Number(totalValue);
+
           this.total = Number.isFinite(parsed) ? parsed : null;
+
+          console.log('REGISTRO SGU:', response.content?.[0]);
+          console.log(
+            'COLUNAS SGU:',
+            response.content?.[0] ? Object.keys(response.content[0]) : [],
+          );
         },
         error: (error: any) =>
           (this.error = error?.error?.message || 'Não foi possível consultar as autorizações.'),

@@ -22,7 +22,11 @@
       </thead>
       <tbody>
         <tr *ngFor="let row of visibleRecords">
-          <td *ngFor="let column of columns" [class.protected]="protected(column)">
+          <td
+            *ngFor="let column of columns"
+            [class.protected]="protected(column)"
+            [class.expired-date]="expired(column, row[column])"
+          >
             {{ protected(column) ? '••••••••' : format(column, row[column]) }}
           </td>
         </tr>

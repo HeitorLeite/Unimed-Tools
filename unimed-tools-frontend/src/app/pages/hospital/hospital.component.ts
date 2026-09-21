@@ -73,9 +73,11 @@ export class HospitalComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.records = Array.isArray(response.content) ? response.content : [];
-          this.columns = this.records.length ? Object.keys(this.records[0]) : this.config!.colunas;
+          this.columns = this.config!.colunas;
+
           this.page = page;
           this.last = Boolean(response.last) || this.records.length < this.pageSize;
+
           const totalValue = response.totalElements ?? response.numberOfElements;
           const parsed = Number(totalValue);
           this.total = Number.isFinite(parsed) ? parsed : null;

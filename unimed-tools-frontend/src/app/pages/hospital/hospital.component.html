@@ -3,48 +3,86 @@
     <div>
       <span>Autorizações hospitalares</span>
       <h1>Hospital</h1>
-      <p>Consulte solicitações autorizadas, negadas ou em estudo que ainda não possuem guia gerada.</p>
+      <p>
+        Consulte solicitações autorizadas, negadas ou em estudo que ainda não possuem guia gerada.
+      </p>
     </div>
-    <button type="button" class="download" [disabled]="!records.length || exporting" (click)="download()">{{ exporting ? 'Preparando…' : 'Baixar XLSX' }}</button>
+    <button
+      type="button"
+      class="download"
+      [disabled]="!records.length || exporting"
+      (click)="download()"
+    >
+      {{ exporting ? 'Preparando…' : 'Baixar XLSX' }}
+    </button>
   </header>
 
   <div class="layout" *ngIf="config; else loadingState">
     <aside class="filters-card">
-      <div class="card-title"><span>1</span><div><strong>Filtros</strong><small>Preencha somente o que deseja restringir.</small></div></div>
+      <div class="card-title">
+        <span>1</span>
+        <div><strong>Filtros</strong><small>Preencha somente o que deseja restringir.</small></div>
+      </div>
 
       <div class="fields">
         <label *ngFor="let filter of config.filtros">
           <span>{{ filter.rotulo }}</span>
           <select *ngIf="filter.tipo === 'select'; else inputField" [(ngModel)]="values[filter.id]">
             <option value="">Todos</option>
-            <option *ngFor="let option of filter.opcoes" [value]="option.valor">{{ option.rotulo }}</option>
+            <option *ngFor="let option of filter.opcoes" [value]="option.valor">
+              {{ option.rotulo }}
+            </option>
           </select>
           <ng-template #inputField>
-            <input [type]="filter.tipo === 'date' ? 'date' : 'text'" [(ngModel)]="values[filter.id]" [placeholder]="filter.placeholder" />
+            <input
+              [type]="filter.tipo === 'date' ? 'date' : 'text'"
+              [(ngModel)]="values[filter.id]"
+              [placeholder]="filter.placeholder"
+            />
           </ng-template>
         </label>
       </div>
 
       <div class="actions">
         <button type="button" class="clear" (click)="clear()">Limpar</button>
-        <button type="button" class="generate" [disabled]="generating" (click)="generate(1)">{{ generating ? 'Consultando…' : 'Gerar relatório' }}</button>
+        <button type="button" class="generate" [disabled]="generating" (click)="generate(1)">
+          {{ generating ? 'Consultando…' : 'Gerar relatório' }}
+        </button>
       </div>
     </aside>
 
     <main class="results">
       <div class="result-header">
-        <div class="card-title"><span>2</span><div><strong>Prévia do relatório</strong><small>Os filtros são aplicados no servidor antes da consulta.</small></div></div>
+        <div class="card-title">
+          <span>2</span>
+          <div>
+            <strong>Prévia do relatório</strong
+            ><small>Os filtros são aplicados no servidor antes da consulta.</small>
+          </div>
+        </div>
         <strong *ngIf="total !== null">{{ total }} registro(s)</strong>
       </div>
 
       <p class="error" *ngIf="error">{{ error }}</p>
       <div class="loading" *ngIf="generating">Buscando autorizações no SGU…</div>
-      <app-report-preview *ngIf="!generating" title="Autorizações hospitalares" [records]="records" [columns]="columns" [maxRows]="pageSize" />
+      <app-report-preview
+        *ngIf="!generating"
+        title="Autorizações hospitalares"
+        [records]="records"
+        [columns]="columns"
+        [maxRows]="pageSize"
+        [protectBeneficiary]="false"
+        expirationDateColumn="DATA_VALIDADE"
+      />
 
       <div class="pagination" *ngIf="records.length">
-        <button type="button" [disabled]="page <= 1 || generating" (click)="generate(page - 1)">← Anterior</button>
+        <button type="button" [disabled]="page <= 1 || generating" (click)="generate(page - 1)">
+          ← Anterior
+        </button>
         <span>Página {{ page }}</span>
-        <button type="button" [disabled]="last || generating" (click)="generate(page + 1)">Próxima →</button>
+        <button type="button" [disabled]="last || generating" (click)="generate(page + 1)">
+          Próxima →
+        </button>
       </div>
     </main>
   </div>

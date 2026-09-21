@@ -1699,3 +1699,126 @@
     width: 100%;
   }
 }
+
+
+/* Aparência incorporada na Administração da plataforma. */
+.reports-commandbar {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 12px;
+  padding: 15px 18px;
+  border: 1px solid var(--surface-border);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.commandbar-title > span {
+  color: var(--brand-green);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.commandbar-title h1 {
+  margin: 3px 0 0;
+  font-size: 20px;
+  letter-spacing: -.02em;
+}
+
+.manual-context-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(210px, .9fr);
+  gap: 1px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--surface-border);
+}
+
+.manual-context-strip > div,
+.manual-context-strip > p {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 11px 13px;
+  background: #fff;
+}
+
+.manual-context-strip > div span {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--brand-green-soft);
+  color: var(--brand-green);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.manual-context-strip > div strong {
+  color: var(--text-primary);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.manual-context-strip > p {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.reports-manual-page.embedded {
+  max-width: none;
+  padding: 0;
+}
+
+.reports-manual-page.embedded .catalog,
+.reports-manual-page.embedded .report-config,
+.reports-manual-page.embedded .results-card,
+.reports-manual-page.embedded .welcome-card,
+.reports-manual-page.embedded .template-session {
+  border-color: var(--surface-border);
+  box-shadow: none;
+}
+
+.reports-manual-page.embedded .catalog {
+  top: 88px;
+}
+
+.reports-manual-page.embedded .report-card.active,
+.reports-manual-page.embedded .template-card.active {
+  border-color: #9fc5ab;
+  background: var(--brand-green-soft);
+}
+
+@media (max-width: 980px) {
+  .manual-context-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+  .reports-commandbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 620px) {
+  .manual-context-strip {
+    grid-template-columns: 1fr;
+  }
+  .page-header-actions {
+    width: 100%;
+  }
+  .page-header-actions .btn {
+    flex: 1;
+  }
+}

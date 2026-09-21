@@ -238,8 +238,8 @@ try {
 
   New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 
-  Write-Step 'Iniciando Apache e MariaDB do XAMPP'
-  Start-XamppService 'httpd' 'apache_start.bat' 80 'Apache'
+  Write-Step 'Preparando os servicos locais'
+  # O MariaDB nao precisa ser reiniciado a cada atualizacao; basta garantir que esteja ativo.
   Start-XamppService 'mysqld' 'mysql_start.bat' 3306 'MariaDB'
 
   Write-Step 'Testando e gerando o frontend para a rede local'
@@ -283,17 +283,29 @@ try {
     $configuredHeaders
   }
 
-  Write-Step 'Publicando os arquivos e reiniciando o backend'
+  Write-Step 'Reiniciando frontend e backend'
+
+  # Localhost e 192.168.3.242 usam o mesmo frontend estatico servido pelo Apache.
+  # Reiniciar o Apache e substituir a pasta inteira evita bundles antigos no XAMPP.
+  Stop-XamppService 'httpd' 'apache_stop.bat' 'Apache'
+
   Stop-UnimedBackend
   if (Test-LocalPort 8080) {
     throw 'A porta 8080 esta ocupada por outro processo. Libere a porta antes de iniciar.'
   }
+
   # O Windows bloqueia o JAR em execucao. A copia fora de target permite
   # compilar a proxima versao antes de encerrar o backend atual.
   Copy-Item -LiteralPath $backendJar.FullName -Destination $backendRuntimeJar -Force
+
+  if (Test-Path -LiteralPath $frontendDestination -PathType Container) {
+    Remove-Item -LiteralPath $frontendDestination -Recurse -Force
+  }
   New-Item -ItemType Directory -Path $frontendDestination -Force | Out-Null
   Copy-Item -Path (Join-Path $frontendBuild '*') -Destination $frontendDestination -Recurse -Force
-  Write-Host "Frontend publicado em $frontendDestination." -ForegroundColor Green
+  Write-Host "Frontend republicado do zero em $frontendDestination." -ForegroundColor Green
+
+  Start-XamppService 'httpd' 'apache_start.bat' 80 'Apache'
 
   $backendProcess = Start-Process `
     -FilePath $javaPath `
@@ -306,8 +318,13 @@ try {
   Set-Content -LiteralPath $backendPidFile -Value $backendProcess.Id -Encoding ascii
   Wait-UnimedBackend $backendProcess
 
-  Write-Step 'Unimed Tools atualizada e iniciada'
-  Write-Host 'Aplicacao: http://localhost/unimed-tools/' -ForegroundColor Green
+  Write-Step 'Validando os dois enderecos do frontend'
+  Wait-HttpUrl $localFrontendUrl 30 'Frontend local'
+  Wait-HttpUrl $lanFrontendUrl 30 'Frontend da rede'
+
+  Write-Step 'Unimed Tools atualizada e reiniciada'
+  Write-Host "Local: $localFrontendUrl" -ForegroundColor Green
+  Write-Host "Rede:  $lanFrontendUrl" -ForegroundColor Green
   Write-Host "Backend: PID $($backendProcess.Id) - logs em $runtimeDir" -ForegroundColor Green
   exit 0
 } catch {

@@ -189,6 +189,31 @@ function Wait-HttpUrl([string]$url, [int]$seconds, [string]$serviceName) {
 
   throw "$serviceName nao respondeu em '$url' dentro de $seconds segundos."
 }
+function Remove-LegacyAuthFiles {
+  $legacyFiles = @(
+    'src\main\java\com\unimedlorena\tools\auth\TotpService.java',
+    'src\main\java\com\unimedlorena\tools\auth\CriptografiaMfaService.java',
+    'src\test\java\com\unimedlorena\tools\auth\TotpServiceTest.java',
+    'src\test\java\com\unimedlorena\tools\auth\CriptografiaMfaServiceTest.java'
+  )
+
+  $removed = @()
+  foreach ($relativePath in $legacyFiles) {
+    $fullPath = Join-Path $backendDir $relativePath
+    if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
+      Remove-Item -LiteralPath $fullPath -Force
+      $removed += $relativePath
+    }
+  }
+
+  if ($removed.Count -gt 0) {
+    Write-Host 'Arquivos legados de MFA/TOTP removidos antes da compilacao:' -ForegroundColor Yellow
+    foreach ($item in $removed) {
+      Write-Host "  - $item" -ForegroundColor DarkYellow
+    }
+  }
+}
+
 function Wait-UnimedBackend([System.Diagnostics.Process]$backendProcess) {
   $deadline = [DateTime]::UtcNow.AddSeconds(60)
   do {
@@ -254,6 +279,9 @@ try {
   if (-not (Test-Path -LiteralPath $frontendBuild -PathType Container)) {
     throw "O build do frontend nao foi encontrado em '$frontendBuild'."
   }
+  Write-Step 'Preparando o backend atual'
+  Remove-LegacyAuthFiles
+
   Write-Step 'Testando e compilando o backend'
   Push-Location $backendDir
   try {

@@ -200,7 +200,7 @@ public class HospitalRelatorioService {
         filtro("dataautorizacaofim", "and TRUNC(GSOL.GSOL_DAT_AUTOR) <= TO_DATE(:dataautorizacaofim, 'YYYY-MM-DD')",
             "VARCHAR(10)"),
         filtro("codguia", "and TO_CHAR(GSOL.GSOL_NRO_GUIA) = :codguia", "VARCHAR(40)"),
-        filtro("procedimento", "and TO_CHAR(GSAI.GSOLI_ITEM_SERVICO) LIKE :procedimento", "VARCHAR(40)"),
+        filtro("procedimento", "and TO_CHAR(GSAI.GSOLI_ITEM_SERVICO || IT.ITEM_COD_DIG) LIKE :procedimento", "VARCHAR(40)"),
         filtro("descricao", "and UPPER(IT.ITEM_DES_PRINC) LIKE :descricao", "VARCHAR(200)"),
         filtro("status", "and GSOL.GSOL_IND_SITUAC = :status", "NUMBER"));
   }

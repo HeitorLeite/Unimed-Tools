@@ -1,5 +1,9 @@
 import { CommonModule } from '@angular/common';
+<<<<<<< HEAD
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+=======
+import { Component, OnInit } from '@angular/core';
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { CustomReportTool } from '../../../shared/models/tool.model';
@@ -33,7 +37,10 @@ export class ToolManagerComponent implements OnInit {
   constructor(
     private readonly registry: ToolRegistryService,
     private readonly reports: RelatorioService,
+<<<<<<< HEAD
     private readonly cdr: ChangeDetectorRef,
+=======
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   ) {}
 
   ngOnInit(): void {
@@ -41,6 +48,7 @@ export class ToolManagerComponent implements OnInit {
   }
 
   reload(): void {
+<<<<<<< HEAD
     this.registry
       .refresh()
       .pipe(finalize(() => this.cdr.markForCheck()))
@@ -50,6 +58,13 @@ export class ToolManagerComponent implements OnInit {
           (this.error =
             error?.error?.message || 'Não foi possível carregar as ferramentas configuráveis.'),
       });
+=======
+    this.registry.refresh().subscribe({
+      next: () => this.tools = this.registry.listCustom(),
+      error: (error: any) =>
+        this.error = error?.error?.message || 'Não foi possível carregar as ferramentas configuráveis.',
+    });
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 
   loadApi(): void {
@@ -57,6 +72,7 @@ export class ToolManagerComponent implements OnInit {
     if (!api || this.loadingApi) return;
     this.loadingApi = true;
     this.error = '';
+<<<<<<< HEAD
     this.reports
       .buscarApi(api)
       .pipe(
@@ -83,6 +99,25 @@ export class ToolManagerComponent implements OnInit {
           this.error = error?.error?.message || error?.message || 'API não encontrada.';
         },
       });
+=======
+    this.reports.buscarApi(api).pipe(finalize(() => this.loadingApi = false)).subscribe({
+      next: (definition) => {
+        this.apiDefinition = definition;
+        const selected = new Set(
+          Object.keys(this.selectedFilters).filter((key) => this.selectedFilters[key]),
+        );
+        this.selectedFilters = {};
+        for (const filter of definition.filtros ?? []) {
+          this.selectedFilters[filter.nomeFiltro] =
+            selected.size ? selected.has(filter.nomeFiltro) : true;
+        }
+      },
+      error: (error: any) => {
+        this.apiDefinition = null;
+        this.error = error?.error?.message || error?.message || 'API não encontrada.';
+      },
+    });
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 
   edit(tool: CustomReportTool): void {
@@ -113,6 +148,7 @@ export class ToolManagerComponent implements OnInit {
     const filtros = Object.entries(this.selectedFilters)
       .filter(([, selected]) => selected)
       .map(([name]) => name);
+<<<<<<< HEAD
     const columns = this.previewColumns
       .split(',')
       .map((item) => item.trim())
@@ -144,6 +180,28 @@ export class ToolManagerComponent implements OnInit {
             (this.error =
               error?.error?.message || error?.message || 'Não foi possível salvar a ferramenta.'),
         });
+=======
+    const columns = this.previewColumns.split(',').map((item) => item.trim()).filter(Boolean);
+    try {
+      this.registry.saveCustom({
+        ...(this.editingId ? { id: this.editingId } : {}),
+        slug: this.slug,
+        nome: this.nome,
+        descricao: this.descricao,
+        apiNome: this.apiNome,
+        filtros,
+        colunasPreview: columns,
+      }).pipe(finalize(() => this.saving = false)).subscribe({
+        next: (saved) => {
+          this.success =
+            `Ferramenta “${saved.nome}” salva e disponibilizada na Home.`;
+          this.tools = this.registry.listCustom();
+          this.resetForm(false);
+        },
+        error: (error: any) =>
+          this.error = error?.error?.message || error?.message || 'Não foi possível salvar a ferramenta.',
+      });
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
     } catch (error) {
       this.saving = false;
       this.error = error instanceof Error ? error.message : 'Não foi possível salvar a ferramenta.';
@@ -152,6 +210,7 @@ export class ToolManagerComponent implements OnInit {
 
   remove(tool: CustomReportTool): void {
     if (!window.confirm(`Remover a ferramenta “${tool.nome}” da aplicação?`)) return;
+<<<<<<< HEAD
     this.registry
       .deleteCustom(tool.id)
       .pipe(finalize(() => this.cdr.markForCheck()))
@@ -163,6 +222,16 @@ export class ToolManagerComponent implements OnInit {
         error: (error: any) =>
           (this.error = error?.error?.message || 'Não foi possível remover a ferramenta.'),
       });
+=======
+    this.registry.deleteCustom(tool.id).subscribe({
+      next: () => {
+        this.tools = this.registry.listCustom();
+        if (this.editingId === tool.id) this.resetForm();
+      },
+      error: (error: any) =>
+        this.error = error?.error?.message || 'Não foi possível remover a ferramenta.',
+    });
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 
   label(value: string): string {

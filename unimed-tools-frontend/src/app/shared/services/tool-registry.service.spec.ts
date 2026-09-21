@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+<<<<<<< HEAD
 import { Component, inject, provideZonelessChangeDetection } from '@angular/core';
 import { AuthService } from './auth.service';
 import { ToolRegistryService } from './tool-registry.service';
@@ -13,6 +14,11 @@ class RegistryView {
   readonly registry = inject(ToolRegistryService);
 }
 
+=======
+import { AuthService } from './auth.service';
+import { ToolRegistryService } from './tool-registry.service';
+
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 describe('ToolRegistryService', () => {
   let service: ToolRegistryService;
   let http: HttpTestingController;
@@ -20,7 +26,10 @@ describe('ToolRegistryService', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
+<<<<<<< HEAD
         provideZonelessChangeDetection(),
+=======
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
         provideHttpClient(),
         provideHttpClientTesting(),
         ToolRegistryService,
@@ -44,7 +53,11 @@ describe('ToolRegistryService', () => {
 
   it('aplica nome configurado e oculta ferramenta nativa desativada', () => {
     let completed = false;
+<<<<<<< HEAD
     service.refresh().subscribe(() => (completed = true));
+=======
+    service.refresh().subscribe(() => completed = true);
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 
     http.expectOne('/api/ferramentas').flush([]);
     http.expectOne('/api/ferramentas/nativas').flush([
@@ -73,9 +86,18 @@ describe('ToolRegistryService', () => {
 
   it('atualiza a configuração nativa depois de salvar', () => {
     let ativo = false;
+<<<<<<< HEAD
     service
       .saveNativeConfig('assistencial', 'Assistência', 'Descrição configurada.', true)
       .subscribe(() => (ativo = true));
+=======
+    service.saveNativeConfig(
+      'assistencial',
+      'Assistência',
+      'Descrição configurada.',
+      true,
+    ).subscribe(() => ativo = true);
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 
     http.expectOne('/api/ferramentas/nativas/assistencial').flush({
       id: 'assistencial',
@@ -90,6 +112,7 @@ describe('ToolRegistryService', () => {
       service.listNativeAdmin().find((item) => item.tool.id === 'assistencial')?.tool.nome,
     ).toBe('Assistência');
   });
+<<<<<<< HEAD
 
   it('atualiza os consumidores visuais ao carregar, editar, ocultar e restaurar sem clique', async () => {
     const fixture = TestBed.createComponent(RegistryView);
@@ -122,4 +145,6 @@ describe('ToolRegistryService', () => {
     await fixture.whenStable();
     expect(fixture.nativeElement.textContent).toContain('Comercial');
   });
+=======
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 });

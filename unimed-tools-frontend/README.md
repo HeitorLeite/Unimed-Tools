@@ -64,6 +64,7 @@ pela área TI. Elas são carregadas do backend pelo `ToolRegistryService`.
 
 ## Estado local
 
+<<<<<<< HEAD
 ### Atualização da interface — Atual
 
 O Angular 21 usa detecção de mudanças sem Zone.js. Estados assíncronos precisam
@@ -100,6 +101,8 @@ a revisão visual em navegador não foram executadas nesta alteração.
 
 ### Persistência no navegador
 
+=======
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 O navegador pode manter:
 
 - modelos estruturais do Assistencial, sem valores de filtros;

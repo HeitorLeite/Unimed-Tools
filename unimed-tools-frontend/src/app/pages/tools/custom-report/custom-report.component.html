@@ -5,12 +5,16 @@
       <h1>{{ tool.nome }}</h1>
       <p>{{ tool.descricao }}</p>
     </div>
+<<<<<<< HEAD
     <button
       type="button"
       class="download"
       [disabled]="!records.length || exporting"
       (click)="download()"
     >
+=======
+    <button type="button" class="download" [disabled]="!records.length || exporting" (click)="download()">
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       {{ exporting ? 'Preparando…' : 'Baixar XLSX' }}
     </button>
   </header>
@@ -19,10 +23,14 @@
 
   <div class="layout" *ngIf="tool && definition && !loading">
     <aside class="filters">
+<<<<<<< HEAD
       <div class="step">
         <span>1</span>
         <div><strong>Filtros</strong><small>Preencha apenas o necessário.</small></div>
       </div>
+=======
+      <div class="step"><span>1</span><div><strong>Filtros</strong><small>Preencha apenas o necessário.</small></div></div>
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 
       <div class="field-list" *ngIf="filters.length; else noFilters">
         <label *ngFor="let filter of filters">
@@ -49,10 +57,14 @@
 
     <main class="result">
       <div class="result-title">
+<<<<<<< HEAD
         <div class="step">
           <span>2</span>
           <div><strong>Prévia</strong><small>Confira o resultado antes de baixar.</small></div>
         </div>
+=======
+        <div class="step"><span>2</span><div><strong>Prévia</strong><small>Confira o resultado antes de baixar.</small></div></div>
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
         <small>Página {{ page }}</small>
       </div>
 
@@ -66,17 +78,26 @@
       />
 
       <div class="pagination" *ngIf="records.length">
+<<<<<<< HEAD
         <button type="button" [disabled]="page <= 1 || generating" (click)="generate(page - 1)">
           ← Anterior
         </button>
         <button type="button" [disabled]="last || generating" (click)="generate(page + 1)">
           Próxima →
         </button>
+=======
+        <button type="button" [disabled]="page <= 1 || generating" (click)="generate(page - 1)">← Anterior</button>
+        <button type="button" [disabled]="last || generating" (click)="generate(page + 1)">Próxima →</button>
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       </div>
     </main>
   </div>
 
+<<<<<<< HEAD
   <div class="not-found" role="alert" *ngIf="!loading && (!tool || !definition)">
+=======
+  <div class="not-found" *ngIf="!loading && !tool">
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
     <strong>Ferramenta indisponível</strong>
     <p>{{ error || 'A configuração não foi encontrada.' }}</p>
     <button type="button" (click)="back()">Voltar para o início</button>

@@ -3,17 +3,22 @@
     <a class="brand" routerLink="/" aria-label="Ir para o início">
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 42 42" fill="none">
+<<<<<<< HEAD
           <path
             d="M9 30c5-2 8-9 6-20 8 5 12 13 9 22M33 30c-5-2-8-9-6-20-8 5-12 13-9 22"
             stroke="currentColor"
             stroke-width="2.2"
             stroke-linecap="round"
           />
+=======
+          <path d="M9 30c5-2 8-9 6-20 8 5 12 13 9 22M33 30c-5-2-8-9-6-20-8 5-12 13-9 22" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
         </svg>
       </span>
       <span><strong>Unimed</strong><small>TOOLS</small></span>
     </a>
 
+<<<<<<< HEAD
     <button
       class="mobile-menu"
       type="button"
@@ -139,5 +144,62 @@
     </div>
   </header>
 
+=======
+    <button class="mobile-menu" type="button" (click)="toggleMobile()" aria-label="Abrir navegação">☰</button>
+
+    <nav class="main-nav" [class.open]="mobileOpen()" aria-label="Navegação principal">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Início</a>
+      <div class="nav-popover">
+        <button type="button" [class.active]="toolsOpen()" (click)="toggleTools($event)">
+          Ferramentas <span>⌄</span>
+        </button>
+        <section class="tools-menu" *ngIf="toolsOpen()" (click)="$event.stopPropagation()">
+          <header><span>Ferramentas disponíveis</span><strong>{{ tools.length }}</strong></header>
+          <div class="tools-grid">
+            <button type="button" *ngFor="let tool of tools" (click)="openTool(tool)">
+              <span class="tool-menu-icon"><app-tool-icon [name]="tool.icon" /></span>
+              <span><strong>{{ tool.nome }}</strong><small>{{ tool.categoria }}</small></span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </nav>
+
+    <div class="topbar-actions">
+      <div class="nav-popover">
+        <button class="icon-button" type="button" aria-label="Notificações" (click)="toggleNotifications($event)">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="counter" *ngIf="unread()">{{ unread() > 9 ? '9+' : unread() }}</span>
+        </button>
+        <section class="notification-menu" *ngIf="notificationOpen()" (click)="$event.stopPropagation()">
+          <header><div><small>Novidades</small><h2>Notificações</h2></div></header>
+          <div class="notification-list" *ngIf="notifications.length; else emptyNotifications">
+            <article *ngFor="let item of notifications">
+              <div><strong>v{{ item.versao }}</strong><time>{{ formatDate(item.publicadaEm) }}</time></div>
+              <h3>{{ item.titulo }}</h3><p>{{ item.resumo }}</p>
+            </article>
+          </div>
+          <ng-template #emptyNotifications><p class="empty">Nenhuma notificação publicada.</p></ng-template>
+        </section>
+      </div>
+
+      <div class="nav-popover" *ngIf="user() as currentUser">
+        <button class="user-button" type="button" (click)="toggleUser($event)">
+          <span class="avatar">{{ initials(currentUser.nome) }}</span>
+          <span class="user-copy"><strong>{{ currentUser.nome }}</strong><small>{{ currentUser.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Usuário' }}</small></span>
+          <span>⌄</span>
+        </button>
+        <section class="user-menu" *ngIf="userOpen()" (click)="$event.stopPropagation()">
+          <div class="user-summary"><strong>{{ currentUser.nome }}</strong><small>{{ currentUser.email || currentUser.login }}</small></div>
+          <a routerLink="/perfil" (click)="closeMenus()">Meu perfil</a>
+          <a *ngIf="currentUser.perfil === 'ADMINISTRADOR'" routerLink="/usuarios" (click)="closeMenus()">Gerenciamento de usuários</a>
+          <a *ngIf="currentUser.perfil === 'ADMINISTRADOR'" routerLink="/ti" (click)="closeMenus()">Administração da plataforma</a>
+          <button type="button" (click)="logout()">Sair</button>
+        </section>
+      </div>
+    </div>
+  </header>
+
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   <main class="content"><router-outlet /></main>
 </div>

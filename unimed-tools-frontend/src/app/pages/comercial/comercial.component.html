@@ -1,5 +1,6 @@
 <section class="workspace">
   <header class="page-heading">
+<<<<<<< HEAD
     <div>
       <span class="eyebrow">Empresas e contratos</span>
       <h1>Comercial</h1>
@@ -32,10 +33,15 @@
       </button>
       <small>Um único ZIP com os relatórios em XLSX.</small>
     </div>
+=======
+    <div><span class="eyebrow">Empresas e contratos</span><h1>Comercial</h1><p>Gere o conjunto de relatórios da empresa sem precisar informar códigos ou abrir cada API separadamente.</p></div>
+    <button class="secondary" type="button" [disabled]="!selectedReports.length || downloadingAll" (click)="downloadAll()">{{ downloadingAll ? 'Preparando ZIP…' : 'Baixar selecionados' }}</button>
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   </header>
 
   <div class="workflow">
     <aside class="setup-panel">
+<<<<<<< HEAD
       <div class="step">
         <span>1</span>
         <div><strong>Empresa e período</strong><small>Defina o contexto da geração.</small></div>
@@ -104,10 +110,29 @@
       >
         {{ generating ? 'Gerando prévias…' : 'Gerar prévias' }}
       </button>
+=======
+      <div class="step"><span>1</span><div><strong>Empresa e período</strong><small>Defina o contexto da geração.</small></div></div>
+      <div class="field">
+        <app-empresa-select id="commercial-company" [selecionada]="companyId" [ocupadas]="[]" [bloqueado]="generating" (selecionadaChange)="selectCompany($event)" />
+      </div>
+      <div class="field"><label for="commercial-competence">Competência</label><input id="commercial-competence" type="text" maxlength="6" inputmode="numeric" [(ngModel)]="competence" placeholder="202609" /></div>
+      <div class="field"><label for="commercial-reference">Data de referência da faixa etária</label><input id="commercial-reference" type="date" [(ngModel)]="referenceDate" /></div>
+
+      <div class="step reports-step"><span>2</span><div><strong>Relatórios</strong><small>Escolha o que fará parte da geração.</small></div></div>
+      <div class="report-options">
+        <label *ngFor="let report of reports" [class.unavailable]="!report.definition && !loadingDefinitions">
+          <input type="checkbox" [checked]="report.selected" [disabled]="!report.definition || loadingDefinitions" (change)="toggleReport(report)" />
+          <span><strong>{{ report.nome }}</strong><small>{{ report.error || report.descricao }}</small></span>
+        </label>
+      </div>
+      <p class="error" *ngIf="error">{{ error }}</p>
+      <button class="primary" type="button" [disabled]="generating || loadingDefinitions" (click)="generatePreview()">{{ generating ? 'Gerando prévias…' : 'Gerar prévias' }}</button>
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
     </aside>
 
     <main class="results">
       <div class="results-intro">
+<<<<<<< HEAD
         <div>
           <span>3</span>
           <div>
@@ -147,6 +172,21 @@
       <div class="start-state" *ngIf="!hasPreview">
         <strong>A prévia aparecerá aqui.</strong
         ><span>Selecione a empresa e os relatórios ao lado e clique em “Gerar prévias”.</span>
+=======
+        <div><span>3</span><div><strong>Conferência</strong><small>Confira os registros antes de baixar.</small></div></div>
+        <span *ngIf="company">{{ company.nome }} · {{ competence }}</span>
+      </div>
+
+      <article class="report-result" *ngFor="let report of selectedReports">
+        <header><div><small>{{ report.api }}</small><h2>{{ report.nome }}</h2></div><button type="button" [disabled]="!report.records.length" (click)="download(report)">Baixar XLSX</button></header>
+        <div class="loading" *ngIf="report.loading">Consultando o SGU…</div>
+        <p class="error result-error" *ngIf="report.error && report.definition">{{ report.error }}</p>
+        <app-report-preview *ngIf="!report.loading" [title]="'Prévia de ' + report.nome" [records]="report.records" [columns]="report.columns" />
+      </article>
+
+      <div class="start-state" *ngIf="!hasPreview">
+        <strong>A prévia aparecerá aqui.</strong><span>Selecione a empresa e os relatórios ao lado e clique em “Gerar prévias”.</span>
+>>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       </div>
     </main>
   </div>

@@ -231,11 +231,7 @@ try {
     throw 'As pastas do frontend e do backend nao foram encontradas ao lado do iniciador.'
   }
 
-  $mfaKey = Get-ConfiguredValue 'AUTH_MFA_ENCRYPTION_KEY'
   $sguKey = Get-ConfiguredValue 'SGU_API_KEY'
-  if ([string]::IsNullOrWhiteSpace($mfaKey)) {
-    throw "Configure AUTH_MFA_ENCRYPTION_KEY nas variaveis de ambiente do usuario antes de iniciar."
-  }
   if ([string]::IsNullOrWhiteSpace($sguKey)) {
     throw "Configure SGU_API_KEY nas variaveis de ambiente do usuario antes de iniciar."
   }
@@ -278,7 +274,6 @@ try {
   if ([string]::IsNullOrWhiteSpace($env:DB_USERNAME)) { $env:DB_USERNAME = 'root' }
   $configuredDbPassword = Get-ConfiguredValue 'DB_PASSWORD'
   $env:DB_PASSWORD = if ($null -eq $configuredDbPassword) { '' } else { $configuredDbPassword }
-  $env:AUTH_MFA_ENCRYPTION_KEY = $mfaKey
   $env:SERVER_ADDRESS = '127.0.0.1'
   $env:SGU_API_KEY = $sguKey
   $configuredHeaders = Get-ConfiguredValue 'SGU_API_KEY_HEADERS'

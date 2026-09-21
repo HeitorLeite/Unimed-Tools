@@ -129,9 +129,22 @@ public class AuthRepository {
       FROM permissao
       WHERE ativo = TRUE
         AND codigo IN (
-          'XML_ACESSAR', 'BI_ACESSAR', 'RELATORIOS_ACESSAR', 'ANS_ACESSAR'
+          'COMERCIAL_ACESSAR',
+          'ASSISTENCIAL_ACESSAR',
+          'REVISAO_CONTAS_ACESSAR',
+          'UNICA_ACESSAR',
+          'HOSPITAL_ACESSAR',
+          'GESTAO_RISCO_ACESSAR'
         )
-      ORDER BY modulo, codigo
+      ORDER BY FIELD(
+        codigo,
+        'COMERCIAL_ACESSAR',
+        'ASSISTENCIAL_ACESSAR',
+        'REVISAO_CONTAS_ACESSAR',
+        'UNICA_ACESSAR',
+        'HOSPITAL_ACESSAR',
+        'GESTAO_RISCO_ACESSAR'
+      )
       """,
       (rs, rowNum) -> new PermissaoRow(
         rs.getString("codigo"),
@@ -146,7 +159,9 @@ public class AuthRepository {
     String marcadores = String.join(",", java.util.Collections.nCopies(codigos.size(), "?"));
     return new HashSet<>(jdbc.queryForList(
       "SELECT codigo FROM permissao WHERE ativo = TRUE AND codigo IN (" + marcadores + ") " +
-        "AND codigo IN ('XML_ACESSAR','BI_ACESSAR','RELATORIOS_ACESSAR','ANS_ACESSAR')",
+        "AND codigo IN (" +
+        "'COMERCIAL_ACESSAR','ASSISTENCIAL_ACESSAR','REVISAO_CONTAS_ACESSAR'," +
+        "'UNICA_ACESSAR','HOSPITAL_ACESSAR','GESTAO_RISCO_ACESSAR')",
       String.class,
       codigos.toArray()
     ));

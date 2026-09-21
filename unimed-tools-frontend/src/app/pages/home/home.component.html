@@ -3,19 +3,14 @@
     <div>
       <span class="eyebrow">Unimed Tools</span>
       <h1>O que você precisa fazer hoje?</h1>
-<<<<<<< HEAD
       <p>
         Relatórios, conferências e rotinas da Unimed em um só lugar. Escolha uma área para começar.
       </p>
-=======
-      <p>Encontre a ferramenta pela rotina de trabalho, sem precisar conhecer o módulo técnico por trás dela.</p>
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
     </div>
     <div class="home-status"><i></i><span>Ambiente interno</span></div>
   </header>
 
   <div class="home-search">
-<<<<<<< HEAD
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6" />
       <path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -84,43 +79,4 @@
       </div>
     </aside>
   </div>
-=======
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <input type="search" [(ngModel)]="search" placeholder="Buscar por ferramenta, atividade ou assunto..." aria-label="Buscar ferramentas" />
-    <span>{{ tools.length }} ferramenta(s)</span>
-  </div>
-
-  <div class="home-layout">
-    <main>
-      <div class="section-title"><div><span>Ferramentas</span><h2>Escolha uma área</h2></div></div>
-      <div class="tool-grid" *ngIf="tools.length; else emptySearch">
-        <button type="button" class="tool-card" *ngFor="let tool of tools" (click)="open(tool)">
-          <span class="tool-icon"><app-tool-icon [name]="tool.icon" /></span>
-          <span class="tool-copy">
-            <small>{{ tool.categoria }}</small>
-            <strong>{{ tool.nome }}</strong>
-            <span>{{ tool.descricao }}</span>
-          </span>
-          <span class="tool-arrow">→</span>
-        </button>
-      </div>
-      <ng-template #emptySearch>
-        <div class="empty-search"><strong>Nenhuma ferramenta encontrada.</strong><span>Tente outro termo de busca.</span></div>
-      </ng-template>
-    </main>
-
-    <aside class="recent-panel">
-      <div class="section-title"><div><span>Acesso rápido</span><h2>Recentes</h2></div></div>
-      <div class="recent-list" *ngIf="recent.length; else noRecent">
-        <button type="button" *ngFor="let tool of recent" (click)="open(tool)">
-          <span class="recent-icon"><app-tool-icon [name]="tool.icon" /></span>
-          <span><strong>{{ tool.nome }}</strong><small>{{ tool.categoria }}</small></span>
-          <b>→</b>
-        </button>
-      </div>
-      <ng-template #noRecent><div class="recent-empty">Suas ferramentas mais usadas aparecerão aqui.</div></ng-template>
-      <div class="recent-tip"><strong>Dica</strong><p>O menu <b>Ferramentas</b> no topo também permite ir direto para qualquer área liberada para sua conta.</p></div>
-    </aside>
-  </div>
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 </section>

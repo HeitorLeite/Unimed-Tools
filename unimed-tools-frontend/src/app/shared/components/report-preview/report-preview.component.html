@@ -1,6 +1,5 @@
 <section class="preview">
   <header>
-<<<<<<< HEAD
     <div>
       <span>Resultado</span>
       <h3>{{ title }}</h3>
@@ -21,15 +20,6 @@
           <th scope="col" *ngFor="let column of columns">{{ column }}</th>
         </tr>
       </thead>
-=======
-    <div><span>Resultado</span><h3>{{ title }}</h3></div>
-    <strong>{{ records.length }} registro(s) na página</strong>
-  </header>
-
-  <div class="table-wrap" *ngIf="records.length; else empty">
-    <table>
-      <thead><tr><th *ngFor="let column of columns">{{ column }}</th></tr></thead>
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       <tbody>
         <tr *ngFor="let row of visibleRecords">
           <td *ngFor="let column of columns" [class.protected]="protected(column)">
@@ -40,11 +30,7 @@
     </table>
   </div>
 
-<<<<<<< HEAD
   <ng-template #empty
     ><div class="empty">{{ emptyMessage }}</div></ng-template
   >
-=======
-  <ng-template #empty><div class="empty">{{ emptyMessage }}</div></ng-template>
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 </section>

@@ -47,11 +47,10 @@ describe.each([
     }
     await fixture.whenStable();
     if (fixture.componentInstance instanceof ComercialComponent) {
-      const select = fixture.nativeElement.querySelector(
-        'app-empresa-select select',
-      ) as HTMLSelectElement;
-      select.value = fixture.componentInstance.companies[0].id;
-      select.dispatchEvent(new Event('change'));
+      const company = fixture.nativeElement.querySelector(
+        '.company-option input[type="checkbox"]',
+      ) as HTMLInputElement;
+      company.click();
       await fixture.whenStable();
     }
   }

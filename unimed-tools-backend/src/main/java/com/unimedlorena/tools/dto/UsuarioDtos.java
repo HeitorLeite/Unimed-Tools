@@ -21,7 +21,9 @@ public final class UsuarioDtos {
     @NotBlank @Size(min = 8, max = 128) String senhaTemporaria,
     @NotBlank
     @Pattern(regexp = "ADMINISTRADOR|USUARIO")
-    String perfilCodigo
+    String perfilCodigo,
+    @NotNull @Size(max = 10)
+    Set<@Pattern(regexp = "[A-Z0-9_]{3,100}") String> permissoes
   ) {
     @Override
     public String toString() {

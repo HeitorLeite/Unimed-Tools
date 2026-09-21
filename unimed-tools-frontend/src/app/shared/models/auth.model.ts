@@ -19,6 +19,7 @@ export interface NewUserRequest {
   email: string | null;
   senhaTemporaria: string;
   perfilCodigo: 'ADMINISTRADOR' | 'USUARIO';
+  permissoes: string[];
 }
 
 export interface CreatedUser {

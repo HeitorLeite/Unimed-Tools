@@ -1,10 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpEventType } from '@angular/common/http';
-<<<<<<< HEAD
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
-=======
-import { Component, OnInit } from '@angular/core';
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize, switchMap } from 'rxjs';
@@ -41,15 +37,11 @@ export class CustomReportComponent implements OnInit {
     private readonly router: Router,
     private readonly registry: ToolRegistryService,
     private readonly reports: RelatorioService,
-<<<<<<< HEAD
     private readonly cdr: ChangeDetectorRef,
-=======
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   ) {}
 
   ngOnInit(): void {
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
-<<<<<<< HEAD
     this.registry
       .refresh()
       .pipe(
@@ -78,28 +70,6 @@ export class CustomReportComponent implements OnInit {
           (this.error =
             error?.error?.message || error?.message || 'Não foi possível abrir a ferramenta.'),
       });
-=======
-    this.registry.refresh().pipe(
-      switchMap(() => {
-        const tool = this.registry.findCustom(slug);
-        if (!tool) throw new Error('Ferramenta não encontrada ou desativada.');
-        this.tool = tool;
-        this.registry.recordOpened(`custom-${tool.id}`);
-        return this.reports.buscarApi(tool.apiNome);
-      }),
-      finalize(() => this.loading = false),
-    ).subscribe({
-      next: (definition) => {
-        this.definition = definition;
-        const allowed = new Set(this.tool?.filtros ?? []);
-        this.filters = allowed.size
-          ? (definition.filtros ?? []).filter((filter) => allowed.has(filter.nomeFiltro))
-          : definition.filtros ?? [];
-        this.values = Object.fromEntries(this.filters.map((filter) => [filter.nomeFiltro, '']));
-      },
-      error: (error: any) => this.error = error?.error?.message || error?.message || 'Não foi possível abrir a ferramenta.',
-    });
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 
   generate(page = 1): void {
@@ -113,7 +83,6 @@ export class CustomReportComponent implements OnInit {
     }
     this.generating = true;
     this.error = '';
-<<<<<<< HEAD
     this.reports
       .executar(this.tool.apiNome, {
         ...this.parameters(),
@@ -144,34 +113,12 @@ export class CustomReportComponent implements OnInit {
           (this.error =
             error?.error?.message || error?.message || 'Não foi possível gerar a prévia.'),
       });
-=======
-    this.reports.executar(this.tool.apiNome, {
-      ...this.parameters(),
-      page,
-      size: this.pageSize,
-    }).pipe(finalize(() => this.generating = false)).subscribe({
-      next: (response) => {
-        this.records = Array.isArray(response.content) ? response.content : [];
-        const preferred = (this.tool?.colunasPreview ?? [])
-          .filter((column) => this.records.some((row) => Object.prototype.hasOwnProperty.call(row, column)));
-        this.columns = preferred.length
-          ? preferred
-          : this.records.length
-            ? Object.keys(this.records[0])
-            : this.tool?.colunasPreview ?? [];
-        this.page = page;
-        this.last = Boolean(response.last) || this.records.length < this.pageSize;
-      },
-      error: (error: any) => this.error = error?.error?.message || error?.message || 'Não foi possível gerar a prévia.',
-    });
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 
   download(): void {
     if (!this.tool || this.exporting) return;
     this.exporting = true;
     const filename = this.safe(this.tool.nome);
-<<<<<<< HEAD
     this.reports
       .exportar(this.tool.apiNome, 'xlsx', this.parameters(), filename)
       .pipe(
@@ -180,10 +127,6 @@ export class CustomReportComponent implements OnInit {
           this.cdr.markForCheck();
         }),
       )
-=======
-    this.reports.exportar(this.tool.apiNome, 'xlsx', this.parameters(), filename)
-      .pipe(finalize(() => this.exporting = false))
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       .subscribe({
         next: (event) => {
           if (event.type === HttpEventType.Response && event.body) {
@@ -197,12 +140,8 @@ export class CustomReportComponent implements OnInit {
             setTimeout(() => URL.revokeObjectURL(url), 0);
           }
         },
-<<<<<<< HEAD
         error: (error: any) =>
           (this.error = error?.error?.message || 'Não foi possível baixar o relatório.'),
-=======
-        error: (error: any) => this.error = error?.error?.message || 'Não foi possível baixar o relatório.',
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       });
   }
 
@@ -237,14 +176,10 @@ export class CustomReportComponent implements OnInit {
     if (type.includes('NUMBER') && /^-?\d+(?:[.,]\d+)?$/.test(value)) {
       return Number(value.replace(',', '.'));
     }
-<<<<<<< HEAD
     if (
       (filter.mascaraFiltro || '').toUpperCase().includes('DD/MM/YYYY') &&
       /^\d{4}-\d{2}-\d{2}$/.test(value)
     ) {
-=======
-    if ((filter.mascaraFiltro || '').toUpperCase().includes('DD/MM/YYYY') && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
       const [year, month, day] = value.split('-');
       return `${day}/${month}/${year}`;
     }
@@ -252,7 +187,6 @@ export class CustomReportComponent implements OnInit {
   }
 
   private normalize(value: string): string {
-<<<<<<< HEAD
     return value
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
@@ -269,13 +203,5 @@ export class CustomReportComponent implements OnInit {
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_+|_+$/g, '') || 'relatorio'
     );
-=======
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  }
-
-  private safe(value: string): string {
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'relatorio';
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
   }
 }

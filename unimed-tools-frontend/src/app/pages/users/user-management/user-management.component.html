@@ -3,64 +3,82 @@
     <div>
       <span>Administração de acesso</span>
       <h1>Gerenciamento de usuários</h1>
-      <p>Cadastre contas, organize permissões e resolva problemas de acesso sem misturar essas tarefas com as ferramentas operacionais.</p>
+      <p>
+        Cadastre pessoas, ajuste o que cada usuário pode acessar e resolva problemas de senha em
+        um fluxo mais simples.
+      </p>
     </div>
-    <div class="admin-badge"><i></i><span>Somente administradores</span></div>
+    <a class="back-home" routerLink="/">Voltar ao início</a>
   </header>
 
-  <section class="quick-guide">
-    <div><span>1</span><p><strong>Crie a conta</strong><small>Nome, login, e-mail e senha temporária.</small></p></div>
-    <div><span>2</span><p><strong>Libere os acessos</strong><small>Escolha apenas as ferramentas necessárias.</small></p></div>
-    <div><span>3</span><p><strong>Acompanhe a conta</strong><small>Edite dados ou redefina a senha quando preciso.</small></p></div>
+  <section class="summary-strip">
+    <article>
+      <span>Contas ativas</span>
+      <strong>{{ loading() ? '—' : totalUsers() }}</strong>
+      <small>Usuários disponíveis no sistema</small>
+    </article>
+    <article>
+      <span>Operacionais</span>
+      <strong>{{ loading() ? '—' : operationalUsers() }}</strong>
+      <small>Recebem acesso por ferramenta</small>
+    </article>
+    <article>
+      <span>Administradores</span>
+      <strong>{{ loading() ? '—' : administrators() }}</strong>
+      <small>Gerenciam a plataforma</small>
+    </article>
   </section>
 
   <div class="management-grid">
-    <a class="management-card primary-card" routerLink="/usuarios/cadastrados">
-      <span class="management-number">01</span>
-      <div>
+    <a class="management-card" routerLink="/usuarios/cadastrados">
+      <span class="card-number">01</span>
+      <div class="card-copy">
         <small>Contas</small>
         <h2>Usuários cadastrados</h2>
-        <p>Veja todas as contas ativas, edite informações e desative acessos que não devem mais permanecer disponíveis.</p>
+        <p>Busque, edite ou desative uma conta e acesse rapidamente permissões e reset de senha.</p>
       </div>
-      <strong>Ver usuários <b>→</b></strong>
+      <span class="card-action">Abrir usuários <b>→</b></span>
     </a>
 
-    <a class="management-card" routerLink="/usuarios/novo">
-      <span class="management-number">02</span>
-      <div>
+    <a class="management-card featured" routerLink="/usuarios/novo">
+      <span class="card-number">02</span>
+      <div class="card-copy">
         <small>Novo acesso</small>
         <h2>Cadastrar usuário</h2>
-        <p>Crie uma nova conta com senha temporária e troca obrigatória no primeiro acesso.</p>
+        <p>Crie a conta, defina a senha temporária e já escolha as ferramentas liberadas.</p>
       </div>
-      <strong>Criar conta <b>→</b></strong>
+      <span class="card-action">Cadastrar agora <b>→</b></span>
     </a>
 
     <a class="management-card" routerLink="/usuarios/permissoes">
-      <span class="management-number">03</span>
-      <div>
+      <span class="card-number">03</span>
+      <div class="card-copy">
         <small>Ferramentas</small>
         <h2>Permissões de acesso</h2>
-        <p>Escolha quais módulos aparecem e podem ser utilizados por cada usuário operacional.</p>
+        <p>Libere Comercial, Assistencial, Revisão de Contas, Única, Hospital e Gestão de Risco.</p>
       </div>
-      <strong>Ajustar permissões <b>→</b></strong>
+      <span class="card-action">Gerenciar acessos <b>→</b></span>
     </a>
 
     <a class="management-card" routerLink="/usuarios/resetar-senha">
-      <span class="management-number">04</span>
-      <div>
+      <span class="card-number">04</span>
+      <div class="card-copy">
         <small>Credenciais</small>
         <h2>Resetar senha</h2>
-        <p>Gere uma senha temporária e encerre as sessões abertas quando alguém perder o acesso.</p>
+        <p>Crie uma nova senha temporária e encerre automaticamente as sessões antigas.</p>
       </div>
-      <strong>Redefinir senha <b>→</b></strong>
+      <span class="card-action">Redefinir senha <b>→</b></span>
     </a>
   </div>
 
   <aside class="management-note">
     <span class="note-icon">✓</span>
     <div>
-      <strong>Acesso por necessidade</strong>
-      <p>Usuários comuns começam sem módulos operacionais. As permissões são liberadas individualmente e validadas pelo servidor.</p>
+      <strong>Permissões por ferramenta</strong>
+      <p>
+        A tela agora usa os nomes das áreas atuais da Home. As permissões técnicas antigas continuam
+        sendo aplicadas internamente pelo backend quando necessárias.
+      </p>
     </div>
   </aside>
 </section>

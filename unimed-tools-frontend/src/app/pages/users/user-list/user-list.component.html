@@ -3,9 +3,12 @@
     <div class="tool-header-copy">
       <span class="badge">Administração de acesso</span>
       <h1>Usuários cadastrados</h1>
-      <p>Consulte as contas ativas e altere as informações de identificação ou o tipo de acesso.</p>
+      <p>Encontre uma conta e vá direto para edição, permissões ou reset de senha.</p>
     </div>
-    <a class="btn btn-secondary" routerLink="/usuarios">Voltar ao gerenciamento</a>
+    <div class="header-actions">
+      <a class="btn btn-primary" routerLink="/usuarios/novo">Novo usuário</a>
+      <a class="btn btn-secondary" routerLink="/usuarios">Voltar</a>
+    </div>
   </header>
 
   <div class="form-message error" role="alert" *ngIf="error()">{{ error() }}</div>
@@ -24,7 +27,7 @@
           type="search"
           [value]="search()"
           (input)="search.set($any($event.target).value)"
-          placeholder="Nome, login, e-mail ou acesso"
+          placeholder="Nome, login ou e-mail"
         />
       </label>
     </div>
@@ -36,8 +39,8 @@
         <thead>
           <tr>
             <th>Usuário</th>
-            <th>E-mail</th>
-            <th>Tipo de acesso</th>
+            <th>Tipo</th>
+            <th>Ferramentas</th>
             <th>Status</th>
             <th>Ações</th>
           </tr>
@@ -46,40 +49,53 @@
           <tr *ngFor="let user of filteredUsers(); trackBy: trackByUserId">
             <td>
               <span class="user-cell">
-                <span class="user-avatar" aria-hidden="true">{{
-                  user.nome.charAt(0).toUpperCase()
-                }}</span>
-                <span
-                  ><strong>{{ user.nome }}</strong
-                  ><small>{{ user.login }}</small></span
-                >
+                <span class="user-avatar" aria-hidden="true">{{ user.nome.charAt(0).toUpperCase() }}</span>
+                <span>
+                  <strong>{{ user.nome }}</strong>
+                  <small>{{ user.login }} · {{ user.email || 'sem e-mail' }}</small>
+                </span>
               </span>
             </td>
-            <td>{{ user.email || 'Não informado' }}</td>
             <td>
-              <span class="profile-badge" [class.admin]="user.perfil === 'ADMINISTRADOR'">{{
-                profileLabel(user.perfil)
-              }}</span>
+              <span class="profile-badge" [class.admin]="user.perfil === 'ADMINISTRADOR'">
+                {{ profileLabel(user.perfil) }}
+              </span>
             </td>
             <td>
-              <span class="status-badge" [class.blocked]="user.status === 'BLOQUEADO'">{{
-                statusLabel(user.status)
-              }}</span>
+              <span class="access-count">
+                {{ user.perfil === 'ADMINISTRADOR' ? 'Todas' : accessCount(user) + ' liberada(s)' }}
+              </span>
+            </td>
+            <td>
+              <span class="status-badge" [class.blocked]="user.status === 'BLOQUEADO'">
+                {{ statusLabel(user.status) }}
+              </span>
             </td>
             <td>
               <span class="row-actions">
                 <button class="btn btn-secondary btn-sm" type="button" (click)="openEdit(user)">
                   Editar
                 </button>
+                <a
+                  *ngIf="user.perfil === 'USUARIO'"
+                  class="table-link"
+                  [routerLink]="['/usuarios/permissoes']"
+                  [queryParams]="{ usuario: user.id }"
+                >
+                  Permissões
+                </a>
+                <a
+                  *ngIf="user.id !== currentUserId"
+                  class="table-link"
+                  [routerLink]="['/usuarios/resetar-senha']"
+                  [queryParams]="{ usuario: user.id }"
+                >
+                  Senha
+                </a>
                 <button
                   class="delete-button"
                   type="button"
                   [disabled]="user.id === currentUserId"
-                  [title]="
-                    user.id === currentUserId
-                      ? 'Sua própria conta não pode ser excluída'
-                      : 'Excluir usuário'
-                  "
                   (click)="openDelete(user)"
                 >
                   Excluir
@@ -92,31 +108,16 @@
     </div>
 
     <div class="empty-state" *ngIf="!loading() && !filteredUsers().length">
-      <strong>{{
-        users().length ? 'Nenhum resultado encontrado' : 'Nenhum usuário cadastrado'
-      }}</strong>
-      <span>{{
-        users().length
-          ? 'Tente buscar por outro nome, login ou e-mail.'
-          : 'Cadastre uma nova conta para começar.'
-      }}</span>
+      <strong>{{ users().length ? 'Nenhum resultado encontrado' : 'Nenhum usuário cadastrado' }}</strong>
+      <span>{{ users().length ? 'Tente outro termo de busca.' : 'Cadastre uma nova conta para começar.' }}</span>
     </div>
   </section>
 </section>
 
 <div class="user-modal-backdrop" *ngIf="editingUser() as user" (click)="closeEdit()">
-  <section
-    class="user-modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="editUserTitle"
-    (click)="$event.stopPropagation()"
-  >
+  <section class="user-modal" role="dialog" aria-modal="true" aria-labelledby="editUserTitle" (click)="$event.stopPropagation()">
     <header>
-      <div>
-        <span class="eyebrow">Editar cadastro</span>
-        <h2 id="editUserTitle">{{ user.nome }}</h2>
-      </div>
+      <div><span class="eyebrow">Editar cadastro</span><h2 id="editUserTitle">{{ user.nome }}</h2></div>
       <button type="button" aria-label="Fechar" (click)="closeEdit()">×</button>
     </header>
     <form [formGroup]="editForm" (ngSubmit)="saveEdit()" novalidate>
@@ -124,26 +125,10 @@
         <div class="field">
           <label for="editUserName">Nome</label>
           <input id="editUserName" type="text" maxlength="150" formControlName="nome" />
-          <small
-            class="field-error"
-            *ngIf="editForm.controls.nome.touched && editForm.controls.nome.invalid"
-            >Informe um nome entre 3 e 150 caracteres.</small
-          >
         </div>
         <div class="field">
           <label for="editUserEmail">E-mail</label>
-          <input
-            id="editUserEmail"
-            type="email"
-            maxlength="254"
-            formControlName="email"
-            placeholder="nome@empresa.com.br"
-          />
-          <small
-            class="field-error"
-            *ngIf="editForm.controls.email.touched && editForm.controls.email.invalid"
-            >Informe um e-mail válido.</small
-          >
+          <input id="editUserEmail" type="email" maxlength="254" formControlName="email" placeholder="nome@empresa.com.br" />
         </div>
         <div class="field">
           <label for="editUserLogin">Login</label>
@@ -156,12 +141,7 @@
             <option value="USUARIO">Operacional</option>
             <option value="ADMINISTRADOR">Administrador</option>
           </select>
-          <small *ngIf="user.id === currentUserId"
-            >O tipo de acesso da sua própria conta não pode ser alterado.</small
-          >
-          <small *ngIf="user.id !== currentUserId"
-            >Ao alterar o tipo, as sessões e permissões individuais atuais serão encerradas.</small
-          >
+          <small *ngIf="user.id === currentUserId">Seu próprio perfil não pode ser alterado.</small>
         </div>
       </div>
       <footer>
@@ -175,26 +155,14 @@
 </div>
 
 <div class="user-modal-backdrop" *ngIf="deletingUser() as user" (click)="closeDelete()">
-  <section
-    class="user-modal delete-modal"
-    role="alertdialog"
-    aria-modal="true"
-    aria-labelledby="deleteUserTitle"
-    (click)="$event.stopPropagation()"
-  >
+  <section class="user-modal delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="deleteUserTitle" (click)="$event.stopPropagation()">
     <header>
-      <div>
-        <span class="eyebrow danger">Excluir usuário</span>
-        <h2 id="deleteUserTitle">{{ user.nome }}</h2>
-      </div>
+      <div><span class="eyebrow danger">Excluir usuário</span><h2 id="deleteUserTitle">{{ user.nome }}</h2></div>
       <button type="button" aria-label="Fechar" (click)="closeDelete()">×</button>
     </header>
     <div class="delete-copy">
-      <p>
-        A conta <strong>{{ user.login }}</strong> perderá o acesso imediatamente e todas as sessões
-        abertas serão encerradas.
-      </p>
-      <p>O registro mínimo será preservado somente para manter a trilha de auditoria.</p>
+      <p>A conta <strong>{{ user.login }}</strong> perderá o acesso imediatamente e as sessões abertas serão encerradas.</p>
+      <p>O registro mínimo será preservado para a trilha de auditoria.</p>
     </div>
     <footer>
       <button class="btn btn-secondary" type="button" (click)="closeDelete()">Cancelar</button>

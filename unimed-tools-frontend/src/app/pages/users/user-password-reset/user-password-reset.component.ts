@@ -9,7 +9,7 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { ManagedUser } from '../../../shared/models/auth.model';
 import { AuthService } from '../../../shared/services/auth.service';
@@ -47,8 +47,29 @@ export class UserPasswordResetComponent {
     { validators: passwordsMatch },
   );
 
-  constructor(private readonly auth: AuthService) {
+  private readonly initialUserId: number | null;
+
+  constructor(
+    private readonly auth: AuthService,
+    route: ActivatedRoute,
+  ) {
+    const rawUser = Number(route.snapshot.queryParamMap.get('usuario'));
+    this.initialUserId = Number.isFinite(rawUser) && rawUser > 0 ? rawUser : null;
     this.load();
+  }
+
+  get selectedUser(): ManagedUser | undefined {
+    return this.users().find((user) => user.id === this.form.controls.usuarioId.value);
+  }
+
+  generateTemporaryPassword(): void {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+    const bytes = new Uint32Array(18);
+    crypto.getRandomValues(bytes);
+    const generated = Array.from(bytes, (value) => alphabet[value % alphabet.length]).join('');
+    this.form.patchValue({ senhaTemporaria: generated, confirmacao: generated });
+    this.showPasswords.set(true);
+    this.form.updateValueAndValidity();
   }
 
   submit(): void {
@@ -57,9 +78,11 @@ export class UserPasswordResetComponent {
       this.form.markAllAsTouched();
       return;
     }
+
     this.saving.set(true);
     this.error.set('');
     this.success.set('');
+
     this.auth
       .resetUserPassword(value.usuarioId, value.senhaTemporaria)
       .pipe(finalize(() => this.saving.set(false)))
@@ -69,6 +92,7 @@ export class UserPasswordResetComponent {
           this.form.controls.senhaTemporaria.reset();
           this.form.controls.confirmacao.reset();
           this.form.markAsUntouched();
+          this.showPasswords.set(false);
         },
         error: (error: HttpErrorResponse) =>
           this.error.set(error.error?.message || 'Não foi possível redefinir a senha.'),
@@ -81,7 +105,13 @@ export class UserPasswordResetComponent {
       .listUsers()
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: (users) => this.users.set(users.filter((user) => user.id !== currentUserId)),
+        next: (users) => {
+          const available = users.filter((user) => user.id !== currentUserId);
+          this.users.set(available);
+          if (this.initialUserId && available.some((user) => user.id === this.initialUserId)) {
+            this.form.controls.usuarioId.setValue(this.initialUserId);
+          }
+        },
         error: (error: HttpErrorResponse) =>
           this.error.set(error.error?.message || 'Não foi possível carregar os usuários.'),
       });

@@ -18,7 +18,8 @@ class DtoSanitizationTest {
       "pessoa.teste",
       "pessoa@example.invalid",
       "SenhaTemporaria!123",
-      "USUARIO"
+      "USUARIO",
+      java.util.Set.of("COMERCIAL_ACESSAR")
     ).toString();
     String permissoes = new UsuarioDtos.AtualizacaoPermissoesRequest(
       Set.of("XML_ACESSAR")

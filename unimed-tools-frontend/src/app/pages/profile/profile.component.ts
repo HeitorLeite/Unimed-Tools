@@ -32,10 +32,16 @@ export class ProfileComponent {
 
   permissionLabel(permission: string): string {
     const labels: Record<string, string> = {
-      XML_ACESSAR: 'Revisão de Contas',
-      ANS_ACESSAR: 'Única',
+      COMERCIAL_ACESSAR: 'Comercial',
+      ASSISTENCIAL_ACESSAR: 'Assistencial',
+      REVISAO_CONTAS_ACESSAR: 'Revisão de Contas',
+      UNICA_ACESSAR: 'Única',
+      HOSPITAL_ACESSAR: 'Hospital',
+      GESTAO_RISCO_ACESSAR: 'Gestão de Risco',
+      XML_ACESSAR: 'Revisão de Contas (compatibilidade)',
+      ANS_ACESSAR: 'Única (compatibilidade)',
       BI_ACESSAR: 'Business Intelligence',
-      RELATORIOS_ACESSAR: 'Relatórios e consultas',
+      RELATORIOS_ACESSAR: 'Relatórios (permissão técnica)',
       FERRAMENTAS_ADMINISTRAR: 'Administração de ferramentas',
       USUARIOS_VISUALIZAR: 'Visualização de usuários',
       USUARIOS_CRIAR: 'Cadastro de usuários',

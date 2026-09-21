@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { finalize, forkJoin } from 'rxjs';
 import { AvailablePermission, ManagedUser } from '../../../shared/models/auth.model';
 import { AuthService } from '../../../shared/services/auth.service';
@@ -27,9 +27,21 @@ export class UserPermissionsComponent {
     usuarioId: new FormControl<number | null>(null, { validators: [Validators.required] }),
   });
 
-  constructor(private readonly auth: AuthService) {
+  private readonly initialUserId: number | null;
+
+  constructor(
+    private readonly auth: AuthService,
+    route: ActivatedRoute,
+  ) {
+    const rawUser = Number(route.snapshot.queryParamMap.get('usuario'));
+    this.initialUserId = Number.isFinite(rawUser) && rawUser > 0 ? rawUser : null;
+
     this.form.controls.usuarioId.valueChanges.subscribe((id) => this.selectUser(id));
     this.load();
+  }
+
+  get selectedUser(): ManagedUser | undefined {
+    return this.users().find((user) => user.id === this.form.controls.usuarioId.value);
   }
 
   isSelected(code: string): boolean {
@@ -37,10 +49,21 @@ export class UserPermissionsComponent {
   }
 
   toggle(code: string): void {
+    if (!this.form.controls.usuarioId.value) return;
     const next = new Set(this.selectedPermissions());
     if (next.has(code)) next.delete(code);
     else next.add(code);
     this.selectedPermissions.set(next);
+    this.success.set('');
+  }
+
+  selectAll(): void {
+    this.selectedPermissions.set(new Set(this.permissions().map((permission) => permission.codigo)));
+    this.success.set('');
+  }
+
+  clearAll(): void {
+    this.selectedPermissions.set(new Set());
     this.success.set('');
   }
 
@@ -50,9 +73,11 @@ export class UserPermissionsComponent {
       this.form.markAllAsTouched();
       return;
     }
+
     this.saving.set(true);
     this.error.set('');
     this.success.set('');
+
     this.auth
       .updateUserPermissions(userId, [...this.selectedPermissions()])
       .pipe(finalize(() => this.saving.set(false)))
@@ -61,9 +86,7 @@ export class UserPermissionsComponent {
           const selected = [...this.selectedPermissions()];
           this.users.update((users) =>
             users.map((user) =>
-              user.id === userId
-                ? { ...user, permissoes: selected.length ? ['APLICACAO_ACESSAR', ...selected] : [] }
-                : user,
+              user.id === userId ? { ...user, permissoes: selected } : user,
             ),
           );
           this.success.set(response.mensagem);
@@ -74,15 +97,23 @@ export class UserPermissionsComponent {
   }
 
   private load(): void {
-    forkJoin({ users: this.auth.listUsers(), permissions: this.auth.listAvailablePermissions() })
+    forkJoin({
+      users: this.auth.listUsers(),
+      permissions: this.auth.listAvailablePermissions(),
+    })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: ({ users, permissions }) => {
-          this.users.set(users.filter((user) => user.perfil === 'USUARIO'));
+          const operational = users.filter((user) => user.perfil === 'USUARIO');
+          this.users.set(operational);
           this.permissions.set(permissions);
+
+          if (this.initialUserId && operational.some((user) => user.id === this.initialUserId)) {
+            this.form.controls.usuarioId.setValue(this.initialUserId);
+          }
         },
         error: (error: HttpErrorResponse) =>
-          this.error.set(error.error?.message || 'Não foi possível carregar os usuários.'),
+          this.error.set(error.error?.message || 'Não foi possível carregar os acessos.'),
       });
   }
 

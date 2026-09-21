@@ -37,14 +37,14 @@ export const routes: Routes = [
       {
         path: 'comercial',
         canActivate: [permissionGuard],
-        data: { permission: 'RELATORIOS_ACESSAR' },
+        data: { permission: 'COMERCIAL_ACESSAR' },
         loadComponent: () =>
           import('./pages/comercial/comercial.component').then((m) => m.ComercialComponent),
       },
       {
         path: 'assistencial',
         canActivate: [permissionGuard],
-        data: { permission: 'RELATORIOS_ACESSAR' },
+        data: { permission: 'ASSISTENCIAL_ACESSAR' },
         loadComponent: () =>
           import('./pages/relatorios/relatorios-personalizados/relatorios-personalizados.component')
             .then((m) => m.RelatoriosPersonalizadosComponent),
@@ -52,14 +52,14 @@ export const routes: Routes = [
       {
         path: 'revisao-contas',
         canActivate: [permissionGuard],
-        data: { permission: 'XML_ACESSAR' },
+        data: { permission: 'REVISAO_CONTAS_ACESSAR' },
         loadComponent: () =>
           import('./pages/xml/xml-tools/xml-tools.component').then((m) => m.XmlToolsComponent),
       },
       {
         path: 'unica',
         canActivate: [permissionGuard],
-        data: { permission: 'ANS_ACESSAR' },
+        data: { permission: 'UNICA_ACESSAR' },
         loadComponent: () =>
           import('./pages/ans/corretor-rede/corretor-rede.component').then(
             (m) => m.CorretorRedeComponent,
@@ -68,14 +68,14 @@ export const routes: Routes = [
       {
         path: 'hospital',
         canActivate: [permissionGuard],
-        data: { permission: 'RELATORIOS_ACESSAR' },
+        data: { permission: 'HOSPITAL_ACESSAR' },
         loadComponent: () =>
           import('./pages/hospital/hospital.component').then((m) => m.HospitalComponent),
       },
       {
         path: 'gestao-risco',
         canActivate: [permissionGuard],
-        data: { permission: 'RELATORIOS_ACESSAR' },
+        data: { permission: 'GESTAO_RISCO_ACESSAR' },
         loadComponent: () =>
           import('./pages/gestao-risco/gestao-risco.component').then(
             (m) => m.GestaoRiscoComponent,

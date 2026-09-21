@@ -206,7 +206,13 @@ INSERT INTO permissao (codigo, modulo, descricao, ativo) VALUES
 ('RELATORIOS_ADMINISTRAR', 'RELATORIOS', 'Permite administrar definições de relatórios.', TRUE),
 ('RELATORIOS_DADOS_SENSIVEIS_ACESSAR', 'RELATORIOS', 'Permite acessar colunas sensíveis autorizadas.', TRUE),
 ('ANS_ACESSAR', 'ANS', 'Permite acessar as ferramentas ANS.', TRUE),
-('FERRAMENTAS_ADMINISTRAR', 'TI', 'Permite criar e administrar ferramentas configuráveis.', TRUE);
+('FERRAMENTAS_ADMINISTRAR', 'TI', 'Permite criar e administrar ferramentas configuráveis.', TRUE),
+('COMERCIAL_ACESSAR', 'COMERCIAL', 'Comercial — relatórios de empresas, receita, despesas e faixa etária.', TRUE),
+('ASSISTENCIAL_ACESSAR', 'ASSISTENCIAL', 'Assistencial — relatórios personalizados por colunas e filtros.', TRUE),
+('REVISAO_CONTAS_ACESSAR', 'REVISAO_CONTAS', 'Revisão de Contas — correção e conferência de XML TISS.', TRUE),
+('UNICA_ACESSAR', 'UNICA', 'Única — correção de rede e arquivos ANS.', TRUE),
+('HOSPITAL_ACESSAR', 'HOSPITAL', 'Hospital — consulta de autorizações ainda não convertidas em guia.', TRUE),
+('GESTAO_RISCO_ACESSAR', 'GESTAO_RISCO', 'Gestão de Risco — relatórios de rastreio e acompanhamento.', TRUE);
 
 INSERT INTO perfil_permissao (perfil_id, permissao_id)
 SELECT p.id, pe.id

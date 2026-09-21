@@ -11,7 +11,11 @@ import {
 } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
-import { CreatedUser, NewUserRequest } from '../../../shared/models/auth.model';
+import {
+  AvailablePermission,
+  CreatedUser,
+  NewUserRequest,
+} from '../../../shared/models/auth.model';
 import { AuthService } from '../../../shared/services/auth.service';
 
 function passwordMatch(group: AbstractControl): ValidationErrors | null {
@@ -29,9 +33,12 @@ function passwordMatch(group: AbstractControl): ValidationErrors | null {
 })
 export class UserRegistrationComponent {
   readonly loading = signal(false);
+  readonly loadingPermissions = signal(true);
   readonly error = signal('');
   readonly created = signal<CreatedUser | null>(null);
   readonly showPassword = signal(false);
+  readonly permissions = signal<AvailablePermission[]>([]);
+  readonly selectedPermissions = signal<Set<string>>(new Set());
 
   readonly form = new FormGroup(
     {
@@ -55,18 +62,71 @@ export class UserRegistrationComponent {
         nonNullable: true,
         validators: [Validators.required, Validators.minLength(8), Validators.maxLength(128)],
       }),
-      confirmacao: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+      confirmacao: new FormControl('', {
+        nonNullable: true,
+        validators: [Validators.required],
+      }),
     },
     { validators: passwordMatch },
   );
 
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService) {
+    this.form.controls.perfilCodigo.valueChanges.subscribe((profile) => {
+      if (profile === 'ADMINISTRADOR') this.selectedPermissions.set(new Set());
+      this.created.set(null);
+    });
+
+    this.auth
+      .listAvailablePermissions()
+      .pipe(finalize(() => this.loadingPermissions.set(false)))
+      .subscribe({
+        next: (permissions) => this.permissions.set(permissions),
+        error: (error: HttpErrorResponse) =>
+          this.error.set(
+            error.error?.message || 'Não foi possível carregar as ferramentas disponíveis.',
+          ),
+      });
+  }
+
+  isPermissionSelected(code: string): boolean {
+    return this.selectedPermissions().has(code);
+  }
+
+  togglePermission(code: string): void {
+    const next = new Set(this.selectedPermissions());
+    if (next.has(code)) next.delete(code);
+    else next.add(code);
+    this.selectedPermissions.set(next);
+    this.created.set(null);
+  }
+
+  selectAllPermissions(): void {
+    this.selectedPermissions.set(new Set(this.permissions().map((permission) => permission.codigo)));
+  }
+
+  clearPermissions(): void {
+    this.selectedPermissions.set(new Set());
+  }
+
+  generateTemporaryPassword(): void {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+    const bytes = new Uint32Array(18);
+    crypto.getRandomValues(bytes);
+    const generated = Array.from(bytes, (value) => alphabet[value % alphabet.length]).join('');
+    this.form.patchValue({
+      senhaTemporaria: generated,
+      confirmacao: generated,
+    });
+    this.showPassword.set(true);
+    this.form.updateValueAndValidity();
+  }
 
   submit(): void {
     if (this.form.invalid || this.loading()) {
       this.form.markAllAsTouched();
       return;
     }
+
     this.loading.set(true);
     this.error.set('');
     this.created.set(null);
@@ -77,7 +137,10 @@ export class UserRegistrationComponent {
       email: value.email || null,
       senhaTemporaria: value.senhaTemporaria,
       perfilCodigo: value.perfilCodigo,
+      permissoes:
+        value.perfilCodigo === 'USUARIO' ? [...this.selectedPermissions()] : [],
     };
+
     this.auth
       .createUser(request)
       .pipe(finalize(() => this.loading.set(false)))
@@ -85,6 +148,8 @@ export class UserRegistrationComponent {
         next: (user) => {
           this.created.set(user);
           this.form.reset({ perfilCodigo: 'USUARIO' });
+          this.selectedPermissions.set(new Set());
+          this.showPassword.set(false);
         },
         error: (error: HttpErrorResponse) =>
           this.error.set(error.error?.message || 'Não foi possível cadastrar o usuário.'),

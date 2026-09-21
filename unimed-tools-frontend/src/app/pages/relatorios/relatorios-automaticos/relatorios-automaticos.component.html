@@ -1,5 +1,5 @@
 <!-- Apresentação de configuração e execução de grupos automáticos; regras de negócio permanecem no componente ou serviço correspondente. -->
-<section class="automatic-reports-page" [attr.aria-busy]="operacaoRelatorioEmAndamento">
+<section class="automatic-reports-page" [class.embedded]="embedded" [attr.aria-busy]="operacaoRelatorioEmAndamento">
   <header class="automatic-commandbar">
     <button *ngIf="!embedded" class="mode-back-button" type="button" (click)="voltar.emit()">
       <span aria-hidden="true">←</span>

@@ -1,4 +1,4 @@
-  <section class="reports-manual-page" [attr.aria-busy]="operacaoRelatorioEmAndamento">
+  <section class="reports-manual-page" [class.embedded]="embedded" [attr.aria-busy]="operacaoRelatorioEmAndamento">
     <header class="reports-commandbar">
       <button *ngIf="!embedded" class="mode-back-button" type="button" (click)="voltar.emit()">
         <span aria-hidden="true">←</span>

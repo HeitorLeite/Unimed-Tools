@@ -7,6 +7,15 @@ import { finalize } from 'rxjs';
 import { ManagedUser, UpdateUserRequest } from '../../../shared/models/auth.model';
 import { AuthService } from '../../../shared/services/auth.service';
 
+const CURRENT_TOOL_PERMISSIONS = new Set([
+  'COMERCIAL_ACESSAR',
+  'ASSISTENCIAL_ACESSAR',
+  'REVISAO_CONTAS_ACESSAR',
+  'UNICA_ACESSAR',
+  'HOSPITAL_ACESSAR',
+  'GESTAO_RISCO_ACESSAR',
+]);
+
 @Component({
   selector: 'app-user-list',
   standalone: true,
@@ -54,6 +63,11 @@ export class UserListComponent {
   constructor(private readonly auth: AuthService) {
     this.currentUserId = this.auth.user()?.id ?? null;
     this.load();
+  }
+
+  accessCount(user: ManagedUser): number {
+    if (user.perfil === 'ADMINISTRADOR') return 6;
+    return user.permissoes.filter((permission) => CURRENT_TOOL_PERMISSIONS.has(permission)).length;
   }
 
   openEdit(user: ManagedUser): void {

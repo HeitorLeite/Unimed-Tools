@@ -67,20 +67,67 @@ class UsuarioServiceTest {
   @Test
   void deveConcederSomentePermissoesOperacionaisEAdicionarAcessoBase() {
     when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
-    when(repository.buscarPermissoesOperacionaisAtivas(Set.of("XML_ACESSAR")))
-      .thenReturn(Set.of("XML_ACESSAR"));
+    when(repository.buscarPermissoesOperacionaisAtivas(Set.of("REVISAO_CONTAS_ACESSAR")))
+      .thenReturn(Set.of("REVISAO_CONTAS_ACESSAR"));
 
     service.atualizarPermissoes(
       principalAdmin,
       2,
-      new UsuarioDtos.AtualizacaoPermissoesRequest(Set.of("XML_ACESSAR")),
+      new UsuarioDtos.AtualizacaoPermissoesRequest(Set.of("REVISAO_CONTAS_ACESSAR")),
       info
     );
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Set<String>> permissoes = ArgumentCaptor.forClass(Set.class);
     verify(repository).substituirPermissoesUsuario(eq(2L), permissoes.capture(), eq(1L));
-    assertThat(permissoes.getValue()).containsExactlyInAnyOrder("APLICACAO_ACESSAR", "XML_ACESSAR");
+    assertThat(permissoes.getValue()).containsExactlyInAnyOrder(
+      "APLICACAO_ACESSAR",
+      "REVISAO_CONTAS_ACESSAR",
+      "XML_ACESSAR"
+    );
+  }
+
+  @Test
+  void deveCadastrarUsuarioComFerramentasAtuaisEPermissoesTecnicasNecessarias() {
+    when(repository.existeLoginOuEmail("novo.usuario", null)).thenReturn(false);
+    when(repository.buscarPermissoesOperacionaisAtivas(
+      Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR")
+    )).thenReturn(Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR"));
+    when(encoder.encode("Caju#8042")).thenReturn("hash-novo");
+    when(repository.criarUsuario(
+      eq("Novo Usuário"),
+      eq("novo.usuario"),
+      eq(null),
+      eq("hash-novo"),
+      eq("USUARIO"),
+      eq(1L),
+      any()
+    )).thenReturn(9L);
+
+    service.criar(
+      principalAdmin,
+      new UsuarioDtos.CriacaoRequest(
+        "Novo Usuário",
+        "novo.usuario",
+        null,
+        "Caju#8042",
+        "USUARIO",
+        Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR")
+      ),
+      info
+    );
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Set<String>> permissoes = ArgumentCaptor.forClass(Set.class);
+    verify(repository).substituirPermissoesUsuario(eq(9L), permissoes.capture(), eq(1L));
+
+    assertThat(permissoes.getValue()).containsExactlyInAnyOrder(
+      "APLICACAO_ACESSAR",
+      "COMERCIAL_ACESSAR",
+      "RELATORIOS_ACESSAR",
+      "REVISAO_CONTAS_ACESSAR",
+      "XML_ACESSAR"
+    );
   }
 
   @Test

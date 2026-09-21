@@ -61,6 +61,17 @@ public class UsuarioService {
       admin.id(),
       LocalDateTime.now().plusHours(24)
     );
+
+    Set<String> permissoesIniciais = Set.of();
+    if ("USUARIO".equals(request.perfilCodigo()) && request.permissoes() != null) {
+      permissoesIniciais = validarPermissoesOperacionais(request.permissoes());
+      repository.substituirPermissoesUsuario(
+        id,
+        expandirPermissoesTecnicas(permissoesIniciais),
+        admin.id()
+      );
+    }
+
     auditoria.registrar(
       admin.id(),
       id,
@@ -68,7 +79,10 @@ public class UsuarioService {
       "SUCESSO",
       info.ip(),
       info.userAgent(),
-      Map.of("perfil", request.perfilCodigo())
+      Map.of(
+        "perfil", request.perfilCodigo(),
+        "permissoes", permissoesIniciais.stream().sorted().toList()
+      )
     );
     return new UsuarioDtos.CriacaoResponse(id, nome, login, email, request.perfilCodigo(), "ATIVO", true);
   }
@@ -207,18 +221,12 @@ public class UsuarioService {
       );
     }
 
-    Set<String> solicitadas = Set.copyOf(request.permissoes());
-    Set<String> permitidas = repository.buscarPermissoesOperacionaisAtivas(solicitadas);
-    if (permitidas.size() != solicitadas.size()) {
-      throw new ApiException(
-        HttpStatus.BAD_REQUEST,
-        "PERMISSAO_INVALIDA",
-        "Uma ou mais permissões informadas não podem ser concedidas."
-      );
-    }
-    Set<String> persistidas = new HashSet<>(permitidas);
-    if (!persistidas.isEmpty()) persistidas.add("APLICACAO_ACESSAR");
-    repository.substituirPermissoesUsuario(alvo.id(), persistidas, admin.id());
+    Set<String> permitidas = validarPermissoesOperacionais(request.permissoes());
+    repository.substituirPermissoesUsuario(
+      alvo.id(),
+      expandirPermissoesTecnicas(permitidas),
+      admin.id()
+    );
     auditoria.registrar(
       admin.id(),
       alvo.id(),
@@ -267,6 +275,49 @@ public class UsuarioService {
     return new UsuarioDtos.OperacaoResponse(
       "Senha temporária definida. O usuário deverá trocá-la no próximo acesso."
     );
+  }
+
+  private Set<String> validarPermissoesOperacionais(Set<String> solicitadas) {
+    Set<String> normalizadas = solicitadas == null ? Set.of() : Set.copyOf(solicitadas);
+    Set<String> permitidas = repository.buscarPermissoesOperacionaisAtivas(normalizadas);
+    if (permitidas.size() != normalizadas.size()) {
+      throw new ApiException(
+        HttpStatus.BAD_REQUEST,
+        "PERMISSAO_INVALIDA",
+        "Uma ou mais permissões informadas não podem ser concedidas."
+      );
+    }
+    return permitidas;
+  }
+
+  private Set<String> expandirPermissoesTecnicas(Set<String> operacionais) {
+    if (operacionais.isEmpty()) return Set.of();
+
+    Set<String> persistidas = new HashSet<>(operacionais);
+    persistidas.add("APLICACAO_ACESSAR");
+
+    if (
+      operacionais.contains("COMERCIAL_ACESSAR") ||
+      operacionais.contains("ASSISTENCIAL_ACESSAR") ||
+      operacionais.contains("HOSPITAL_ACESSAR") ||
+      operacionais.contains("GESTAO_RISCO_ACESSAR")
+    ) {
+      persistidas.add("RELATORIOS_ACESSAR");
+    }
+
+    if (operacionais.contains("ASSISTENCIAL_ACESSAR")) {
+      persistidas.add("RELATORIO_PERSONALIZADO_ACESSAR");
+    }
+
+    if (operacionais.contains("REVISAO_CONTAS_ACESSAR")) {
+      persistidas.add("XML_ACESSAR");
+    }
+
+    if (operacionais.contains("UNICA_ACESSAR")) {
+      persistidas.add("ANS_ACESSAR");
+    }
+
+    return persistidas;
   }
 
   private UsuarioRow validarAdministrador(UsuarioPrincipal administrador) {

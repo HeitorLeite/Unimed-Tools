@@ -1,0 +1,36 @@
+<section class="preview">
+  <header>
+    <div>
+      <span>Resultado</span>
+      <h3>{{ title }}</h3>
+    </div>
+    <strong>{{ records.length }} registro(s) na página</strong>
+  </header>
+
+  <div
+    class="table-wrap"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="title"
+    *ngIf="records.length; else empty"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th scope="col" *ngFor="let column of columns">{{ column }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of visibleRecords">
+          <td *ngFor="let column of columns" [class.protected]="protected(column)">
+            {{ protected(column) ? '••••••••' : format(column, row[column]) }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ng-template #empty
+    ><div class="empty">{{ emptyMessage }}</div></ng-template
+  >
+</section>

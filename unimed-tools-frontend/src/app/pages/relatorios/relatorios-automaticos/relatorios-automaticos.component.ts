@@ -45,6 +45,7 @@ interface NotificacaoExecucao {
   styleUrls: ['./relatorios-automaticos.component.scss'],
 })
 export class RelatoriosAutomaticosComponent implements OnInit, OnChanges, OnDestroy {
+  @Input() embedded = false;
   @Input() relatorios: RelatorioCatalogo[] = [];
   @Output() voltar = new EventEmitter<void>();
 

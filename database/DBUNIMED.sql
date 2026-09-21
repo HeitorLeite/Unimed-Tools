@@ -1,6 +1,6 @@
 -- ============================================================
 -- UNIMED TOOLS
--- Esquema completo de autenticação, MFA, sessões e acesso
+-- Esquema completo de autenticação, sessões, permissões e acesso
 -- Banco: DBUNIMED | SGBD: MariaDB / MySQL
 -- ============================================================
 
@@ -65,10 +65,6 @@ CREATE TABLE usuario (
     bloqueado_ate DATETIME(6),
     ultimo_login_em DATETIME(6),
     senha_alterada_em DATETIME(6),
-    mfa_segredo_criptografado VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin,
-    mfa_ativado BOOLEAN NOT NULL DEFAULT FALSE,
-    mfa_ativado_em DATETIME(6),
-    ultimo_passo_mfa BIGINT UNSIGNED,
     criado_por BIGINT UNSIGNED,
     atualizado_por BIGINT UNSIGNED,
     desativado_por BIGINT UNSIGNED,
@@ -120,7 +116,6 @@ CREATE TABLE sessao_usuario (
     criada_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     ultima_atividade_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     expira_em DATETIME(6) NOT NULL,
-    mfa_validada_em DATETIME(6),
     revogada_em DATETIME(6),
     motivo_revogacao VARCHAR(200),
     endereco_ip VARCHAR(45),
@@ -135,27 +130,37 @@ CREATE TABLE sessao_usuario (
     INDEX idx_sessao_usuario_ativa (usuario_id, revogada_em, expira_em)
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
-CREATE TABLE desafio_autenticacao (
+CREATE TABLE ferramenta_configuravel (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    usuario_id BIGINT UNSIGNED NOT NULL,
-    token_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    tipo VARCHAR(30) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    mfa_segredo_criptografado VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin,
-    tentativas SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    slug VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    nome VARCHAR(120) NOT NULL,
+    descricao VARCHAR(500) NOT NULL,
+    api_nome VARCHAR(160) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    filtros_json JSON NOT NULL,
+    colunas_preview_json JSON NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    criado_por BIGINT UNSIGNED,
+    atualizado_por BIGINT UNSIGNED,
     criado_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    expira_em DATETIME(6) NOT NULL,
-    consumido_em DATETIME(6),
-    endereco_ip VARCHAR(45),
-    user_agent VARCHAR(500),
-    CONSTRAINT pk_desafio_autenticacao PRIMARY KEY (id),
-    CONSTRAINT uk_desafio_autenticacao_token_hash UNIQUE (token_hash),
-    CONSTRAINT chk_desafio_autenticacao_tipo CHECK (
-        tipo IN ('MFA_CONFIGURACAO', 'MFA_VALIDACAO')
-    ),
-    CONSTRAINT fk_desafio_autenticacao_usuario FOREIGN KEY (usuario_id)
-        REFERENCES usuario (id) ON DELETE CASCADE ON UPDATE RESTRICT,
-    INDEX idx_desafio_usuario (usuario_id),
-    INDEX idx_desafio_expiracao (expira_em)
+    atualizado_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_ferramenta_configuravel PRIMARY KEY (id),
+    CONSTRAINT uk_ferramenta_configuravel_slug UNIQUE (slug),
+    CONSTRAINT fk_ferramenta_criado_por FOREIGN KEY (criado_por) REFERENCES usuario (id) ON DELETE SET NULL,
+    CONSTRAINT fk_ferramenta_atualizado_por FOREIGN KEY (atualizado_por) REFERENCES usuario (id) ON DELETE SET NULL,
+    INDEX idx_ferramenta_ativo (ativo)
+) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE ferramenta_nativa_configuracao (
+    ferramenta_id VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    nome VARCHAR(120),
+    descricao VARCHAR(500),
+    ativo BOOLEAN NOT NULL DEFAULT TRUE,
+    atualizado_por BIGINT UNSIGNED,
+    atualizado_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT pk_ferramenta_nativa_configuracao PRIMARY KEY (ferramenta_id),
+    CONSTRAINT fk_ferramenta_nativa_atualizado_por FOREIGN KEY (atualizado_por)
+        REFERENCES usuario (id) ON DELETE SET NULL ON UPDATE RESTRICT
 ) ENGINE = InnoDB DEFAULT CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE auditoria_acesso (
@@ -166,7 +171,7 @@ CREATE TABLE auditoria_acesso (
     resultado VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     endereco_ip VARCHAR(45),
     user_agent VARCHAR(500),
-    -- Nunca incluir senha, token, segredo TOTP, API key ou dado de saúde.
+    -- Nunca incluir senha, token, API key ou dado de saúde.
     detalhes JSON,
     ocorrido_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     CONSTRAINT pk_auditoria_acesso PRIMARY KEY (id),
@@ -200,7 +205,8 @@ INSERT INTO permissao (codigo, modulo, descricao, ativo) VALUES
 ('RELATORIO_PERSONALIZADO_ACESSAR', 'RELATORIOS', 'Permite gerar relatórios personalizados.', TRUE),
 ('RELATORIOS_ADMINISTRAR', 'RELATORIOS', 'Permite administrar definições de relatórios.', TRUE),
 ('RELATORIOS_DADOS_SENSIVEIS_ACESSAR', 'RELATORIOS', 'Permite acessar colunas sensíveis autorizadas.', TRUE),
-('ANS_ACESSAR', 'ANS', 'Permite acessar as ferramentas ANS.', TRUE);
+('ANS_ACESSAR', 'ANS', 'Permite acessar as ferramentas ANS.', TRUE),
+('FERRAMENTAS_ADMINISTRAR', 'TI', 'Permite criar e administrar ferramentas configuráveis.', TRUE);
 
 INSERT INTO perfil_permissao (perfil_id, permissao_id)
 SELECT p.id, pe.id

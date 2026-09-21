@@ -1,0 +1,84 @@
+<section class="custom-page">
+  <header class="heading" *ngIf="tool">
+    <div>
+      <span>Ferramenta configurada pela TI</span>
+      <h1>{{ tool.nome }}</h1>
+      <p>{{ tool.descricao }}</p>
+    </div>
+    <button
+      type="button"
+      class="download"
+      [disabled]="!records.length || exporting"
+      (click)="download()"
+    >
+      {{ exporting ? 'Preparando…' : 'Baixar XLSX' }}
+    </button>
+  </header>
+
+  <div class="loading-state" *ngIf="loading">Carregando a configuração da ferramenta…</div>
+
+  <div class="layout" *ngIf="tool && definition && !loading">
+    <aside class="filters">
+      <div class="step">
+        <span>1</span>
+        <div><strong>Filtros</strong><small>Preencha apenas o necessário.</small></div>
+      </div>
+
+      <div class="field-list" *ngIf="filters.length; else noFilters">
+        <label *ngFor="let filter of filters">
+          <span>
+            {{ label(filter.nomeFiltro) }}
+            <b *ngIf="filter.obrigatorioFiltro === 'S'">*</b>
+          </span>
+          <input
+            [type]="inputType(filter)"
+            [(ngModel)]="values[filter.nomeFiltro]"
+            [placeholder]="filter.mascaraFiltro || ''"
+          />
+        </label>
+      </div>
+      <ng-template #noFilters>
+        <p class="no-filters">Esta API não exige filtros.</p>
+      </ng-template>
+
+      <p class="error" *ngIf="error">{{ error }}</p>
+      <button type="button" class="generate" [disabled]="generating" (click)="generate(1)">
+        {{ generating ? 'Gerando…' : 'Gerar prévia' }}
+      </button>
+    </aside>
+
+    <main class="result">
+      <div class="result-title">
+        <div class="step">
+          <span>2</span>
+          <div><strong>Prévia</strong><small>Confira o resultado antes de baixar.</small></div>
+        </div>
+        <small>Página {{ page }}</small>
+      </div>
+
+      <div class="loading-state" *ngIf="generating">Consultando o relatório…</div>
+      <app-report-preview
+        *ngIf="!generating"
+        [title]="tool.nome"
+        [records]="records"
+        [columns]="columns"
+        [maxRows]="pageSize"
+      />
+
+      <div class="pagination" *ngIf="records.length">
+        <button type="button" [disabled]="page <= 1 || generating" (click)="generate(page - 1)">
+          ← Anterior
+        </button>
+        <button type="button" [disabled]="last || generating" (click)="generate(page + 1)">
+          Próxima →
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <div class="not-found" role="alert" *ngIf="!loading && (!tool || !definition)">
+    <strong>Ferramenta indisponível</strong>
+    <p>{{ error || 'A configuração não foi encontrada.' }}</p>
+    <button type="button" (click)="back()">Voltar para o início</button>
+  </div>
+</section>

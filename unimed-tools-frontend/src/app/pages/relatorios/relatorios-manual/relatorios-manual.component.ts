@@ -8,7 +8,7 @@ import { ArquivoSqlImportado } from '../sql/sql-importacao.model';
  */
 import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize, firstValueFrom, timeout } from 'rxjs';
 
@@ -36,6 +36,7 @@ type ModoCadastro = 'existente' | 'lista' | 'nova' | 'arquivos';
   styleUrls: ['./relatorios-manual.component.scss'],
 })
 export class RelatoriosManualComponent implements OnInit, OnDestroy {
+  @Input() embedded = false;
   @Output() voltar = new EventEmitter<void>();
   relatorios: RelatorioCatalogo[] = [];
   relatoriosFiltrados: RelatorioCatalogo[] = [];

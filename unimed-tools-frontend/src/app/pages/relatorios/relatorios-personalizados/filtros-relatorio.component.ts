@@ -14,29 +14,34 @@ import { agruparCampos, buscarCampos } from './seletor-campos.utils';
 export class FiltrosRelatorioComponent {
   @Input() filtros: RelatorioPersonalizadoFiltro[] = [];
   @Input() valores: Record<string, string> = {};
+  @Input() ativos: string[] = [];
   @Input() bloqueado = false;
-  @Input() set versaoLimpeza(_: number) { this.adicionados.clear(); this.busca = ''; }
+  @Input() set versaoLimpeza(_: number) { this.busca = ''; }
   @Output() valoresChange = new EventEmitter<Record<string, string>>();
+  @Output() ativosChange = new EventEmitter<string[]>();
+
   busca = '';
-  private adicionados = new Set<string>();
+
   trackGrupo(_: number, grupo: { nome: string }): string { return grupo.nome; }
   trackCampo(_: number, campo: { id: string }): string { return campo.id; }
 
   ativo(filtro: RelatorioPersonalizadoFiltro): boolean {
-    // Um valor preenchido nunca fica oculto por causa de busca ou reconstrução da view.
-    return filtro.obrigatorio || this.adicionados.has(filtro.id) || !!this.valores[filtro.id]?.trim();
+    return filtro.obrigatorio || this.ativos.includes(filtro.id) || !!this.valores[filtro.id]?.trim();
   }
 
   get gruposAtivos() { return agruparCampos(this.filtros.filter((filtro) => this.ativo(filtro))); }
   get disponiveis() { return buscarCampos(this.filtros.filter((filtro) => !this.ativo(filtro)), this.busca); }
 
   adicionar(filtro: RelatorioPersonalizadoFiltro): void {
-    if (!this.bloqueado) this.adicionados.add(filtro.id);
+    if (this.bloqueado || this.ativos.includes(filtro.id)) return;
+    this.ativos = [...this.ativos, filtro.id];
+    this.ativosChange.emit(this.ativos);
   }
 
   remover(filtro: RelatorioPersonalizadoFiltro): void {
     if (this.bloqueado || filtro.obrigatorio) return;
-    this.adicionados.delete(filtro.id);
+    this.ativos = this.ativos.filter((id) => id !== filtro.id);
+    this.ativosChange.emit(this.ativos);
     this.alterar(filtro.id, '');
   }
 

@@ -8,13 +8,8 @@ export interface AuthUser {
   permissoes: string[];
 }
 
-export type AuthFlowStatus = 'AUTENTICADO' | 'MFA_CONFIGURACAO' | 'MFA_VALIDACAO';
-
 export interface AuthFlowResponse {
-  status: AuthFlowStatus;
-  desafioToken: string | null;
-  segredoMfa: string | null;
-  uriMfa: string | null;
+  status: 'AUTENTICADO';
   usuario: AuthUser | null;
 }
 

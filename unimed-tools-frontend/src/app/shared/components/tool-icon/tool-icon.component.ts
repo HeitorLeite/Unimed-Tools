@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 
-export type ToolIconName = 'relatorios' | 'xml' | 'bi' | 'ans' | 'fechamento';
+export type ToolIconName = 'relatorios' | 'xml' | 'bi' | 'ans' | 'fechamento' | 'comercial' | 'assistencial' | 'revisao' | 'unica' | 'hospital' | 'risco' | 'ti';
 
 /** Ícones estáticos compartilhados pelos cards e pela navegação lateral. */
 @Component({

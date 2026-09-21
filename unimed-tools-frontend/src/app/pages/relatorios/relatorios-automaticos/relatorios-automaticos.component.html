@@ -1,7 +1,7 @@
 <!-- Apresentação de configuração e execução de grupos automáticos; regras de negócio permanecem no componente ou serviço correspondente. -->
 <section class="automatic-reports-page" [attr.aria-busy]="operacaoRelatorioEmAndamento">
   <header class="automatic-commandbar">
-    <button class="mode-back-button" type="button" (click)="voltar.emit()">
+    <button *ngIf="!embedded" class="mode-back-button" type="button" (click)="voltar.emit()">
       <span aria-hidden="true">←</span>
       <span><small>Central de relatórios</small><strong>Trocar modo</strong></span>
     </button>
@@ -311,7 +311,7 @@
         </div>
 
         <button
-          class="btn btn-primary btn-lg generate-batch"
+          class="btn btn-primary btn-lg generate-batch batch-download"
           type="button"
           [disabled]="executando || quantidadeArquivosPrevista === 0"
           (click)="gerarGrupoAutomaticamente()"

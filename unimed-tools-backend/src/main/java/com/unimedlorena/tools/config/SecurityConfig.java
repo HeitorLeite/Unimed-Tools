@@ -83,8 +83,7 @@ public class SecurityConfig {
         .requestMatchers(
           "/health",
           "/api/auth/csrf",
-          "/api/auth/login",
-          "/api/auth/mfa/verificar"
+          "/api/auth/login"
         ).permitAll()
         .requestMatchers("/api/auth/**").authenticated()
         .requestMatchers(HttpMethod.GET, "/api/usuarios", "/api/usuarios/permissoes-disponiveis")
@@ -97,6 +96,13 @@ public class SecurityConfig {
         .requestMatchers(HttpMethod.POST, "/api/usuarios/*/resetar-senha")
           .hasAuthority("USUARIOS_EDITAR")
         .requestMatchers("/api/usuarios/**").denyAll()
+        .requestMatchers(HttpMethod.GET, "/api/ferramentas", "/api/ferramentas/nativas").authenticated()
+        .requestMatchers(HttpMethod.POST, "/api/ferramentas").hasAuthority("FERRAMENTAS_ADMINISTRAR")
+        .requestMatchers(HttpMethod.PUT, "/api/ferramentas/*", "/api/ferramentas/nativas/*")
+          .hasAuthority("FERRAMENTAS_ADMINISTRAR")
+        .requestMatchers(HttpMethod.DELETE, "/api/ferramentas/*", "/api/ferramentas/nativas/*")
+          .hasAuthority("FERRAMENTAS_ADMINISTRAR")
+        .requestMatchers("/api/ferramentas/**").denyAll()
         .requestMatchers("/api/xml/**").hasAuthority("XML_ACESSAR")
         .requestMatchers("/api/bi/**").hasAuthority("BI_ACESSAR")
         .requestMatchers("/api/ans/**").hasAuthority("ANS_ACESSAR")

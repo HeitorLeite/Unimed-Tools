@@ -7,6 +7,7 @@ import { Observable, catchError, concatMap, map, throwError } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { RELATORIO_STORAGE_KEYS } from '../constants/storage.constants';
+import { HospitalConfiguration, HospitalRequest } from '../models/hospital.model';
 import {
   FormatoExportacao,
   RelatorioCatalogo,
@@ -203,6 +204,25 @@ export class RelatorioService {
     request: RelatorioPersonalizadoRequest,
   ): Observable<HttpEvent<Blob>> {
     return this.http.post(`${this.baseUrl}/personalizado/exportar?formato=${formato}`, request, {
+      observe: 'events',
+      reportProgress: true,
+      responseType: 'blob',
+    });
+  }
+
+  configuracaoHospital(): Observable<HospitalConfiguration> {
+    return this.http.get<HospitalConfiguration>(`${this.baseUrl}/hospital/configuracao`);
+  }
+
+  executarHospital(request: HospitalRequest): Observable<SguResultado> {
+    return this.http.post<SguResultado>(`${this.baseUrl}/hospital/executar`, request);
+  }
+
+  exportarHospital(
+    formato: FormatoExportacao,
+    request: HospitalRequest,
+  ): Observable<HttpEvent<Blob>> {
+    return this.http.post(`${this.baseUrl}/hospital/exportar?formato=${formato}`, request, {
       observe: 'events',
       reportProgress: true,
       responseType: 'blob',

@@ -37,6 +37,14 @@ interface Grupo<T> {
   itens: T[];
 }
 
+interface AssistencialPreset {
+  id: string;
+  nome: string;
+  colunas: string[];
+  filtros: string[];
+  distinct: boolean;
+}
+
 type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
 
 @Component({
@@ -54,6 +62,10 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   gruposColunas: Grupo<RelatorioPersonalizadoColuna>[] = [];
   valoresFiltro: Record<string, string> = {};
   versaoLimpezaFiltros = 0;
+  filtrosAtivos: string[] = [];
+  presets: AssistencialPreset[] = [];
+  presetSelecionado = '';
+  nomeNovoPreset = '';
   colunasSelecionadas = new Set<string>();
   ordemColunasSelecionadas: string[] = [];
 
@@ -92,6 +104,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.presets = this.carregarPresets();
     this.relatorioService
       .configuracaoPersonalizada()
       .pipe(
@@ -341,6 +354,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     Object.keys(this.valoresFiltro).forEach((chave) => (this.valoresFiltro[chave] = ''));
     this.valoresFiltro['competencia_inicio'] = competenciaAtual;
     this.valoresFiltro['competencia_fim'] = competenciaAtual;
+    this.filtrosAtivos = this.configuracao?.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id) ?? [];
     this.registros = [];
     this.totalRegistros = null;
     this.totalRegistrosExportados = null;
@@ -355,6 +369,56 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   atualizarFiltros(valores: Record<string, string>): void {
     this.valoresFiltro = valores;
     this.limparPrevia();
+  }
+
+  atualizarFiltrosAtivos(ids: string[]): void {
+    this.filtrosAtivos = [...new Set(ids)];
+    this.limparPrevia();
+  }
+
+  salvarPreset(): void {
+    const nome = this.nomeNovoPreset.trim();
+    if (!nome || !this.configuracao || !this.ordemColunasSelecionadas.length) {
+      this.erro = 'Informe um nome e selecione ao menos uma coluna antes de salvar o modelo.';
+      return;
+    }
+    const preset: AssistencialPreset = {
+      id: this.novoId(),
+      nome,
+      colunas: [...this.ordemColunasSelecionadas],
+      filtros: [...new Set(this.filtrosAtivos)],
+      distinct: this.somenteDistintos,
+    };
+    this.presets = [...this.presets, preset];
+    this.salvarPresets();
+    this.presetSelecionado = preset.id;
+    this.nomeNovoPreset = '';
+    this.sucesso = `Modelo “${preset.nome}” salvo. Os valores dos filtros não foram armazenados.`;
+  }
+
+  aplicarPreset(id: string): void {
+    const preset = this.presets.find((item) => item.id === id);
+    if (!preset || !this.configuracao) return;
+    const permitidas = new Set(this.configuracao.colunas.map((coluna) => coluna.id));
+    this.ordemColunasSelecionadas = preset.colunas.filter((idColuna) => permitidas.has(idColuna));
+    this.colunasSelecionadas = new Set(this.ordemColunasSelecionadas);
+    const obrigatorios = this.configuracao.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id);
+    this.filtrosAtivos = [...new Set([...obrigatorios, ...preset.filtros])];
+    this.somenteDistintos = preset.distinct;
+    Object.keys(this.valoresFiltro).forEach((key) => this.valoresFiltro[key] = '');
+    const competencia = this.competenciaAtual();
+    this.valoresFiltro['competencia_inicio'] = competencia;
+    this.valoresFiltro['competencia_fim'] = competencia;
+    this.colunasResultado = [...this.ordemColunasSelecionadas];
+    this.limparPrevia();
+    this.sucesso = `Modelo “${preset.nome}” aplicado. Preencha os filtros para gerar o relatório.`;
+  }
+
+  excluirPreset(): void {
+    if (!this.presetSelecionado) return;
+    this.presets = this.presets.filter((item) => item.id !== this.presetSelecionado);
+    this.salvarPresets();
+    this.presetSelecionado = '';
   }
 
   valorCelula(coluna: string, valor: unknown): string {
@@ -404,6 +468,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.gruposFiltros = this.agrupar(configuracao.filtros);
     this.gruposColunas = this.agrupar(configuracao.colunas);
     this.valoresFiltro = Object.fromEntries(configuracao.filtros.map((filtro) => [filtro.id, '']));
+    this.filtrosAtivos = configuracao.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id);
 
     const competenciaAtual = this.competenciaAtual();
     this.valoresFiltro['competencia_inicio'] = competenciaAtual;
@@ -561,6 +626,27 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     const mapa = new Map<string, T[]>();
     itens.forEach((item) => mapa.set(item.grupo, [...(mapa.get(item.grupo) ?? []), item]));
     return [...mapa.entries()].map(([nome, itensGrupo]) => ({ nome, itens: itensGrupo }));
+  }
+
+  private carregarPresets(): AssistencialPreset[] {
+    if (typeof localStorage === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem('unimed-tools.assistencial.modelos.v1') || '[]') as AssistencialPreset[];
+    } catch {
+      return [];
+    }
+  }
+
+  private salvarPresets(): void {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('unimed-tools.assistencial.modelos.v1', JSON.stringify(this.presets));
+    }
+  }
+
+  private novoId(): string {
+    return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   private competenciaAtual(): string {

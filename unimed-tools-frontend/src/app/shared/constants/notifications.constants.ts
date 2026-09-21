@@ -6,6 +6,14 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
+    id: '8.0.0-nova-experiencia-ferramentas',
+    versao: '8.0.0',
+    titulo: 'Nova experiência do Unimed Tools',
+    resumo:
+      'Reorganiza a navegação por áreas de trabalho, adiciona Comercial, Hospital, Gestão de Risco e TI, renova o Assistencial e simplifica o login sem segundo fator.',
+    publicadaEm: '2026-09-18',
+  },
+  {
     id: '7.8.0-empresas-relatorios-automaticos',
     versao: '7.8.0',
     titulo: 'Empresas por nome nos relatórios automáticos',
@@ -81,7 +89,7 @@ export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
     versao: '7.2.0',
     titulo: 'Inicialização simplificada e interface ajustada',
     resumo:
-      'Adiciona o iniciador local, mantém o MFA no login administrativo sem repeti-lo nas ações, corrige os ícones e amplia a proteção de Nome e CPF nas prévias manuais.',
+      'Adiciona o iniciador local, corrige os ícones e amplia a proteção de Nome e CPF nas prévias manuais.',
     publicadaEm: '2026-08-12',
   },
   {

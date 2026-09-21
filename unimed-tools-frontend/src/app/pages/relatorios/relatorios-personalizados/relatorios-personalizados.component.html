@@ -1,355 +1,258 @@
-<section class="custom-report-page" [attr.aria-busy]="operacaoRelatorioEmAndamento">
-  <header class="custom-commandbar">
-    <button class="back-button" type="button" (click)="voltar.emit()">
-      <span aria-hidden="true">←</span>
-      <span><small>Central de relatórios</small><strong>Trocar modo</strong></span>
-    </button>
-    <div class="commandbar-title">
-      <span>Construtor guiado</span>
-      <h1>Relatório personalizado</h1>
-    </div>
-    <div class="privacy-note">
-      <span aria-hidden="true">◉</span> Filtros mantidos apenas nesta sessão
-    </div>
-  </header>
-
-  <div *ngIf="operacaoRelatorioEmAndamento" class="report-operation-lock" aria-hidden="true"></div>
-
-  <div class="custom-intro">
+<section class="assistencial-page">
+  <header class="assistencial-heading">
     <div>
-      <span class="eyebrow">{{ configuracao?.fonte || 'Consulta assistida' }} · SGU</span>
-      <h2>Encontre o recorte certo e leve somente as colunas necessárias.</h2>
+      <span>Relatório sob medida</span>
+      <h1>Assistencial</h1>
       <p>
-        Defina o período, refine beneficiário, contrato, guia ou procedimento e monte a estrutura
-        final do arquivo. Cada execução gera um novo SQL e substitui a API
-        0090-relatorio-personalizado. A consulta e a chave não são enviadas ao navegador.
+        Monte o relatório na ordem em que você pensa: escolha as colunas, adicione os filtros
+        necessários, confira a prévia e exporte.
       </p>
     </div>
-    <ol aria-label="Etapas do relatório">
-      <li><span>01</span>Filtrar</li>
-      <li><span>02</span>Escolher colunas</li>
-      <li><span>03</span>Revisar e exportar</li>
-    </ol>
-  </div>
-
-  <div class="alert error" *ngIf="erro" role="alert">
-    <span>{{ erro }}</span
-    ><button type="button" (click)="erro = ''" aria-label="Fechar">×</button>
-  </div>
-  <div class="alert success" *ngIf="sucesso" role="status">
-    <span>{{ sucesso }}</span
-    ><button type="button" (click)="sucesso = ''" aria-label="Fechar">×</button>
-  </div>
+    <div class="privacy-note"><span>●</span> Dados sensíveis são protegidos na prévia.</div>
+  </header>
 
   <div class="loading-panel" *ngIf="carregandoConfiguracao">
-    <span class="spinner"></span>
-    <strong>Carregando campos autorizados…</strong>
+    <span class="spinner"></span> Preparando o construtor…
+  </div>
+  <div class="alert error" role="alert" *ngIf="!carregandoConfiguracao && !configuracao && erro">
+    {{ erro }}
   </div>
 
   <ng-container *ngIf="configuracao && !carregandoConfiguracao">
-    <div class="builder-grid">
-      <section class="panel filters-panel">
-        <div class="panel-heading">
-          <div>
-            <span>Etapa 01</span>
-            <h2>Filtros da consulta</h2>
-          </div>
-          <div class="panel-actions">
-            <button type="button" class="text-button" (click)="limparFiltros()">Limpar</button>
-            <button
-              type="button"
-              class="collapse-button"
-              [attr.aria-expanded]="!secaoRecolhida('filtros')"
-              aria-controls="conteudo-filtros"
-              (click)="alternarSecao('filtros')"
-            >
-              <span>{{ secaoRecolhida('filtros') ? 'Expandir' : 'Recolher' }}</span>
-              <span
-                class="collapse-icon"
-                [class.collapsed]="secaoRecolhida('filtros')"
-                aria-hidden="true"
-                >⌃</span
-              >
-            </button>
-          </div>
-        </div>
-        <div id="conteudo-filtros" [hidden]="secaoRecolhida('filtros')">
-          <p class="panel-help">
-            As competências são obrigatórias e aceitam no máximo
-            {{ configuracao.limites.maximoMeses }} meses por consulta.
-          </p>
+    <section class="preset-bar">
+      <div><span>Modelos salvos</span><strong>Reutilize uma estrutura</strong></div>
+      <select [(ngModel)]="presetSelecionado" (ngModelChange)="aplicarPreset($event)">
+        <option value="">Escolha um modelo</option>
+        <option *ngFor="let preset of presets" [value]="preset.id">{{ preset.nome }}</option>
+      </select>
+      <button
+        type="button"
+        class="text-button danger"
+        [disabled]="!presetSelecionado"
+        (click)="excluirPreset()"
+      >
+        Excluir
+      </button>
+      <span class="divider"></span>
+      <input
+        type="text"
+        [(ngModel)]="nomeNovoPreset"
+        maxlength="80"
+        placeholder="Nome do novo modelo"
+      />
+      <button type="button" class="secondary-button" (click)="salvarPreset()">
+        Salvar configuração
+      </button>
+    </section>
 
-          <app-filtros-relatorio [filtros]="configuracao.filtros" [valores]="valoresFiltro"
-            [bloqueado]="operacaoRelatorioEmAndamento" [versaoLimpeza]="versaoLimpezaFiltros"
-            (valoresChange)="atualizarFiltros($event)" />
-        </div>
-      </section>
-
-      <aside class="panel columns-panel">
-        <div class="panel-heading">
-          <div>
-            <span>Etapa 02</span>
-            <h2>Colunas do arquivo</h2>
-          </div>
-          <div class="panel-actions">
-            <strong class="selection-count"
-              >{{ colunasSelecionadas.size }}/{{ configuracao.limites.maximoColunas }}</strong
-            >
-            <button
-              type="button"
-              class="collapse-button"
-              [attr.aria-expanded]="!secaoRecolhida('colunas')"
-              aria-controls="conteudo-colunas"
-              (click)="alternarSecao('colunas')"
-            >
-              <span>{{ secaoRecolhida('colunas') ? 'Expandir' : 'Recolher' }}</span>
-              <span
-                class="collapse-icon"
-                [class.collapsed]="secaoRecolhida('colunas')"
-                aria-hidden="true"
-                >⌃</span
-              >
-            </button>
-          </div>
-        </div>
-        <div id="conteudo-colunas" [hidden]="secaoRecolhida('colunas')">
-          <p class="panel-help">
-            A ordem marcada será preservada na prévia e na exportação. Quando forem escolhidas
-            somente informações do beneficiário e valores, os valores serão somados por beneficiário
-            no período.
-          </p>
-
-          <label class="distinct-option" [class.active]="somenteDistintos">
-            <input type="checkbox" [checked]="somenteDistintos" (change)="alternarDistinct()" />
-            <span>
-              <strong>Remover linhas duplicadas</strong>
-              <small>
-                Aplica SELECT DISTINCT às colunas escolhidas. Para obter uma guia apenas uma vez,
-                selecione somente os campos que identificam a guia.
-              </small>
-            </span>
-            <code>SELECT DISTINCT</code>
-          </label>
-
-          <app-colunas-relatorio [colunas]="configuracao.colunas" [ordem]="ordemColunasSelecionadas"
-            [maximo]="configuracao.limites.maximoColunas" [bloqueado]="operacaoRelatorioEmAndamento"
-            (alternar)="alternarColuna($event)" (alternarGrupo)="alternarGrupo($event)"
-            (mover)="moverColuna($event.id, $event.deslocamento)" />
-        </div>
-      </aside>
+    <div class="alert error" *ngIf="erro">
+      <span>{{ erro }}</span
+      ><button type="button" (click)="erro = ''">×</button>
+    </div>
+    <div class="alert success" *ngIf="sucesso">
+      <span>{{ sucesso }}</span
+      ><button type="button" (click)="sucesso = ''">×</button>
     </div>
 
-    <section class="panel result-panel" [class.preview-expanded]="previaExpandida">
-      <div class="result-toolbar">
-        <div>
-          <span>Etapa 03</span>
-          <h2>Prévia e exportação</h2>
-          <p *ngIf="totalRegistros !== null">
-            {{ totalRegistros }} linha(s) encontrada(s)
-            <span *ngIf="somenteDistintos">· sem duplicidades</span>
-          </p>
-          <p *ngIf="totalRegistrosExportados !== null">
-            Último arquivo: {{ totalRegistrosExportados }} linha(s) gerada(s)
-          </p>
-        </div>
-        <div class="result-toolbar-actions">
-          <div class="export-controls" [hidden]="secaoRecolhida('resultado')">
-            <label>
-              <span>Nome do arquivo</span>
-              <input type="text" [(ngModel)]="nomeArquivo" maxlength="100" />
-            </label>
-            <label>
-              <span>Formato</span>
-              <select [(ngModel)]="formatoSelecionado">
-                <option value="xlsx">XLSX</option>
-                <option value="csv">CSV</option>
-                <option value="txt">TXT</option>
-              </select>
-            </label>
-            <button
-              class="secondary-button"
-              type="button"
-              [disabled]="exportando || gerando"
-              (click)="exportar()"
-            >
-              {{ exportando ? 'Exportando…' : 'Exportar arquivo' }}
-            </button>
-            <button
-              class="primary-button"
-              type="button"
-              [disabled]="gerando || exportando"
-              (click)="gerar(1)"
-            >
-              {{ gerando ? 'Consultando…' : 'Gerar prévia' }}
-            </button>
+    <section class="builder-flow">
+      <div class="flow-panel columns-panel">
+        <div class="flow-title">
+          <span>1</span>
+          <div>
+            <strong>Escolha as colunas</strong
+            ><small>Busque, marque e ajuste a ordem de saída.</small>
           </div>
-          <button
-            type="button"
-            class="collapse-button"
-            [attr.aria-expanded]="!secaoRecolhida('resultado')"
-            aria-controls="conteudo-resultado"
-            (click)="alternarSecao('resultado')"
-          >
-            <span>{{ secaoRecolhida('resultado') ? 'Expandir' : 'Recolher' }}</span>
-            <span
-              class="collapse-icon"
-              [class.collapsed]="secaoRecolhida('resultado')"
-              aria-hidden="true"
-              >⌃</span
-            >
-          </button>
-          <button
-            *ngIf="previaExpandida"
-            type="button"
-            class="close-preview-button"
-            (click)="alternarPreviaExpandida()"
-          >
-            Fechar prévia
-          </button>
+          <b>{{ ordemColunasSelecionadas.length }} selecionada(s)</b>
         </div>
+        <app-colunas-relatorio
+          [colunas]="configuracao.colunas"
+          [ordem]="ordemColunasSelecionadas"
+          [maximo]="configuracao.limites.maximoColunas"
+          [bloqueado]="operacaoRelatorioEmAndamento"
+          (alternar)="alternarColuna($event)"
+          (alternarGrupo)="alternarGrupo($event)"
+          (mover)="moverColuna($event.id, $event.deslocamento)"
+        />
       </div>
 
-      <div id="conteudo-resultado" [hidden]="secaoRecolhida('resultado')">
-        <div
-          class="operation-progress"
-          *ngIf="gerando || exportando"
-          role="status"
-          aria-live="polite"
-          aria-busy="true"
-        >
-          <div class="operation-progress-copy">
-            <span class="spinner"></span>
-            <div>
-              <strong>{{ mensagemOperacao }}</strong>
-              <small>
-                Progresso estimado · {{ segundosOperacao }} segundo(s) decorrido(s). Não feche esta
-                página.
-              </small>
-            </div>
-          </div>
-          <div
-            class="progress-line"
-            role="progressbar"
-            [attr.aria-label]="
-              gerando ? 'Progresso estimado da consulta' : 'Progresso estimado da exportação'
-            "
-            aria-valuemin="0"
-            aria-valuemax="100"
-            [attr.aria-valuenow]="progressoOperacao"
-          >
-            <span [style.width.%]="progressoOperacao"></span>
-          </div>
-          <div class="progress-meta">
-            <strong>{{ progressoOperacao }}%</strong>
-            <span>{{ gerando ? 'Preparando prévia' : 'O download começará ao concluir' }}</span>
+      <div class="flow-panel structure-panel">
+        <div class="flow-title">
+          <span>2</span>
+          <div>
+            <strong>Prévia da estrutura</strong
+            ><small>Esta será a ordem das colunas no arquivo.</small>
           </div>
         </div>
+        <div class="column-preview" *ngIf="ordemColunasSelecionadas.length; else noColumns">
+          <span *ngFor="let id of ordemColunasSelecionadas; index as i"
+            ><b>{{ i + 1 }}</b
+            >{{ rotuloColuna(id) }}</span
+          >
+        </div>
+        <ng-template #noColumns
+          ><p class="empty-copy">Selecione pelo menos uma coluna na etapa anterior.</p></ng-template
+        >
+        <label class="distinct-option" [class.active]="somenteDistintos">
+          <input type="checkbox" [checked]="somenteDistintos" (change)="alternarDistinct()" />
+          <span
+            ><strong>Remover linhas duplicadas</strong
+            ><small>Aplica DISTINCT somente às colunas escolhidas.</small></span
+          >
+        </label>
+      </div>
 
-        <div class="empty-result" *ngIf="!registros.length && !gerando">
-          <span aria-hidden="true">⌁</span>
-          <strong>A prévia aparecerá aqui</strong>
+      <div class="flow-panel filters-panel">
+        <div class="flow-title">
+          <span>3</span>
+          <div>
+            <strong>Adicione os filtros</strong
+            ><small
+              >Competência é obrigatória; os demais entram somente quando você precisar.</small
+            >
+          </div>
+          <button type="button" class="text-button" (click)="limparFiltros()">Limpar</button>
+        </div>
+        <app-filtros-relatorio
+          [filtros]="configuracao.filtros"
+          [valores]="valoresFiltro"
+          [ativos]="filtrosAtivos"
+          [bloqueado]="operacaoRelatorioEmAndamento"
+          [versaoLimpeza]="versaoLimpezaFiltros"
+          (valoresChange)="atualizarFiltros($event)"
+          (ativosChange)="atualizarFiltrosAtivos($event)"
+        />
+      </div>
+
+      <div class="generate-panel">
+        <div>
+          <span>4</span>
+          <div>
+            <strong>Gerar e conferir</strong
+            ><small>A consulta usa somente os campos autorizados pelo servidor.</small>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="primary-button"
+          [disabled]="gerando || exportando || !ordemColunasSelecionadas.length"
+          (click)="gerar(1)"
+        >
+          {{ gerando ? 'Gerando prévia…' : 'Gerar prévia do relatório' }}
+        </button>
+      </div>
+    </section>
+
+    <section class="result-panel" [class.preview-expanded]="previaExpandida">
+      <header class="result-toolbar">
+        <div>
+          <span>Resultado</span>
+          <h2>Prévia completa</h2>
           <p>
-            Revise filtros e colunas antes de executar. Nenhum dado é carregado automaticamente.
+            {{
+              totalRegistros === null
+                ? 'Gere o relatório para visualizar os dados.'
+                : totalRegistros + ' registro(s) encontrado(s).'
+            }}
           </p>
         </div>
-
-        <div class="preview-summary" *ngIf="registros.length">
-          <div>
-            <span>Linhas nesta página</span>
-            <strong>{{ primeiraLinhaPagina }}–{{ ultimaLinhaPagina }}</strong>
-          </div>
-          <div>
-            <span>Total encontrado</span>
-            <strong>{{ totalRegistros === null ? 'Não informado' : totalRegistros }}</strong>
-          </div>
-          <div>
-            <span>Colunas exibidas</span>
-            <strong>{{ colunasResultado.length }}</strong>
-          </div>
-          <div>
-            <span>Duplicidades</span>
-            <strong>{{ somenteDistintos ? 'Removidas' : 'Mantidas' }}</strong>
-          </div>
-          <button type="button" class="expand-preview-button" (click)="alternarPreviaExpandida()">
-            {{ previaExpandida ? 'Restaurar tamanho' : 'Ampliar prévia' }}
+        <div class="export-controls">
+          <label><span>Nome do arquivo</span><input type="text" [(ngModel)]="nomeArquivo" /></label>
+          <label
+            ><span>Formato</span
+            ><select [(ngModel)]="formatoSelecionado">
+              <option value="xlsx">XLSX</option>
+              <option value="csv">CSV</option>
+              <option value="txt">TXT</option>
+            </select></label
+          >
+          <button
+            type="button"
+            class="secondary-button"
+            [disabled]="!registros.length"
+            (click)="alternarPreviaExpandida()"
+          >
+            {{ previaExpandida ? 'Restaurar' : 'Ampliar' }}
+          </button>
+          <button
+            type="button"
+            class="primary-button"
+            [disabled]="exportando || !registros.length"
+            (click)="exportar()"
+          >
+            {{ exportando ? 'Preparando…' : 'Baixar relatório' }}
           </button>
         </div>
+      </header>
 
-        <div class="table-scroll" *ngIf="registros.length">
-          <table>
-            <thead>
-              <tr>
-                <th class="row-number">#</th>
-                <th
-                  *ngFor="let coluna of colunasResultado"
-                  [attr.aria-sort]="ariaOrdenacao(coluna)"
-                  [title]="'Ordenar por ' + rotuloColuna(coluna)"
-                >
-                  <button
-                    type="button"
-                    class="sort-button"
-                    [disabled]="gerando || exportando"
-                    [attr.aria-label]="
-                      'Ordenar ' +
-                      rotuloColuna(coluna) +
-                      (colunaOrdenacao === coluna && direcaoOrdenacao === 'ASC'
-                        ? ' do maior para o menor'
-                        : ' do menor para o maior')
-                    "
-                    (click)="ordenarPor(coluna)"
-                  >
-                    <span>{{ rotuloColuna(coluna) }}</span>
-                    <b [class.active]="colunaOrdenacao === coluna" aria-hidden="true">
-                      {{ simboloOrdenacao(coluna) }}
-                    </b>
-                  </button>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let registro of registros; index as indice">
-                <td class="row-number">{{ indiceLinha(indice) }}</td>
-                <td
-                  *ngFor="let coluna of colunasResultado"
-                  [class.preview-sensitive-cell]="colunaProtegida(coluna)"
-                  [attr.title]="
-                    colunaProtegida(coluna)
-                      ? 'Informação protegida somente na prévia'
-                      : valorCelula(coluna, registro[coluna])
-                  "
-                >
-                  <span>{{ valorCelula(coluna, registro[coluna]) }}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="pagination" *ngIf="registros.length">
-          <label class="page-size-control">
-            <span>Linhas por página</span>
-            <select
-              [ngModel]="tamanhoPagina"
-              [disabled]="gerando"
-              (ngModelChange)="alterarTamanhoPagina($event)"
-            >
-              <option [ngValue]="25">25</option>
-              <option [ngValue]="50">50</option>
-              <option [ngValue]="100">100</option>
-            </select>
-          </label>
-          <div class="pagination-actions">
-            <button type="button" [disabled]="pagina <= 1 || gerando" (click)="gerar(pagina - 1)">
-              ← Anterior
-            </button>
-            <span>
-              Página <strong>{{ pagina }}</strong>
-              <ng-container *ngIf="totalPaginas !== null"> de {{ totalPaginas }}</ng-container>
-            </span>
-            <button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
-              Próxima →
-            </button>
+      <div class="operation-progress" *ngIf="gerando || exportando">
+        <div class="operation-progress-copy">
+          <span class="spinner"></span>
+          <div>
+            <strong>{{ mensagemOperacao }}</strong
+            ><small>{{ segundosOperacao }}s decorridos</small>
           </div>
+        </div>
+        <div class="progress-line"><span [style.width.%]="progressoOperacao"></span></div>
+      </div>
+
+      <div class="empty-result" *ngIf="!registros.length && !gerando">
+        <strong>{{
+          totalRegistros === 0 ? 'Nenhum registro encontrado.' : 'Nenhuma prévia gerada ainda.'
+        }}</strong>
+        <p>
+          {{
+            totalRegistros === 0
+              ? 'Revise os filtros e tente novamente.'
+              : 'Conclua as etapas acima e clique em “Gerar prévia do relatório”.'
+          }}
+        </p>
+      </div>
+
+      <div class="table-scroll" *ngIf="registros.length">
+        <table>
+          <thead>
+            <tr>
+              <th class="row-number">#</th>
+              <th *ngFor="let coluna of colunasResultado" [attr.aria-sort]="ariaOrdenacao(coluna)">
+                <button class="sort-button" type="button" (click)="ordenarPor(coluna)">
+                  <span>{{ rotuloColuna(coluna) }}</span
+                  ><b [class.active]="colunaOrdenacao === coluna">{{ simboloOrdenacao(coluna) }}</b>
+                </button>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let registro of registros; index as indice">
+              <td class="row-number">{{ indiceLinha(indice) }}</td>
+              <td
+                *ngFor="let coluna of colunasResultado"
+                [class.preview-sensitive-cell]="colunaProtegida(coluna)"
+              >
+                <span>{{ valorCelula(coluna, registro[coluna]) }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination" *ngIf="registros.length">
+        <label class="page-size-control"
+          ><span>Linhas por página</span
+          ><select [ngModel]="tamanhoPagina" (ngModelChange)="alterarTamanhoPagina($event)">
+            <option [ngValue]="25">25</option>
+            <option [ngValue]="50">50</option>
+            <option [ngValue]="100">100</option>
+          </select></label
+        >
+        <div class="pagination-actions">
+          <button type="button" [disabled]="pagina <= 1 || gerando" (click)="gerar(pagina - 1)">
+            ← Anterior</button
+          ><span
+            >Página <strong>{{ pagina }}</strong
+            ><ng-container *ngIf="totalPaginas !== null"> de {{ totalPaginas }}</ng-container></span
+          ><button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
+            Próxima →
+          </button>
         </div>
       </div>
     </section>

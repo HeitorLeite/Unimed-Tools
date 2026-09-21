@@ -1,0 +1,75 @@
+<section class="native-manager">
+  <header>
+    <div>
+      <span>Páginas principais</span>
+      <h2>Gerencie o que já existe</h2>
+      <p>Altere o nome, a descrição e a visibilidade dos cards nativos sem modificar rota, permissão ou implementação.</p>
+    </div>
+    <strong>{{ items.length }}</strong>
+  </header>
+
+  <p class="message error" *ngIf="error">{{ error }}</p>
+  <p class="message success" *ngIf="success">{{ success }}</p>
+  <div class="loading" *ngIf="loading">Carregando páginas principais…</div>
+
+  <div class="native-grid" *ngIf="!loading">
+    <article *ngFor="let item of items" [class.editing]="isEditing(item.tool.id)">
+      <ng-container *ngIf="!isEditing(item.tool.id); else editor">
+        <div class="native-top">
+          <div>
+            <small>{{ item.tool.categoria }}</small>
+            <h3>{{ item.tool.nome }}</h3>
+          </div>
+          <span class="status" [class.hidden]="item.config?.ativo === false">
+            {{ item.config?.ativo === false ? 'Oculta' : 'Visível' }}
+          </span>
+        </div>
+
+        <p>{{ item.tool.descricao }}</p>
+
+        <dl>
+          <div><dt>Rota</dt><dd>{{ item.tool.route }}</dd></div>
+          <div><dt>Acesso</dt><dd>{{ permission(item) }}</dd></div>
+        </dl>
+
+        <footer>
+          <button type="button" (click)="edit(item)">Editar apresentação</button>
+          <button type="button" class="reset" [disabled]="!item.config" (click)="reset(item)">
+            Restaurar padrão
+          </button>
+        </footer>
+      </ng-container>
+
+      <ng-template #editor>
+        <div class="native-editor">
+          <label>
+            <span>Nome exibido</span>
+            <input type="text" [(ngModel)]="nome" maxlength="120" />
+          </label>
+          <label>
+            <span>Descrição</span>
+            <textarea [(ngModel)]="descricao" rows="4" maxlength="500"></textarea>
+          </label>
+          <label class="visibility">
+            <input
+              type="checkbox"
+              [(ngModel)]="ativo"
+              [disabled]="item.tool.id === 'ti'"
+            />
+            <span>
+              <strong>Exibir na Home e no menu Ferramentas</strong>
+              <small *ngIf="item.tool.id === 'ti'">A área TI permanece visível para evitar bloqueio administrativo.</small>
+              <small *ngIf="item.tool.id !== 'ti'">Ocultar não remove a rota nem altera permissões do backend.</small>
+            </span>
+          </label>
+          <div class="editor-actions">
+            <button type="button" class="cancel" (click)="cancel()">Cancelar</button>
+            <button type="button" class="save" [disabled]="saving" (click)="save()">
+              {{ saving ? 'Salvando…' : 'Salvar página' }}
+            </button>
+          </div>
+        </div>
+      </ng-template>
+    </article>
+  </div>
+</section>

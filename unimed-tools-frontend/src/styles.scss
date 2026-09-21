@@ -43,7 +43,7 @@
   /* Texto */
   --text-primary: #17231b;
   --text-secondary: #56645b;
-  --text-muted: #78837b;
+  --text-muted: #647269;
   --text: var(--text-primary);
 
   /* Navegação */
@@ -130,6 +130,11 @@ textarea,
 
 button {
   -webkit-tap-highlight-color: transparent;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 ::selection {
@@ -325,6 +330,54 @@ textarea {
   min-height: 42px;
   padding: 10px 18px;
   font-size: 14px;
+}
+
+/* A exportação do conjunto é a ação principal nas telas com múltiplos arquivos. */
+.batch-action {
+  flex-shrink: 0;
+  display: grid;
+  gap: 8px;
+
+  > small {
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-align: center;
+  }
+}
+
+.btn.batch-download {
+  min-height: 48px;
+  padding: 12px 20px;
+  gap: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgba(7, 132, 67, 0.16);
+
+  svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .batch-count {
+    min-width: 26px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.18);
+  }
+}
+
+.loading-copy {
+  margin-top: 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 650px) {
+  .batch-action {
+    width: 100%;
+  }
 }
 
 /* ==========================
@@ -928,16 +981,16 @@ app-relatorios-automaticos .group-card {
   }
 
   &.active {
-    border-color: var(--brand-green-dark);
-    background: var(--brand-green-dark);
-    color: #000;
+    border-color: #8fbaa0;
+    background: var(--brand-green-soft);
+    color: var(--brand-green-dark);
   }
 }
 
 app-relatorios .report-card.active .report-copy small,
 app-relatorios .template-card.active .template-copy small,
 app-relatorios-automaticos .group-card.active .group-card-copy small {
-  color: #78837b;
+  color: var(--text-secondary);
 }
 
 app-relatorios .workspace,

@@ -1,0 +1,100 @@
+<app-native-tool-manager />
+
+<section class="manager">
+  <div class="builder">
+    <header>
+      <div>
+        <span>{{ editingId ? 'Editar ferramenta' : 'Nova ferramenta' }}</span>
+        <h2>{{ editingId ? 'Atualize o card e seu relatório' : 'Crie um novo card de relatório' }}</h2>
+      </div>
+      <button *ngIf="editingId" type="button" (click)="cancelEdit()">Cancelar edição</button>
+    </header>
+
+    <p class="explanation">
+      A nova ferramenta aparecerá na Home e no menu Ferramentas. A consulta usa uma API
+      existente do SGU e mantém a chave da integração somente no backend.
+    </p>
+
+    <div class="form-grid">
+      <label>
+        <span>Nome da ferramenta *</span>
+        <input [(ngModel)]="nome" maxlength="120" placeholder="Ex.: Auditoria de internações" />
+      </label>
+      <label>
+        <span>Endereço</span>
+        <input [(ngModel)]="slug" maxlength="80" placeholder="Gerado pelo nome se ficar vazio" />
+      </label>
+      <label class="wide">
+        <span>Descrição *</span>
+        <textarea [(ngModel)]="descricao" rows="3" maxlength="500"
+          placeholder="Explique em linguagem simples para que serve esta ferramenta."></textarea>
+      </label>
+      <label class="api-field">
+        <span>API do SGU *</span>
+        <div>
+          <input [(ngModel)]="apiNome" maxlength="160" placeholder="0090-nome-api" />
+          <button type="button" [disabled]="loadingApi" (click)="loadApi()">
+            {{ loadingApi ? 'Buscando…' : 'Carregar API' }}
+          </button>
+        </div>
+      </label>
+      <label class="wide">
+        <span>Colunas preferidas na prévia</span>
+        <input [(ngModel)]="previewColumns"
+          placeholder="NOME, CODIGO, DATA — separadas por vírgula" />
+        <small>Se ficar vazio, a prévia usa todas as colunas devolvidas pela API.</small>
+      </label>
+    </div>
+
+    <section class="filter-config" *ngIf="apiDefinition">
+      <div>
+        <span>Filtros disponibilizados na nova página</span>
+        <strong>{{ apiDefinition.filtros.length }}</strong>
+      </div>
+      <label *ngFor="let filter of apiDefinition.filtros">
+        <input type="checkbox" [(ngModel)]="selectedFilters[filter.nomeFiltro]" />
+        <span>
+          <strong>{{ label(filter.nomeFiltro) }}</strong>
+          <small>
+            {{ filter.tipoDadoFiltro }}
+            {{ filter.obrigatorioFiltro === 'S' ? ' · obrigatório na API' : '' }}
+          </small>
+        </span>
+      </label>
+      <p *ngIf="!apiDefinition.filtros.length">A API não possui filtros cadastrados.</p>
+    </section>
+
+    <p class="message error" *ngIf="error">{{ error }}</p>
+    <p class="message success" *ngIf="success">{{ success }}</p>
+    <button class="save" type="button" [disabled]="saving" (click)="save()">
+      {{ saving ? 'Salvando…' : editingId ? 'Salvar alterações' : 'Criar ferramenta' }}
+    </button>
+  </div>
+
+  <div class="existing">
+    <header>
+      <div><span>Ferramentas configuráveis</span><h2>Cards criados pela TI</h2></div>
+      <strong>{{ tools.length }}</strong>
+    </header>
+
+    <div class="tool-list" *ngIf="tools.length; else empty">
+      <article *ngFor="let tool of tools">
+        <div>
+          <small>{{ tool.apiNome }}</small>
+          <h3>{{ tool.nome }}</h3>
+          <p>{{ tool.descricao }}</p>
+          <span>/ferramentas/{{ tool.slug }}</span>
+        </div>
+        <div class="actions">
+          <button type="button" (click)="edit(tool)">Editar</button>
+          <button type="button" class="danger" (click)="remove(tool)">Remover</button>
+        </div>
+      </article>
+    </div>
+    <ng-template #empty>
+      <div class="empty">
+        Nenhuma ferramenta adicional criada. As ferramentas principais continuam disponíveis normalmente.
+      </div>
+    </ng-template>
+  </div>
+</section>

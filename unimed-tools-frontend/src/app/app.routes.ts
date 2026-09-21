@@ -1,4 +1,4 @@
-/** Mapa central de rotas públicas, autenticadas e autorizadas por permissão. */
+/** Rotas da aplicação organizadas pelas ferramentas exibidas ao usuário. */
 import { Routes } from '@angular/router';
 import {
   applicationGuard,
@@ -12,7 +12,8 @@ export const routes: Routes = [
   {
     path: 'login',
     canActivate: [guestGuard],
-    loadComponent: () => import('./pages/auth/login/login.component').then((m) => m.LoginComponent),
+    loadComponent: () =>
+      import('./pages/auth/login/login.component').then((m) => m.LoginComponent),
   },
   {
     path: 'alterar-senha',
@@ -30,26 +31,33 @@ export const routes: Routes = [
     children: [
       {
         path: '',
-        loadComponent: () => import('./pages/home/home.component').then((m) => m.HomeComponent),
+        loadComponent: () =>
+          import('./pages/home/home.component').then((m) => m.HomeComponent),
       },
       {
-        path: 'xml/ferramentas',
+        path: 'comercial',
+        canActivate: [permissionGuard],
+        data: { permission: 'RELATORIOS_ACESSAR' },
+        loadComponent: () =>
+          import('./pages/comercial/comercial.component').then((m) => m.ComercialComponent),
+      },
+      {
+        path: 'assistencial',
+        canActivate: [permissionGuard],
+        data: { permission: 'RELATORIOS_ACESSAR' },
+        loadComponent: () =>
+          import('./pages/relatorios/relatorios-personalizados/relatorios-personalizados.component')
+            .then((m) => m.RelatoriosPersonalizadosComponent),
+      },
+      {
+        path: 'revisao-contas',
         canActivate: [permissionGuard],
         data: { permission: 'XML_ACESSAR' },
         loadComponent: () =>
           import('./pages/xml/xml-tools/xml-tools.component').then((m) => m.XmlToolsComponent),
       },
       {
-        path: 'fechamento/corretor',
-        canActivate: [permissionGuard],
-        data: { permission: 'APLICACAO_ACESSAR' },
-        loadComponent: () =>
-          import('./pages/fechamento/corretor-fechamento/corretor-fechamento.component').then(
-            (m) => m.CorretorFechamentoComponent,
-          ),
-      },
-      {
-        path: 'ans/corretor-rede',
+        path: 'unica',
         canActivate: [permissionGuard],
         data: { permission: 'ANS_ACESSAR' },
         loadComponent: () =>
@@ -58,21 +66,43 @@ export const routes: Routes = [
           ),
       },
       {
-        path: 'bi/especialidade-medica',
-        canActivate: [permissionGuard],
-        data: { permission: 'BI_ACESSAR' },
-        loadComponent: () =>
-          import('./pages/bi/especialidade-medica/especialidade-medica.component').then(
-            (m) => m.EspecialidadeMedicaComponent,
-          ),
-      },
-      {
-        path: 'relatorios',
+        path: 'hospital',
         canActivate: [permissionGuard],
         data: { permission: 'RELATORIOS_ACESSAR' },
         loadComponent: () =>
-          import('./pages/relatorios/relatorios.component').then((m) => m.RelatoriosComponent),
+          import('./pages/hospital/hospital.component').then((m) => m.HospitalComponent),
       },
+      {
+        path: 'gestao-risco',
+        canActivate: [permissionGuard],
+        data: { permission: 'RELATORIOS_ACESSAR' },
+        loadComponent: () =>
+          import('./pages/gestao-risco/gestao-risco.component').then(
+            (m) => m.GestaoRiscoComponent,
+          ),
+      },
+      {
+        path: 'ti',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/ti/ti.component').then((m) => m.TiComponent),
+      },
+      {
+        path: 'ferramentas/:slug',
+        canActivate: [permissionGuard],
+        data: { permission: 'RELATORIOS_ACESSAR' },
+        loadComponent: () =>
+          import('./pages/tools/custom-report/custom-report.component').then(
+            (m) => m.CustomReportComponent,
+          ),
+      },
+      {
+        path: 'perfil',
+        loadComponent: () =>
+          import('./pages/profile/profile.component').then((m) => m.ProfileComponent),
+      },
+
+      // Administração de contas.
       {
         path: 'usuarios',
         canActivate: [adminGuard, permissionGuard],
@@ -116,8 +146,33 @@ export const routes: Routes = [
             (m) => m.UserPasswordResetComponent,
           ),
       },
-      { path: 'xml/corretor', redirectTo: 'xml/ferramentas' },
-      { path: 'xml/removedor', redirectTo: 'xml/ferramentas' },
+
+      // Ferramentas legadas ainda mantidas para compatibilidade.
+      {
+        path: 'bi/especialidade-medica',
+        canActivate: [permissionGuard],
+        data: { permission: 'BI_ACESSAR' },
+        loadComponent: () =>
+          import('./pages/bi/especialidade-medica/especialidade-medica.component').then(
+            (m) => m.EspecialidadeMedicaComponent,
+          ),
+      },
+      {
+        path: 'fechamento/corretor',
+        canActivate: [permissionGuard],
+        data: { permission: 'APLICACAO_ACESSAR' },
+        loadComponent: () =>
+          import('./pages/fechamento/corretor-fechamento/corretor-fechamento.component').then(
+            (m) => m.CorretorFechamentoComponent,
+          ),
+      },
+
+      // Redirecionamentos dos endereços anteriores.
+      { path: 'relatorios', redirectTo: 'assistencial', pathMatch: 'full' },
+      { path: 'xml/ferramentas', redirectTo: 'revisao-contas', pathMatch: 'full' },
+      { path: 'xml/corretor', redirectTo: 'revisao-contas', pathMatch: 'full' },
+      { path: 'xml/removedor', redirectTo: 'revisao-contas', pathMatch: 'full' },
+      { path: 'ans/corretor-rede', redirectTo: 'unica', pathMatch: 'full' },
     ],
   },
   { path: '**', redirectTo: '' },

@@ -9,12 +9,12 @@ A interface foi reorganizada por **área de trabalho** em vez de por tecnologia.
 | Ferramenta | Rota | Finalidade | Permissão |
 | --- | --- | --- | --- |
 | Home | `/` | Busca, cards e acessos recentes | usuário autenticado |
-| Comercial | `/comercial` | Beneficiários, receita, despesas e faixa etária por empresa | `RELATORIOS_ACESSAR` |
-| Assistencial | `/assistencial` | Relatório personalizado por colunas e filtros | `RELATORIOS_ACESSAR` |
-| Revisão de Contas | `/revisao-contas` | Correção e conferência de XML TISS | `XML_ACESSAR` |
-| Única | `/unica` | Correção de rede ANS / arquivo RPS | `ANS_ACESSAR` |
-| Hospital | `/hospital` | Autorizações ainda não convertidas em guia | `RELATORIOS_ACESSAR` |
-| Gestão de Risco | `/gestao-risco` | Relatórios de rastreio e acompanhamento | `RELATORIOS_ACESSAR` |
+| Comercial | `/comercial` | Beneficiários, receita, despesas e faixa etária por empresa | `COMERCIAL_ACESSAR` |
+| Assistencial | `/assistencial` | Relatório personalizado por colunas e filtros | `ASSISTENCIAL_ACESSAR` |
+| Revisão de Contas | `/revisao-contas` | Correção e conferência de XML TISS | `REVISAO_CONTAS_ACESSAR` |
+| Única | `/unica` | Correção de rede ANS / arquivo RPS | `UNICA_ACESSAR` |
+| Hospital | `/hospital` | Autorizações ainda não convertidas em guia | `HOSPITAL_ACESSAR` |
+| Gestão de Risco | `/gestao-risco` | Relatórios de rastreio e acompanhamento | `GESTAO_RISCO_ACESSAR` |
 | TI | `/ti` | APIs, grupos e criação de ferramentas | administrador |
 | Meu perfil | `/perfil` | Dados da conta e permissões | usuário autenticado |
 | Usuários | `/usuarios` | Contas, permissões e reset de senha | administrador |
@@ -41,16 +41,18 @@ O Comercial usa somente:
 - `0090-despesa-empresas`;
 - `0090-faixa-etaria`.
 
-O usuário seleciona a empresa pelo nome. A interface resolve os códigos internos do catálogo e envia apenas os parâmetros exigidos pela API.
+O usuário pode selecionar **uma ou várias empresas** pelo nome. A interface resolve os códigos internos do catálogo e envia apenas os parâmetros exigidos pela API.
+
+Quando mais de uma empresa é selecionada, a prévia mostra somente a primeira empresa para manter a consulta rápida. O download, porém, usa todas as empresas escolhidas e consolida os resultados nos arquivos exportados.
 
 Fluxo:
 
-1. empresa;
+1. uma ou várias empresas;
 2. competência;
 3. data de referência da faixa etária;
 4. seleção dos relatórios;
-5. prévia;
-6. download individual ou pacote ZIP.
+5. prévia da primeira empresa;
+6. download completo individual ou pacote ZIP.
 
 ## Assistencial
 
@@ -163,7 +165,10 @@ Para instalações existentes, aplique somente as migrações ainda não executa
 1. `002_permissoes_por_usuario.sql`;
 2. `003_ferramentas_configuraveis.sql`;
 3. `004_remove_mfa.sql`;
-4. `005_configuracao_ferramentas_nativas.sql`.
+4. `005_configuracao_ferramentas_nativas.sql`;
+5. `006_permissoes_ferramentas_atuais.sql`.
+
+O backend também sincroniza de forma idempotente as permissões das ferramentas atuais ao iniciar, para que instalações existentes passem a exibir Comercial, Assistencial, Revisão de Contas, Única, Hospital e Gestão de Risco no gerenciamento de acessos.
 
 Faça backup antes de qualquer migração.
 
@@ -311,3 +316,19 @@ Uma alteração só deve ser considerada pronta para merge depois que frontend e
 - O SGU/Kong pode impor restrições externas de rede/IP; o projeto não tenta contorná-las.
 - A página de BI e o Fechamento permanecem no código por compatibilidade, mas não fazem parte dos cards principais da nova Home.
 - Dados reais de beneficiários não devem ser incluídos em testes, documentação ou repositório.
+
+
+## Gerenciamento de usuários
+
+As permissões operacionais exibidas ao administrador correspondem diretamente às áreas atuais da Home:
+
+- Comercial;
+- Assistencial;
+- Revisão de Contas;
+- Única;
+- Hospital;
+- Gestão de Risco.
+
+As permissões técnicas antigas (`RELATORIOS_ACESSAR`, `XML_ACESSAR` e `ANS_ACESSAR`) continuam sendo aplicadas internamente quando uma ferramenta precisa delas, mas não aparecem mais como opções de negócio na tela de permissões.
+
+No cadastro de usuário operacional, as ferramentas já podem ser escolhidas junto com a criação da conta.

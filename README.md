@@ -167,6 +167,28 @@ Para instalações existentes, aplique somente as migrações ainda não executa
 
 Faça backup antes de qualquer migração.
 
+## Inicializador local
+
+O atalho `Iniciar Unimed Tools.cmd` chama `scripts/iniciar-unimed-tools.ps1`.
+
+Em toda execução ele:
+
+1. valida Java/Maven/npm e as variáveis necessárias;
+2. garante que o MariaDB esteja ativo;
+3. testa e gera um novo build do frontend;
+4. testa e empacota novamente o backend;
+5. encerra o backend anterior;
+6. encerra e reinicia o Apache que serve o frontend;
+7. remove a publicação antiga em `C:\xampp\htdocs\unimed-tools`;
+8. publica o novo frontend do zero;
+9. inicia o novo backend;
+10. valida os dois endereços:
+   - `http://localhost/unimed-tools/`
+   - `http://192.168.3.242/unimed-tools/`
+
+Assim, localhost e o endereço da rede usam exatamente o mesmo build publicado e
+não permanecem com arquivos antigos depois de clicar novamente no atalho.
+
 ## Desenvolvimento
 
 ### Frontend

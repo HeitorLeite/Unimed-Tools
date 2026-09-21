@@ -9,6 +9,7 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { CreatedUser, NewUserRequest } from '../../../shared/models/auth.model';
 import { AuthService } from '../../../shared/services/auth.service';
@@ -22,7 +23,7 @@ function passwordMatch(group: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-user-registration',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './user-registration.component.html',
   styleUrl: './user-registration.component.scss',
 })

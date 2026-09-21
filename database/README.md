@@ -1,41 +1,57 @@
 # Banco de dados do Unimed Tools
 
-## Banco já existente
-
-Como a primeira conta administrativa já foi criada, não exclua o banco. No
-phpMyAdmin, selecione `DBUNIMED`, abra a aba **Importar** e execute, nesta ordem,
-somente as migrações ainda não aplicadas:
-
-1. `migrations/002_permissoes_por_usuario.sql`.
-
-A migração 002:
-
-- cria `usuario_permissao` sem apagar contas, sessões ou auditorias;
-- remove as permissões herdadas pelo perfil `USUARIO`;
-- mantém todas as permissões do perfil `ADMINISTRADOR`;
-- faz usuários operacionais começarem sem acesso até uma concessão individual.
-
-A edição e a exclusão lógica de usuários não exigem outra migração. O esquema
-atual já possui `atualizado_por`, `desativado_por` e `desativado_em`; a aplicação
-usa esses campos para preservar a trilha de auditoria sem manter a conta ativa.
-
-Faça backup antes de aplicar uma migração em um ambiente com dados importantes.
-Depois da importação, reinicie o backend para que a versão nova do código passe
-a usar a tabela criada.
+O banco `DBUNIMED` mantém identidade, sessões, permissões, auditoria e a configuração global das ferramentas criadas pela TI.
 
 ## Instalação nova
 
-O arquivo `DBUNIMED.sql` contém o esquema completo atual de autenticação,
-sessões, MFA, permissões individuais e auditoria. Em uma instalação vazia:
+Importe:
 
-1. importe `DBUNIMED.sql` no phpMyAdmin;
-2. crie uma conta de banco exclusiva para a aplicação, sem usar `root`;
-3. conceda a essa conta apenas `SELECT`, `INSERT`, `UPDATE` e `DELETE` no banco
-   `DBUNIMED`;
-4. configure `DB_USERNAME` e `DB_PASSWORD` no ambiente do backend.
+`database/DBUNIMED.sql`
 
-Exemplo para criar a conta, substituindo a senha antes de executar e sem salvar
-o valor real no repositório:
+O esquema atual contém:
+
+- `perfil_acesso`;
+- `permissao`;
+- `perfil_permissao`;
+- `usuario`;
+- `usuario_permissao`;
+- `sessao_usuario`;
+- `ferramenta_configuravel`;
+- `ferramenta_nativa_configuracao`;
+- `auditoria_acesso`.
+
+O fluxo atual **não utiliza MFA/TOTP** e instalações novas não criam campos ou tabelas para segundo fator.
+
+O primeiro administrador é criado pelo backend quando a tabela `usuario` está vazia e as variáveis `AUTH_BOOTSTRAP_ADMIN_*` estão configuradas.
+
+## Banco existente
+
+Não apague o banco.
+
+Faça backup e execute somente as migrações ainda não aplicadas, em ordem:
+
+1. `002_permissoes_por_usuario.sql` — permissões individuais;
+2. `003_ferramentas_configuraveis.sql` — cards/ferramentas publicados pela TI;
+3. `004_remove_mfa.sql` — remove campos TOTP e a antiga tabela de desafios;
+4. `005_configuracao_ferramentas_nativas.sql` — permite personalizar nome, descrição e visibilidade dos cards nativos.
+
+A migração 004 preserva:
+
+- contas;
+- senhas;
+- perfis;
+- permissões;
+- sessões;
+- bloqueios;
+- auditoria.
+
+Depois das migrações, reinicie o backend.
+
+## Usuário do banco
+
+Não use `root` para a aplicação.
+
+Exemplo, substituindo a senha antes da execução:
 
 ```sql
 CREATE USER 'unimed_tools_app'@'localhost' IDENTIFIED BY 'SENHA_FORTE_AQUI';
@@ -44,7 +60,4 @@ TO 'unimed_tools_app'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-O script não cria usuário da aplicação. O primeiro administrador é criado pelo
-backend somente quando `usuario` estiver vazia e as variáveis
-`AUTH_BOOTSTRAP_ADMIN_*` estiverem definidas. Consulte o `README.md` da raiz
-para o procedimento completo.
+Configure `DB_USERNAME` e `DB_PASSWORD` no ambiente do backend. Valores reais nunca devem ser versionados.

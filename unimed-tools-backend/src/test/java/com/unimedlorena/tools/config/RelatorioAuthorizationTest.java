@@ -14,6 +14,7 @@ import com.unimedlorena.tools.controller.RelatorioController;
 import com.unimedlorena.tools.service.ExportacaoLoteRelatorioService;
 import com.unimedlorena.tools.service.ExportacaoRelatorioService;
 import com.unimedlorena.tools.service.RelatorioPersonalizadoService;
+import com.unimedlorena.tools.service.HospitalRelatorioService;
 import com.unimedlorena.tools.service.SguRelatorioService;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +47,9 @@ class RelatorioAuthorizationTest {
 
   @MockBean
   private RelatorioPersonalizadoService relatorioPersonalizado;
+
+  @MockBean
+  private HospitalRelatorioService hospitalRelatorio;
 
   @BeforeEach
   void prepararRespostasSgu() {

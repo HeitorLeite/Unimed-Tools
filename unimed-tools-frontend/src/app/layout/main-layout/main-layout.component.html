@@ -1,114 +1,68 @@
-<!-- Shell compartilhado: navegação, contexto da rota e área de trabalho permanecem separados das regras de negócio. -->
-<div class="layout" [class.sidebar-collapsed]="!sidebarOpen()">
-  <app-sidebar [open]="sidebarOpen()" (toggleSidebar)="toggleSidebar()" />
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/" aria-label="Ir para o início">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 42 42" fill="none">
+          <path d="M9 30c5-2 8-9 6-20 8 5 12 13 9 22M33 30c-5-2-8-9-6-20-8 5-12 13-9 22" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span><strong>Unimed</strong><small>TOOLS</small></span>
+    </a>
 
-  <button
-    *ngIf="isMobile() && sidebarOpen()"
-    class="sidebar-backdrop"
-    type="button"
-    aria-label="Fechar navegação"
-    (click)="toggleSidebar()"
-  ></button>
+    <button class="mobile-menu" type="button" (click)="toggleMobile()" aria-label="Abrir navegação">☰</button>
 
-  <div class="app-frame">
-    <header class="workspace-bar">
-      <div class="workspace-bar-start">
-        <button
-          class="mobile-nav-trigger"
-          type="button"
-          [attr.aria-label]="sidebarOpen() ? 'Fechar navegação' : 'Abrir navegação'"
-          (click)="toggleSidebar()"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path
-              d="M3 5.5h14M3 10h14M3 14.5h14"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-            />
-          </svg>
+    <nav class="main-nav" [class.open]="mobileOpen()" aria-label="Navegação principal">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Início</a>
+      <div class="nav-popover">
+        <button type="button" [class.active]="toolsOpen()" (click)="toggleTools($event)">
+          Ferramentas <span>⌄</span>
         </button>
+        <section class="tools-menu" *ngIf="toolsOpen()" (click)="$event.stopPropagation()">
+          <header><span>Ferramentas disponíveis</span><strong>{{ tools.length }}</strong></header>
+          <div class="tools-grid">
+            <button type="button" *ngFor="let tool of tools" (click)="openTool(tool)">
+              <span class="tool-menu-icon"><app-tool-icon [name]="tool.icon" /></span>
+              <span><strong>{{ tool.nome }}</strong><small>{{ tool.categoria }}</small></span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </nav>
 
-        <a class="mobile-brand" routerLink="/" aria-label="Ir para o início">
-          <span>U</span>
-          <strong>Unimed Tools</strong>
-        </a>
-
-        <div class="route-context">
-          <span>{{ pageContext() }}</span>
-          <strong>{{ pageTitle() }}</strong>
-        </div>
+    <div class="topbar-actions">
+      <div class="nav-popover">
+        <button class="icon-button" type="button" aria-label="Notificações" (click)="toggleNotifications($event)">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="counter" *ngIf="unread()">{{ unread() > 9 ? '9+' : unread() }}</span>
+        </button>
+        <section class="notification-menu" *ngIf="notificationOpen()" (click)="$event.stopPropagation()">
+          <header><div><small>Novidades</small><h2>Notificações</h2></div></header>
+          <div class="notification-list" *ngIf="notifications.length; else emptyNotifications">
+            <article *ngFor="let item of notifications">
+              <div><strong>v{{ item.versao }}</strong><time>{{ formatDate(item.publicadaEm) }}</time></div>
+              <h3>{{ item.titulo }}</h3><p>{{ item.resumo }}</p>
+            </article>
+          </div>
+          <ng-template #emptyNotifications><p class="empty">Nenhuma notificação publicada.</p></ng-template>
+        </section>
       </div>
 
-      <div class="workspace-bar-end">
-        <span class="environment-pill"><i></i> Ambiente interno</span>
-        <span class="workspace-date">Operações · 2026</span>
-        <div class="notification-center">
-          <button
-            class="notification-trigger"
-            type="button"
-            aria-label="Abrir notificações da aplicação"
-            [attr.aria-expanded]="notificationPanelOpen()"
-            aria-controls="application-notifications"
-            (click)="toggleNotificationPanel()"
-          >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-            <span class="notification-badge" *ngIf="unreadNotifications() > 0">
-              {{ unreadNotifications() > 9 ? '9+' : unreadNotifications() }}
-            </span>
-          </button>
-
-          <section
-            *ngIf="notificationPanelOpen()"
-            class="notification-panel"
-            id="application-notifications"
-            aria-label="Atualizações da aplicação"
-          >
-            <header>
-              <div>
-                <span>Histórico de versões</span>
-                <h2>Atualizações</h2>
-              </div>
-              <button
-                type="button"
-                aria-label="Fechar notificações"
-                (click)="closeNotificationPanel()"
-              >
-                ×
-              </button>
-            </header>
-
-            <div class="notification-list" *ngIf="notifications.length; else noNotifications">
-              <article *ngFor="let notification of notifications">
-                <div class="notification-meta">
-                  <strong>v{{ notification.versao }}</strong>
-                  <time [attr.datetime]="notification.publicadaEm">
-                    {{ formatNotificationDate(notification.publicadaEm) }}
-                  </time>
-                </div>
-                <h3>{{ notification.titulo }}</h3>
-                <p>{{ notification.resumo }}</p>
-              </article>
-            </div>
-
-            <ng-template #noNotifications>
-              <p class="notification-empty">Nenhuma atualização publicada.</p>
-            </ng-template>
-          </section>
-        </div>
+      <div class="nav-popover" *ngIf="user() as currentUser">
+        <button class="user-button" type="button" (click)="toggleUser($event)">
+          <span class="avatar">{{ initials(currentUser.nome) }}</span>
+          <span class="user-copy"><strong>{{ currentUser.nome }}</strong><small>{{ currentUser.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Usuário' }}</small></span>
+          <span>⌄</span>
+        </button>
+        <section class="user-menu" *ngIf="userOpen()" (click)="$event.stopPropagation()">
+          <div class="user-summary"><strong>{{ currentUser.nome }}</strong><small>{{ currentUser.email || currentUser.login }}</small></div>
+          <a routerLink="/perfil" (click)="closeMenus()">Meu perfil</a>
+          <a *ngIf="currentUser.perfil === 'ADMINISTRADOR'" routerLink="/usuarios" (click)="closeMenus()">Gerenciamento de usuários</a>
+          <a *ngIf="currentUser.perfil === 'ADMINISTRADOR'" routerLink="/ti" (click)="closeMenus()">Administração da plataforma</a>
+          <button type="button" (click)="logout()">Sair</button>
+        </section>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <main class="main-area" id="main-content">
-      <router-outlet />
-    </main>
-  </div>
+  <main class="content"><router-outlet /></main>
 </div>

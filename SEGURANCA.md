@@ -270,14 +270,16 @@ Não aceitar `alg=none`, troca de algoritmo, chave indicada de forma não confi�
 - Não usar perguntas de segurança como autenticador ou recuperação.
 - Aplicar limitação de tentativas sem criar bloqueio permanente que permita negação de serviço contra a vítima.
 
-### 6.6 MFA, recuperação e ações críticas
+### 6.6 Reautenticação, recuperação e ações críticas
 
-- MFA é obrigatório para cockpit, administração, acesso a produção e operações de alto impacto.
-- Preferir autenticadores resistentes a phishing, como WebAuthn/passkeys ou chaves de segurança.
+O Unimed Tools atual não utiliza segundo fator/TOTP. A administração continua
+protegida por sessão autenticada, autorização no servidor, CSRF, expiração de
+sessão, bloqueio por tentativas e auditoria.
+
 - Recuperação de conta deve ser tão segura quanto a autenticação normal.
-- Códigos de recuperação devem ser de uso único, armazenados com proteção equivalente a senha e nunca registrados.
-- Mudança de e-mail, senha, MFA, papel, permissões, dados bancários ou exportação massiva exige reautenticação ou step-up conforme risco.
+- Mudança de e-mail, senha, papel, permissões, dados bancários ou exportação massiva deve considerar reautenticação ou step-up proporcional ao risco.
 - Ações críticas devem gerar trilha de auditoria e, quando adequado, notificação ao usuário.
+- Caso uma avaliação de risco futura determine a necessidade de autenticação adicional, a solução deve ser projetada e aprovada antes da implementação.
 
 ---
 
@@ -838,7 +840,7 @@ A IA não deve decidir sozinha se há obrigação de notificar, entrar em contat
 - [ ] Token de autenticação não é persistido em `localStorage`.
 - [ ] A escolha entre cookie seguro, memória e exceção de `sessionStorage` está documentada.
 - [ ] Sessão possui expiração, logout, renovação e revogação.
-- [ ] Operações críticas exigem MFA ou step-up conforme risco.
+- [ ] Operações críticas exigem reautenticação ou step-up proporcional ao risco quando aplicável.
 - [ ] Toda autorização é validada no servidor, inclusive objeto, campo e tenant.
 
 ### Comunicação e API

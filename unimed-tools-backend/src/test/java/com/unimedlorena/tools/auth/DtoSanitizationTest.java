@@ -12,7 +12,6 @@ class DtoSanitizationTest {
   @Test
   void naoExpoeCredenciaisNosDtosDeEntrada() {
     String login = new AuthDtos.LoginRequest("pessoa.teste", "SenhaSecreta!123").toString();
-    String mfa = new AuthDtos.MfaRequest("token-muito-secreto", "123456").toString();
     String troca = new AuthDtos.TrocaSenhaRequest("SenhaAntiga!123", "SenhaNova!456").toString();
     String cadastro = new UsuarioDtos.CriacaoRequest(
       "Pessoa Teste",
@@ -34,7 +33,6 @@ class DtoSanitizationTest {
     ).toString();
 
     assertThat(login).doesNotContain("pessoa.teste", "SenhaSecreta!123");
-    assertThat(mfa).doesNotContain("token-muito-secreto", "123456");
     assertThat(troca).doesNotContain("SenhaAntiga!123", "SenhaNova!456");
     assertThat(cadastro).doesNotContain(
       "Pessoa Teste",
@@ -63,18 +61,12 @@ class DtoSanitizationTest {
       Set.of("USUARIOS_CRIAR")
     );
     String fluxo = new AuthDtos.AuthFlowResponse(
-      "MFA_CONFIGURACAO",
-      "token-muito-secreto",
-      "SEGREDOTOTP",
-      "otpauth://segredo",
+      "AUTENTICADO",
       usuario
     ).toString();
     String respostaUsuario = usuario.toString();
 
     assertThat(fluxo).doesNotContain(
-      "token-muito-secreto",
-      "SEGREDOTOTP",
-      "otpauth://segredo",
       "Pessoa Teste",
       "pessoa@example.invalid"
     );

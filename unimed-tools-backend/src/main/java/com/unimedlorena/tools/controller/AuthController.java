@@ -43,15 +43,6 @@ public class AuthController {
     return concluir(authService.login(request, info(httpRequest)), response);
   }
 
-  @PostMapping("/mfa/verificar")
-  public AuthDtos.AuthFlowResponse verificarMfa(
-    @Valid @RequestBody AuthDtos.MfaRequest request,
-    HttpServletRequest httpRequest,
-    HttpServletResponse response
-  ) {
-    return concluir(authService.verificarMfa(request, info(httpRequest)), response);
-  }
-
   @GetMapping("/me")
   public AuthDtos.UsuarioResponse me(@AuthenticationPrincipal UsuarioPrincipal principal) {
     return authService.usuarioResponse(principal);
@@ -82,12 +73,16 @@ public class AuthController {
     AuthService.AuthResult result,
     HttpServletResponse response
   ) {
-    if (result.sessionToken() != null) sessaoService.gravarCookie(response, result.sessionToken());
+    if (result.sessionToken() != null) {
+      sessaoService.gravarCookie(response, result.sessionToken());
+    }
     return result.response();
   }
 
   private AuthService.RequestInfo info(HttpServletRequest request) {
-    // Não confia em X-Forwarded-For sem uma lista de proxies confiáveis configurada.
-    return new AuthService.RequestInfo(request.getRemoteAddr(), request.getHeader("User-Agent"));
+    return new AuthService.RequestInfo(
+      request.getRemoteAddr(),
+      request.getHeader("User-Agent")
+    );
   }
 }

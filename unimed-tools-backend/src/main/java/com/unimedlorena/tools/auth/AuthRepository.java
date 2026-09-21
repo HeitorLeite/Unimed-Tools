@@ -67,10 +67,7 @@ public class AuthRepository {
         rs.getBoolean("deve_trocar_senha"),
         localDateTime(rs.getTimestamp("senha_temporaria_expira_em")),
         rs.getInt("tentativas_login"),
-        localDateTime(rs.getTimestamp("bloqueado_ate")),
-        rs.getString("mfa_segredo_criptografado"),
-        rs.getBoolean("mfa_ativado"),
-        nullableLong(rs.getObject("ultimo_passo_mfa"))
+        localDateTime(rs.getTimestamp("bloqueado_ate"))
       ),
       parametro
     );
@@ -120,10 +117,7 @@ public class AuthRepository {
         rs.getBoolean("deve_trocar_senha"),
         localDateTime(rs.getTimestamp("senha_temporaria_expira_em")),
         rs.getInt("tentativas_login"),
-        localDateTime(rs.getTimestamp("bloqueado_ate")),
-        rs.getString("mfa_segredo_criptografado"),
-        rs.getBoolean("mfa_ativado"),
-        nullableLong(rs.getObject("ultimo_passo_mfa"))
+        localDateTime(rs.getTimestamp("bloqueado_ate"))
       )
     );
   }
@@ -350,47 +344,22 @@ public class AuthRepository {
     );
   }
 
-  public void ativarMfa(long usuarioId, String segredoCriptografado, long passo) {
-    jdbc.update(
-      """
-      UPDATE usuario
-      SET mfa_segredo_criptografado = ?, mfa_ativado = TRUE,
-          mfa_ativado_em = CURRENT_TIMESTAMP(6), ultimo_passo_mfa = ?
-      WHERE id = ?
-      """,
-      segredoCriptografado,
-      passo,
-      usuarioId
-    );
-  }
-
-  public boolean atualizarPassoMfa(long usuarioId, long passo) {
-    return jdbc.update(
-      "UPDATE usuario SET ultimo_passo_mfa = ? WHERE id = ? AND (ultimo_passo_mfa IS NULL OR ultimo_passo_mfa < ?)",
-      passo,
-      usuarioId,
-      passo
-    ) == 1;
-  }
-
   public void criarSessao(
     long usuarioId,
     String tokenHash,
     LocalDateTime expiraEm,
-    LocalDateTime mfaValidadaEm,
     String ip,
     String userAgent
   ) {
     jdbc.update(
       """
       INSERT INTO sessao_usuario (
-          usuario_id, token_hash, expira_em, mfa_validada_em, endereco_ip, user_agent
-      ) VALUES (?, ?, ?, ?, ?, ?)
+          usuario_id, token_hash, expira_em, endereco_ip, user_agent
+      ) VALUES (?, ?, ?, ?, ?)
       """,
       usuarioId,
       tokenHash,
       expiraEm,
-      mfaValidadaEm,
       ip,
       userAgent
     );
@@ -399,14 +368,13 @@ public class AuthRepository {
   public Optional<SessaoRow> buscarSessao(String tokenHash) {
     List<SessaoRow> itens = jdbc.query(
       """
-      SELECT usuario_id, ultima_atividade_em, expira_em, mfa_validada_em, revogada_em
+      SELECT usuario_id, ultima_atividade_em, expira_em, revogada_em
       FROM sessao_usuario WHERE token_hash = ?
       """,
       (rs, rowNum) -> new SessaoRow(
         rs.getLong("usuario_id"),
         localDateTime(rs.getTimestamp("ultima_atividade_em")),
         localDateTime(rs.getTimestamp("expira_em")),
-        localDateTime(rs.getTimestamp("mfa_validada_em")),
         localDateTime(rs.getTimestamp("revogada_em"))
       ),
       tokenHash
@@ -435,75 +403,6 @@ public class AuthRepository {
       motivo,
       usuarioId
     );
-  }
-
-  public void criarDesafio(
-    long usuarioId,
-    String tokenHash,
-    String tipo,
-    String segredoCriptografado,
-    LocalDateTime expiraEm,
-    String ip,
-    String userAgent
-  ) {
-    jdbc.update(
-      "UPDATE desafio_autenticacao SET consumido_em = CURRENT_TIMESTAMP(6) WHERE usuario_id = ? AND consumido_em IS NULL",
-      usuarioId
-    );
-    jdbc.update(
-      """
-      INSERT INTO desafio_autenticacao (
-          usuario_id, token_hash, tipo, mfa_segredo_criptografado,
-          expira_em, endereco_ip, user_agent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      """,
-      usuarioId,
-      tokenHash,
-      tipo,
-      segredoCriptografado,
-      expiraEm,
-      ip,
-      userAgent
-    );
-  }
-
-  public Optional<DesafioRow> buscarDesafio(String tokenHash) {
-    List<DesafioRow> itens = jdbc.query(
-      """
-      SELECT usuario_id, tipo, mfa_segredo_criptografado, tentativas, expira_em, consumido_em
-      FROM desafio_autenticacao WHERE token_hash = ?
-      """,
-      (rs, rowNum) -> new DesafioRow(
-        rs.getLong("usuario_id"),
-        rs.getString("tipo"),
-        rs.getString("mfa_segredo_criptografado"),
-        rs.getInt("tentativas"),
-        localDateTime(rs.getTimestamp("expira_em")),
-        localDateTime(rs.getTimestamp("consumido_em"))
-      ),
-      tokenHash
-    );
-    return itens.stream().findFirst();
-  }
-
-  public void registrarFalhaDesafio(String tokenHash, boolean consumir) {
-    jdbc.update(
-      """
-      UPDATE desafio_autenticacao
-      SET tentativas = tentativas + 1,
-          consumido_em = CASE WHEN ? THEN CURRENT_TIMESTAMP(6) ELSE consumido_em END
-      WHERE token_hash = ? AND consumido_em IS NULL
-      """,
-      consumir,
-      tokenHash
-    );
-  }
-
-  public boolean consumirDesafio(String tokenHash) {
-    return jdbc.update(
-      "UPDATE desafio_autenticacao SET consumido_em = CURRENT_TIMESTAMP(6) WHERE token_hash = ? AND consumido_em IS NULL",
-      tokenHash
-    ) == 1;
   }
 
   public void auditar(
@@ -536,9 +435,6 @@ public class AuthRepository {
     return value == null ? null : value.toLocalDateTime();
   }
 
-  private static Long nullableLong(Object value) {
-    return value == null ? null : ((Number) value).longValue();
-  }
 
   public record UsuarioRow(
     long id,
@@ -552,28 +448,16 @@ public class AuthRepository {
     boolean deveTrocarSenha,
     LocalDateTime senhaTemporariaExpiraEm,
     int tentativasLogin,
-    LocalDateTime bloqueadoAte,
-    String mfaSegredoCriptografado,
-    boolean mfaAtivado,
-    Long ultimoPassoMfa
+    LocalDateTime bloqueadoAte
   ) {}
 
   public record SessaoRow(
     long usuarioId,
     LocalDateTime ultimaAtividadeEm,
     LocalDateTime expiraEm,
-    LocalDateTime mfaValidadaEm,
     LocalDateTime revogadaEm
   ) {}
 
-  public record DesafioRow(
-    long usuarioId,
-    String tipo,
-    String mfaSegredoCriptografado,
-    int tentativas,
-    LocalDateTime expiraEm,
-    LocalDateTime consumidoEm
-  ) {}
 
   public record PermissaoRow(String codigo, String modulo, String descricao) {}
 }

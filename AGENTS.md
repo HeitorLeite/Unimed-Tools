@@ -128,11 +128,13 @@ Tecnologias e características atuais:
 - Alterações de posição, preenchimento com zeros ou critérios de remoção são regras de negócio e exigem validação.
 - A saída deve preservar a codificação esperada.
 
-### Central de Relatórios
+### Relatórios e ferramentas
 
 - A execução depende do backend e do SGU Suite/Kong.
-- Catálogo, templates e grupos são armazenados no `localStorage` do navegador.
-- Não migrar esses dados para banco ou servidor como parte de outra tarefa.
+- Catálogo, templates e grupos legados continuam no `localStorage` quando pertencem à Central antiga.
+- Modelos estruturais do Assistencial também são locais e não devem guardar valores digitados em filtros.
+- Ferramentas configuráveis criadas pela TI são globais e ficam em `DBUNIMED.ferramenta_configuravel`.
+- Home e navbar usam o registro central de ferramentas; novas páginas nativas devem atualizar esse registro.
 - O SGU/Kong pode responder `403 Forbidden` quando acessado pelo ambiente hospedado.
 - A IA não deve contornar ACL, WAF, restrições de IP ou mecanismos de segurança.
 - A chave do SGU deve existir somente no backend e nas variáveis de ambiente.
@@ -149,20 +151,15 @@ Tecnologias e características atuais:
 
 - A aplicação possui autenticação própria com sessão opaca em cookie `HttpOnly`,
   CSRF, autorização por permissão, auditoria e persistência JDBC no MariaDB.
-- Administradores exigem MFA TOTP no login; o cadastro de usuário exige uma
-  sessão administrativa válida com `USUARIOS_CRIAR`, sem novo código TOTP.
+- O fluxo atual usa login e senha; não existe etapa MFA/TOTP.
 - Usuários operacionais são criados sem permissões de módulo; concessões ficam
-  em `usuario_permissao` e somente administradores autenticados com MFA no login
-  podem alterá-las. A tela não concede permissões administrativas ou de dados
-  sensíveis.
+  em `usuario_permissao` e somente administradores autorizados podem alterá-las.
 - Reset administrativo de senha cria credencial temporária de 24 horas, exige
   troca no próximo acesso, revoga as sessões do usuário e gera auditoria.
-- Senhas usam BCrypt, tokens de sessão são persistidos somente por hash e o
-  segredo TOTP é protegido com chave externa ao banco.
-- O backend continua sem JPA para os catálogos da aplicação; catálogo,
-  templates e grupos de relatórios permanecem no `localStorage`.
-- Não armazenar token de sessão no `localStorage` ou expor a chave MFA no
-  frontend. Não enfraquecer guards, filtros ou permissões incidentalmente.
+- Senhas usam BCrypt e tokens de sessão são persistidos somente por hash.
+- O backend continua sem JPA para os catálogos da aplicação.
+- Não armazenar token de sessão no `localStorage` ou `sessionStorage`.
+- Não enfraquecer guards, filtros, CSRF, auditoria ou permissões incidentalmente.
 
 ## 6. Processo obrigatório antes de alterar o código
 
@@ -218,7 +215,7 @@ Também deve:
 - Evitar regra de negócio complexa em templates HTML.
 - Separar comunicação HTTP e transformação reutilizável em serviços.
 - Preservar o padrão de componentes standalone e carregamento por rota.
-- Ao adicionar uma página, revisar rota, página inicial e menu lateral.
+- Ao adicionar uma página, revisar rota, registro central de ferramentas, Home e navbar.
 - Tratar estados de carregamento, sucesso, vazio e erro.
 - Não acessar diretamente o SGU nem expor sua chave no frontend.
 - Versionar cuidadosamente chaves do `localStorage` quando o formato dos dados mudar.

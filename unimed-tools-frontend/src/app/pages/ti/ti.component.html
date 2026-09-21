@@ -1,0 +1,31 @@
+<section class="ti-page">
+  <header class="heading">
+    <div>
+      <span>Administração da plataforma</span>
+      <h1>TI</h1>
+      <p>Gerencie APIs e relatórios existentes, monte grupos e publique novas ferramentas para os usuários.</p>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Seções da administração">
+    <button type="button" [class.active]="tab === 'apis'" (click)="select('apis')">
+      <span>01</span><strong>Relatórios e APIs</strong><small>Catálogo, importação SQL e prévias</small>
+    </button>
+    <button type="button" [class.active]="tab === 'grupos'" (click)="select('grupos')">
+      <span>02</span><strong>Grupos de relatórios</strong><small>Execução de múltiplas APIs em lote</small>
+    </button>
+    <button type="button" [class.active]="tab === 'ferramentas'" (click)="select('ferramentas')">
+      <span>03</span><strong>Ferramentas e cards</strong><small>Crie novas páginas orientadas a relatório</small>
+    </button>
+  </nav>
+
+  <section class="tab-content">
+    <app-relatorios-manual *ngIf="tab === 'apis'" [embedded]="true" />
+    <app-relatorios-automaticos
+      *ngIf="tab === 'grupos'"
+      [embedded]="true"
+      [relatorios]="relatorios"
+    />
+    <app-tool-manager *ngIf="tab === 'ferramentas'" />
+  </section>
+</section>

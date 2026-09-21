@@ -177,12 +177,13 @@ Em toda execução ele:
 2. garante que o MariaDB esteja ativo;
 3. testa e gera um novo build do frontend;
 4. testa e empacota novamente o backend;
-5. encerra o backend anterior;
-6. encerra e reinicia o Apache que serve o frontend;
-7. remove a publicação antiga em `C:\xampp\htdocs\unimed-tools`;
-8. publica o novo frontend do zero;
-9. inicia o novo backend;
-10. valida os dois endereços:
+5. remove arquivos MFA/TOTP legados que possam ter sobrado fisicamente de versões antigas;
+6. encerra o backend anterior;
+7. encerra e reinicia o Apache que serve o frontend;
+8. remove a publicação antiga em `C:\xampp\htdocs\unimed-tools`;
+9. publica o novo frontend do zero;
+10. inicia o novo backend;
+11. valida os dois endereços:
    - `http://localhost/unimed-tools/`
    - `http://192.168.3.242/unimed-tools/`
 

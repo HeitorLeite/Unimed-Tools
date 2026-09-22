@@ -194,6 +194,39 @@ public class RelatorioPersonalizadoSqlBuilder {
       "VALOR_TOTAL_21",
       CAMPO_RECEITA,
       CAMPO_SINISTRALIDADE);
+
+  /*
+   * Campos que podem ser tratados como métricas na interface. Identificadores
+   * numéricos (contrato, empresa, tipo da guia etc.) ficam de fora para não
+   * serem somados por engano ao separar competências.
+   */
+  private static final Set<String> CAMPOS_NUMERICOS = Set.of(
+      "IDADE",
+      "QUANTIDADE",
+      "VALOR_FATOR",
+      "VALOR_PG_PROCEDIMENTO",
+      "VALOR_PG_FILME",
+      "VALOR_PG_CO",
+      "VALOR_TOTAL",
+      "VALOR_TOTAL_21",
+      CAMPO_RECEITA,
+      CAMPO_SINISTRALIDADE,
+      "VALOR_RECEBER");
+
+  /*
+   * O ranking de maiores/menores gastadores é restrito a grandezas de consumo
+   * ou valor. Idade e sinistralidade, embora numéricas, não representam gasto.
+   */
+  private static final Set<String> CAMPOS_RANKING = Set.of(
+      "QUANTIDADE",
+      "VALOR_FATOR",
+      "VALOR_PG_PROCEDIMENTO",
+      "VALOR_PG_FILME",
+      "VALOR_PG_CO",
+      "VALOR_TOTAL",
+      "VALOR_TOTAL_21",
+      CAMPO_RECEITA,
+      "VALOR_RECEBER");
   private static final Set<String> FILTROS_INDICADORES = Set.of(
       "competencia_inicio",
       "competencia_fim",
@@ -314,6 +347,14 @@ public class RelatorioPersonalizadoSqlBuilder {
 
   public Campo campo(String id) {
     return CAMPOS.get(id);
+  }
+
+  public boolean campoNumerico(String id) {
+    return id != null && CAMPOS_NUMERICOS.contains(id.trim().toUpperCase(Locale.ROOT));
+  }
+
+  public boolean campoRanking(String id) {
+    return id != null && CAMPOS_RANKING.contains(id.trim().toUpperCase(Locale.ROOT));
   }
 
   public Filtro filtro(String id) {
@@ -622,9 +663,10 @@ public class RelatorioPersonalizadoSqlBuilder {
       // O alias projetado é suficiente e evita reenviar critérios técnicos longos.
       return ordenarPor + " " + direcaoOrdenacao;
     }
-    if (!agrupamentos.isEmpty()) {
-      return String.join(", ", agrupamentos);
-    }
+    /*
+     * A procedure ins_atu_query_api possui buffer curto para a ordenação.
+     * Um único alias projetado mantém a definição pequena e estável.
+     */
     return camposSelecionados.getFirst().id();
   }
 
@@ -640,12 +682,11 @@ public class RelatorioPersonalizadoSqlBuilder {
       // Mantê-lo curto evita estourar o buffer da rotina de publicação do SGU.
       return ordenarPor + " " + direcaoOrdenacao;
     }
-    if (consolidarPorBeneficiario) {
-      return String.join(", ", colunasAgrupamentoBeneficiario(camposSelecionados));
-    }
-    return distinct
-        ? String.join(", ", projecoes)
-        : "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
+    /*
+     * Evita enviar listas longas ao campo de ordenação do SGU. A ordenação
+     * técnica antiga podia ultrapassar o buffer interno de ins_atu_query_api.
+     */
+    return camposSelecionados.getFirst().id();
   }
 
   private Set<String> normalizarFiltrosAtivos(Set<String> filtrosAtivos) {
@@ -760,11 +801,15 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(campos, "CPF_TITULAR", "CPF do titular", "Beneficiário", false, true, cpfTitular());
     adicionar(campos, "IDADE", "Idade", "Beneficiário", false, true,
         "TRUNC(MONTHS_BETWEEN(SYSDATE, P.PES_DAT_NASC) / 12)");
+    adicionar(campos, "REGIAO_BENEFICIARIO", "Região do beneficiário", "Beneficiário", false, true,
+        REGIAO_BENEFICIARIO);
     adicionar(campos, "UF", "UF", "Beneficiário", false, true,
         "NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)");
     adicionar(campos, "MUNICIPIO", "Município", "Beneficiário", false, true,
         "NVL(NVL(PE.END_DES_CIDAD, PE_TIT.END_DES_CIDAD), CIDADE.CIDAD_DES)");
     adicionar(campos, "CEP", "CEP", "Beneficiário", false, true, "NVL(PE.CEP_COD, PE_TIT.CEP_COD)");
+    adicionar(campos, "ATIVO", "Beneficiário ativo", "Beneficiário", false, false,
+        "CASE WHEN BF.BNF_DAT_EXCL IS NULL OR BF.BNF_DAT_EXCL = DATE '0001-01-01' THEN 'S' ELSE 'N' END");
     adicionar(campos, "CODIGO_CONTRATO", "Código do contrato", "Contrato e empresa", true, false, CODIGO_CONTRATO);
     adicionar(campos, "NUMERO_CONTRATO", "Número do contrato", "Contrato e empresa", false, false, NUMERO_CONTRATO);
     adicionar(campos, "NOME_CONTRATO", "Nome do contrato", "Contrato e empresa", true, false, NOME_EMPRESA);

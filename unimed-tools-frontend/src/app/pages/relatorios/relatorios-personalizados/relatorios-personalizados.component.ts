@@ -808,7 +808,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       : 'A consulta foi concluída, mas não encontrou registros.';
   }
 
-  private limparPrevia(): void {
+  limparPrevia(): void {
     this.registros = [];
     this.totalRegistros = null;
     this.totalRegistrosExportados = null;

@@ -600,6 +600,13 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.ordemColunasSelecionadas = [];
     this.colunaOrdenacao = null;
     this.direcaoOrdenacao = 'ASC';
+    this.separarMeses = false;
+    this.metricasPorMes = [];
+    this.rankingAtivo = false;
+    this.rankingModo = 'MAIORES';
+    this.rankingQuantidade = 10;
+    this.rankingDimensao = '';
+    this.rankingMetrica = '';
     this.gruposFiltros = this.agrupar(configuracao.filtros);
     this.gruposColunas = this.agrupar(configuracao.colunas);
     this.valoresFiltro = Object.fromEntries(configuracao.filtros.map((filtro) => [filtro.id, '']));
@@ -639,11 +646,40 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
         .map(([id, valor]) => [id, id.startsWith('competencia_') ? valor.replace('-', '') : valor]),
     );
 
+    if (this.separarMeses && !this.metricasPorMes.length) {
+      this.erro = 'Selecione pelo menos uma coluna numérica para separar por mês.';
+      return null;
+    }
+
+    if (this.rankingAtivo) {
+      if (!this.rankingDimensao || !this.rankingMetrica) {
+        this.erro = 'Escolha a dimensão e a métrica do ranking.';
+        return null;
+      }
+      if (this.rankingQuantidade < 1 || this.rankingQuantidade > 1000) {
+        this.erro = 'A quantidade do ranking deve ficar entre 1 e 1000.';
+        return null;
+      }
+    }
+
     this.sincronizarOrdemColunas();
     return {
       colunas: [...this.ordemColunasSelecionadas],
       filtros,
       distinct: this.somenteDistintos,
+      separarMeses: this.separarMeses,
+      metricasPorMes: this.separarMeses ? [...this.metricasPorMes] : [],
+      ranking: this.rankingAtivo
+        ? {
+            modo: this.rankingModo,
+            quantidade: Number(this.rankingQuantidade),
+            dimensao: this.rankingDimensao,
+            metrica: this.rankingMetrica,
+          }
+        : null,
+      ordemResultado: this.registros.length
+        ? [...this.colunasResultado]
+        : [...this.ordemColunasSelecionadas],
       ...(this.colunaOrdenacao
         ? {
             ordenarPor: this.colunaOrdenacao,

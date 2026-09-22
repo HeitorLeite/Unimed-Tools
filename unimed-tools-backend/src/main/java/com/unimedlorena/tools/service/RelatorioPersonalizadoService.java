@@ -138,6 +138,11 @@ public class RelatorioPersonalizadoService {
     try {
       publicarApi(normalizada);
 
+      if (normalizada.analiseAvancada()) {
+        List<LinkedHashMap<String, Object>> registros = carregarETransformar(normalizada);
+        return paginarAnalise(registros, normalizada);
+      }
+
       Map<String, Object> parametros = parametrosSgu(normalizada.filtros());
       parametros.put("page", normalizada.pagina());
       parametros.put("size", normalizada.tamanhoPagina());
@@ -163,29 +168,34 @@ public class RelatorioPersonalizadoService {
     try {
       publicarApi(normalizada);
 
-      /*
-       * O lock permanece durante todas as páginas. Sem isso, outra consulta
-       * poderia substituir a definição no meio da exportação.
-       */
-      List<LinkedHashMap<String, Object>> registros = exportacao.carregarRegistros(
-          API_NOME,
-          parametrosSgu(normalizada.filtros()));
-      List<LinkedHashMap<String, Object>> projetados = projetarRegistros(
-          registros,
-          normalizada.colunas());
-      return exportacao.gerarArquivo(formato, projetados);
+      List<LinkedHashMap<String, Object>> registros;
+      if (normalizada.analiseAvancada()) {
+        registros = carregarETransformar(normalizada);
+      } else {
+        /*
+         * O lock permanece durante todas as páginas. Sem isso, outra consulta
+         * poderia substituir a definição no meio da exportação.
+         */
+        registros = projetarRegistros(
+            exportacao.carregarRegistros(
+                API_NOME,
+                parametrosSgu(normalizada.filtros())),
+            normalizada.colunas());
+      }
+      return exportacao.gerarArquivo(formato, registros);
     } finally {
       API_LOCK.unlock();
     }
   }
 
   private void publicarApi(RequisicaoNormalizada normalizada) {
+    boolean transformarNoBackend = normalizada.analiseAvancada();
     RelatorioPersonalizadoSqlBuilder.ApiGerada gerada = sqlBuilder.gerar(
-        normalizada.colunas(),
+        colunasConsulta(normalizada),
         normalizada.filtros().keySet(),
-        normalizada.distinct(),
-        normalizada.ordenarPor(),
-        normalizada.direcaoOrdenacao());
+        transformarNoBackend ? false : normalizada.distinct(),
+        transformarNoBackend ? null : normalizada.ordenarPor(),
+        transformarNoBackend ? null : normalizada.direcaoOrdenacao());
 
     /*
      * Paginação e repetições com a mesma estrutura não precisam republicar a
@@ -198,7 +208,12 @@ public class RelatorioPersonalizadoService {
 
     Map<String, Object> definicao = new LinkedHashMap<>();
     definicao.put("nome", API_NOME);
-    definicao.put("consultaSQL", gerada.consultaSql());
+    /*
+     * O PL/SQL ins_atu_query_api possui buffers internos menores que um CLOB.
+     * A consulta gerada é compactada antes da publicação para não desperdiçar
+     * esse buffer com indentação e quebras de linha.
+     */
+    definicao.put("consultaSQL", compactarSql(gerada.consultaSql()));
     definicao.put("ordenacao", gerada.ordenacao());
     definicao.put("filtros", gerada.filtros());
 
@@ -229,7 +244,18 @@ public class RelatorioPersonalizadoService {
             "Tamanho da página")
         : MAXIMO_LINHAS_PAGINA;
     boolean distinct = Boolean.TRUE.equals(request.distinct());
-    String ordenarPor = normalizarOrdenarPor(request.ordenarPor(), colunas);
+    boolean separarMeses = Boolean.TRUE.equals(request.separarMeses());
+    List<String> metricasPorMes = normalizarMetricasPorMes(
+        request.metricasPorMes(),
+        colunas,
+        separarMeses);
+    RankingNormalizado ranking = normalizarRanking(request.ranking(), colunas);
+    boolean analiseAvancada = separarMeses || ranking != null;
+
+    String ordenarPor = normalizarOrdenarPor(
+        request.ordenarPor(),
+        colunas,
+        analiseAvancada);
     String direcaoOrdenacao = normalizarDirecaoOrdenacao(
         request.direcaoOrdenacao(),
         ordenarPor);
@@ -240,18 +266,112 @@ public class RelatorioPersonalizadoService {
         distinct,
         ordenarPor,
         direcaoOrdenacao,
+        separarMeses,
+        metricasPorMes,
+        ranking,
         pagina,
         tamanho);
   }
 
+  private List<String> normalizarMetricasPorMes(
+      List<String> recebidas,
+      List<String> colunasSelecionadas,
+      boolean separarMeses) {
+    if (!separarMeses) {
+      return List.of();
+    }
+
+    LinkedHashSet<String> metricas = new LinkedHashSet<>();
+    if (recebidas != null) {
+      for (String recebida : recebidas) {
+        String id = recebida == null
+            ? ""
+            : recebida.trim().toUpperCase(Locale.ROOT);
+        if (!colunasSelecionadas.contains(id)) {
+          throw new IllegalArgumentException(
+              "As colunas separadas por mês precisam estar selecionadas no relatório.");
+        }
+        if (!sqlBuilder.campoSeparavelPorMes(id)) {
+          throw new IllegalArgumentException(
+              "A coluna “" + id + "” não pode ser separada por mês.");
+        }
+        metricas.add(id);
+      }
+    }
+
+    if (metricas.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Selecione pelo menos uma coluna numérica para separar por mês.");
+    }
+    return List.copyOf(metricas);
+  }
+
+  private RankingNormalizado normalizarRanking(
+      RelatorioPersonalizadoRequest.Ranking recebido,
+      List<String> colunasSelecionadas) {
+    if (recebido == null) {
+      return null;
+    }
+
+    String modo = recebido.modo() == null
+        ? ""
+        : recebido.modo().trim().toUpperCase(Locale.ROOT);
+    if (!Set.of("MAIORES", "MENORES").contains(modo)) {
+      throw new IllegalArgumentException(
+          "O ranking deve usar MAIORES ou MENORES.");
+    }
+
+    int quantidade = limitar(
+        recebido.quantidade(),
+        1,
+        1000,
+        10,
+        "Quantidade do ranking");
+
+    String dimensao = normalizarIdColunaAnalitica(
+        recebido.dimensao(),
+        "dimensão do ranking",
+        colunasSelecionadas);
+    String metrica = normalizarIdColunaAnalitica(
+        recebido.metrica(),
+        "métrica do ranking",
+        colunasSelecionadas);
+
+    if (!sqlBuilder.campoRanking(metrica)) {
+      throw new IllegalArgumentException(
+          "A métrica do ranking deve ser uma coluna do grupo Valores.");
+    }
+    if (dimensao.equals(metrica)) {
+      throw new IllegalArgumentException(
+          "A dimensão e a métrica do ranking precisam ser diferentes.");
+    }
+
+    return new RankingNormalizado(modo, quantidade, dimensao, metrica);
+  }
+
+  private String normalizarIdColunaAnalitica(
+      String recebido,
+      String descricao,
+      List<String> colunasSelecionadas) {
+    String id = recebido == null
+        ? ""
+        : recebido.trim().toUpperCase(Locale.ROOT);
+    if (!colunasSelecionadas.contains(id)) {
+      throw new IllegalArgumentException(
+          "A " + descricao + " deve estar entre as colunas selecionadas.");
+    }
+    return id;
+  }
+
   private String normalizarOrdenarPor(
       String recebido,
-      List<String> colunasSelecionadas) {
+      List<String> colunasSelecionadas,
+      boolean analiseAvancada) {
     if (recebido == null || recebido.isBlank()) {
       return null;
     }
     String coluna = recebido.trim().toUpperCase(Locale.ROOT);
-    if (!colunasSelecionadas.contains(coluna)) {
+    if (!analiseAvancada && !colunasSelecionadas.contains(coluna)) {
       throw new IllegalArgumentException(
           "A coluna de ordenação deve estar entre as colunas selecionadas.");
     }

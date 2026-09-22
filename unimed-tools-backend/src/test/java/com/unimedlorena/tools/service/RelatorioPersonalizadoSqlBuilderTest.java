@@ -21,7 +21,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
 
   @Test
   void deveExporNovosIndicadoresFinanceirosNoCatalogo() {
-    assertThat(builder.campos()).hasSize(53);
+    assertThat(builder.campos()).hasSize(55);
     assertThat(builder.campo("VALOR_TOTAL").rotulo()).isEqualTo("Despesa total");
     assertThat(builder.campo("VALOR_TOTAL_21").rotulo())
         .isEqualTo("Despesa total com 21%");
@@ -36,6 +36,14 @@ class RelatorioPersonalizadoSqlBuilderTest {
       assertThat(campo.rotulo()).isEqualTo("Nome da pessoa da empresa");
       assertThat(campo.expressaoSql()).isEqualTo("PES_EMPRESA.PES_NOM_COMP");
     });
+    assertThat(builder.campo("REGIAO_BENEFICIARIO")).satisfies(campo -> {
+      assertThat(campo.rotulo()).isEqualTo("Região do beneficiário");
+      assertThat(campo.grupo()).isEqualTo("Beneficiário");
+    });
+    assertThat(builder.campo("ATIVO")).satisfies(campo ->
+        assertThat(campo.rotulo()).isEqualTo("Beneficiário ativo"));
+    assertThat(builder.campoSeparavelPorMes("VALOR_TOTAL")).isTrue();
+    assertThat(builder.campoRanking("VALOR_TOTAL")).isTrue();
   }
 
   @Test
@@ -135,6 +143,15 @@ class RelatorioPersonalizadoSqlBuilderTest {
       assertThat(String.valueOf(filtro.get("conteudoFiltro")))
           .isEqualTo("and RP.F_CODIGO_BENEFICIARIO = :codigobeneficiario")
           .doesNotContain("\n", "\r", "\t");
+    });
+  }
+
+  @Test
+  void deveExporFiltroDeEmpresaComoSeletorDeCatalogo() {
+    assertThat(builder.filtro("codigo_empresa")).satisfies(filtro -> {
+      assertThat(filtro.rotulo()).isEqualTo("Nome da empresa");
+      assertThat(filtro.tipoTela()).isEqualTo("empresa");
+      assertThat(filtro.placeholder()).isEqualTo("Selecione uma ou mais empresas");
     });
   }
 
@@ -247,9 +264,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
             "GROUP BY\n  RP.O_BNF_UNIMED,\n  RP.O_BNF_CONTRATO,\n  RP.O_BNF_CODIGO,\n  RP.O_BNF_DEPENDENTE,\n  RP.COD_BENEFICIARIO,\n  RP.NOME_BENEFICIARIO")
         .doesNotContain("SELECT DISTINCT");
     assertThat(api.ordenacao())
-        .isEqualTo(
-            "RP.O_BNF_UNIMED, RP.O_BNF_CONTRATO, RP.O_BNF_CODIGO, " +
-                "RP.O_BNF_DEPENDENTE, RP.COD_BENEFICIARIO, RP.NOME_BENEFICIARIO")
+        .isEqualTo("COD_BENEFICIARIO")
         .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
   }
 
@@ -263,7 +278,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .contains("RP.VALOR_TOTAL")
         .doesNotContain("SUM(RP.VALOR_TOTAL)", "GROUP BY");
     assertThat(api.ordenacao())
-        .isEqualTo("RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ");
+        .isEqualTo("COD_BENEFICIARIO");
   }
 
   @Test
@@ -278,7 +293,8 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .contains("AS O_COMPETENCIA", "AS O_GUIA_ID", "AS O_ITEM_SEQ")
         .contains(") RP\nWHERE 1 = 1\n  /*FILTROS*/");
     assertThat(api.ordenacao())
-        .isEqualTo("RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ");
+        .isEqualTo("COD_BENEFICIARIO")
+        .hasSizeLessThan(120);
   }
 
   @Test
@@ -302,7 +318,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
     assertThat(api.consultaSql())
         .contains("SELECT DISTINCT\n  RP.NUMERO_GUIA,\n  RP.PERIODO\nFROM (");
     assertThat(api.ordenacao())
-        .isEqualTo("RP.NUMERO_GUIA, RP.PERIODO")
+        .isEqualTo("NUMERO_GUIA")
         .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
   }
 

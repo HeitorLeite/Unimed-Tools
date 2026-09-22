@@ -498,7 +498,47 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   }
 
   rotuloColuna(id: string): string {
+    const mensal = id.match(/^(.+)__(\d{4})(\d{2})$/);
+    if (mensal) {
+      const [, base, ano, mes] = mensal;
+      const rotulo = this.configuracao?.colunas.find((coluna) => coluna.id === base)?.rotulo ?? base;
+      const meses = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+      const indice = Number(mes) - 1;
+      const mesRotulo = meses[indice] ?? mes;
+      return `${rotulo} ${mesRotulo}/${ano}`;
+    }
     return this.configuracao?.colunas.find((coluna) => coluna.id === id)?.rotulo ?? id;
+  }
+
+  private tipoColunaResultado(id: string): 'texto' | 'numero' | 'data' | 'competencia' {
+    const mensal = id.match(/^(.+)__(\d{6})$/);
+    const base = mensal?.[1] ?? id;
+    if (mensal) return 'numero';
+    return this.configuracao?.colunas.find((coluna) => coluna.id === base)?.tipo ?? 'texto';
+  }
+
+  private ajustarRankingDisponivel(): void {
+    const metricas = this.metricasRankingDisponiveis;
+    const dimensoes = this.dimensoesRankingDisponiveis;
+
+    if (!metricas.length || !dimensoes.length) {
+      this.rankingAtivo = false;
+      this.rankingMetrica = '';
+      this.rankingDimensao = '';
+      return;
+    }
+
+    if (!metricas.some((coluna) => coluna.id === this.rankingMetrica)) {
+      this.rankingMetrica = metricas[0].id;
+    }
+    if (!dimensoes.some((coluna) => coluna.id === this.rankingDimensao)) {
+      this.rankingDimensao = dimensoes[0].id;
+    }
+
+    const quantidade = Number(this.rankingQuantidade);
+    this.rankingQuantidade = Number.isFinite(quantidade)
+      ? Math.min(1000, Math.max(1, Math.trunc(quantidade)))
+      : 10;
   }
 
   atualizarFiltros(valores: Record<string, string>): void {
@@ -523,6 +563,16 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       colunas: [...this.ordemColunasSelecionadas],
       filtros: [...new Set(this.filtrosAtivos)],
       distinct: this.somenteDistintos,
+      separarMeses: this.separarMeses,
+      metricasPorMes: [...this.metricasPorMes],
+      ranking: this.rankingAtivo
+        ? {
+            modo: this.rankingModo,
+            quantidade: this.rankingQuantidade,
+            dimensao: this.rankingDimensao,
+            metrica: this.rankingMetrica,
+          }
+        : null,
     };
     this.presets = [...this.presets, preset];
     this.salvarPresets();
@@ -540,6 +590,23 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     const obrigatorios = this.configuracao.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id);
     this.filtrosAtivos = [...new Set([...obrigatorios, ...preset.filtros])];
     this.somenteDistintos = preset.distinct;
+    this.separarMeses = Boolean(preset.separarMeses);
+    this.metricasPorMes = (preset.metricasPorMes ?? []).filter((idColuna) =>
+      this.ordemColunasSelecionadas.includes(idColuna),
+    );
+    this.rankingAtivo = Boolean(preset.ranking);
+    if (preset.ranking) {
+      this.rankingModo = preset.ranking.modo;
+      this.rankingQuantidade = preset.ranking.quantidade;
+      this.rankingDimensao = preset.ranking.dimensao;
+      this.rankingMetrica = preset.ranking.metrica;
+    } else {
+      this.rankingModo = 'MAIORES';
+      this.rankingQuantidade = 10;
+      this.rankingDimensao = '';
+      this.rankingMetrica = '';
+    }
+    this.ajustarRankingDisponivel();
     Object.keys(this.valoresFiltro).forEach((key) => this.valoresFiltro[key] = '');
     const competencia = this.competenciaAtual();
     this.valoresFiltro['competencia_inicio'] = competencia;

@@ -206,10 +206,13 @@ O atalho `Publicar Unimed Tools - Producao.cmd` chama
 
 Ele testa e recompila frontend/backend, publica o frontend em
 `C:\xampp\htdocs\unimed-tools`, reinicia Apache e backend de produção e
-valida:
+valida o endereço de produção:
 
-- `http://localhost/unimed-tools/` — cópia publicada no Apache;
-- `http://192.168.3.242/unimed-tools/` — endereço da rede.
+- `http://192.168.3.242/unimed-tools/`.
+
+O endereço de teste usado no desenvolvimento é exclusivamente
+`http://localhost:4200/`. O Apache pode continuar respondendo localmente por
+característica do XAMPP, mas esse endereço não é tratado como ambiente de teste.
 
 A atualização da pasta do repositório continua sendo manual. Assim, editar ou
 atualizar arquivos localmente afeta primeiro o ambiente de teste; a rede só muda

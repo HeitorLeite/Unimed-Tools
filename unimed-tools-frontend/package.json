@@ -7,7 +7,8 @@
     "build": "ng build",
     "build:lan": "ng build --configuration lan",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "start:local": "ng serve --host 127.0.0.1 --port 4200 --proxy-config proxy.local.conf.json"
   },
   "private": true,
   "packageManager": "npm@11.9.0",

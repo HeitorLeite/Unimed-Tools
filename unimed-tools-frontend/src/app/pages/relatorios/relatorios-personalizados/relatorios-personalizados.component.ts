@@ -267,16 +267,20 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => id !== coluna.id,
       );
+      this.metricasPorMes = this.metricasPorMes.filter((id) => id !== coluna.id);
       if (this.colunaOrdenacao === coluna.id) {
         this.colunaOrdenacao = null;
         this.direcaoOrdenacao = 'ASC';
       }
+      if (this.rankingDimensao === coluna.id) this.rankingDimensao = '';
+      if (this.rankingMetrica === coluna.id) this.rankingMetrica = '';
     } else if (this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)) {
       this.colunasSelecionadas.add(coluna.id);
       this.ordemColunasSelecionadas.push(coluna.id);
     }
     this.colunasResultado = [...this.ordemColunasSelecionadas];
     this.limparPrevia();
+    this.ajustarRankingDisponivel();
   }
 
   alternarGrupo(grupo: Grupo<RelatorioPersonalizadoColuna>): void {
@@ -287,10 +291,13 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => !idsGrupo.has(id),
       );
+      this.metricasPorMes = this.metricasPorMes.filter((id) => !idsGrupo.has(id));
       if (this.colunaOrdenacao && idsGrupo.has(this.colunaOrdenacao)) {
         this.colunaOrdenacao = null;
         this.direcaoOrdenacao = 'ASC';
       }
+      if (idsGrupo.has(this.rankingDimensao)) this.rankingDimensao = '';
+      if (idsGrupo.has(this.rankingMetrica)) this.rankingMetrica = '';
     } else {
       grupo.itens.forEach((item) => {
         if (
@@ -304,25 +311,105 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     }
     this.colunasResultado = [...this.ordemColunasSelecionadas];
     this.limparPrevia();
+    this.ajustarRankingDisponivel();
   }
 
   moverColuna(id: string, deslocamento: -1 | 1): void {
     this.sincronizarOrdemColunas();
     const indiceAtual = this.ordemColunasSelecionadas.indexOf(id);
     const novoIndice = indiceAtual + deslocamento;
-    if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length) {
-      return;
-    }
+    if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length) return;
 
     const ordem = [...this.ordemColunasSelecionadas];
     [ordem[indiceAtual], ordem[novoIndice]] = [ordem[novoIndice], ordem[indiceAtual]];
-    this.ordemColunasSelecionadas = ordem;
-    this.colunasResultado = [...ordem];
-    this.limparPrevia();
+    this.reordenarColunas(ordem);
+  }
+
+  reordenarColunas(ordem: string[]): void {
+    const selecionadas = new Set(this.colunasSelecionadas);
+    const novaOrdem = ordem.filter((id) => selecionadas.has(id));
+    this.ordemColunasSelecionadas.forEach((id) => {
+      if (selecionadas.has(id) && !novaOrdem.includes(id)) novaOrdem.push(id);
+    });
+    this.ordemColunasSelecionadas = novaOrdem;
+
+    if (this.colunasResultado.length) {
+      const visiveis = novaOrdem.filter((id) => this.colunasResultado.includes(id));
+      const especiais = this.colunasResultado.filter((id) => !selecionadas.has(id));
+      this.colunasResultado = [...visiveis, ...especiais];
+    } else {
+      this.colunasResultado = [...novaOrdem];
+    }
+  }
+
+  iniciarArrasteResultado(event: DragEvent, coluna: string): void {
+    if (this.gerando || this.exportando) {
+      event.preventDefault();
+      return;
+    }
+    this.colunaResultadoArrastada = coluna;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', coluna);
+    }
+  }
+
+  permitirSoltarResultado(event: DragEvent): void {
+    if (this.gerando || this.exportando) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  soltarColunaResultado(event: DragEvent, destino: string): void {
+    if (this.gerando || this.exportando) return;
+    event.preventDefault();
+    const origem = this.colunaResultadoArrastada ?? event.dataTransfer?.getData('text/plain') ?? '';
+    if (!origem || origem === destino) return;
+
+    const ordem = [...this.colunasResultado];
+    const origemIndex = ordem.indexOf(origem);
+    const destinoIndex = ordem.indexOf(destino);
+    if (origemIndex < 0 || destinoIndex < 0) return;
+
+    ordem.splice(origemIndex, 1);
+    ordem.splice(destinoIndex, 0, origem);
+    this.colunasResultado = ordem;
+    this.colunaResultadoArrastada = null;
+
+    const baseVisivel = ordem.filter((id) => this.colunasSelecionadas.has(id));
+    const restantes = this.ordemColunasSelecionadas.filter((id) => !baseVisivel.includes(id));
+    this.ordemColunasSelecionadas = [...baseVisivel, ...restantes];
+  }
+
+  encerrarArrasteResultado(): void {
+    this.colunaResultadoArrastada = null;
   }
 
   alternarDistinct(): void {
     this.somenteDistintos = !this.somenteDistintos;
+    this.limparPrevia();
+  }
+
+  alternarSepararMeses(): void {
+    this.separarMeses = !this.separarMeses;
+    if (!this.separarMeses) {
+      this.metricasPorMes = [];
+    } else if (!this.metricasPorMes.length && this.metricasMensaisDisponiveis.length) {
+      this.metricasPorMes = [this.metricasMensaisDisponiveis[0].id];
+    }
+    this.limparPrevia();
+  }
+
+  alternarMetricaMes(id: string): void {
+    this.metricasPorMes = this.metricasPorMes.includes(id)
+      ? this.metricasPorMes.filter((atual) => atual !== id)
+      : [...this.metricasPorMes, id];
+    this.limparPrevia();
+  }
+
+  alternarRanking(): void {
+    this.rankingAtivo = !this.rankingAtivo;
+    this.ajustarRankingDisponivel();
     this.limparPrevia();
   }
 
@@ -349,6 +436,17 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   simboloOrdenacao(coluna: string): string {
     if (this.colunaOrdenacao !== coluna) return '↕';
     return this.direcaoOrdenacao === 'ASC' ? '↑' : '↓';
+  }
+
+  textoOrdenacao(coluna: string): string {
+    const numerica = this.tipoColunaResultado(coluna) === 'numero';
+    if (this.colunaOrdenacao !== coluna) {
+      return numerica ? 'Ordenar por valor' : 'Ordenar A–Z';
+    }
+    if (numerica) {
+      return this.direcaoOrdenacao === 'ASC' ? 'Menor → maior' : 'Maior → menor';
+    }
+    return this.direcaoOrdenacao === 'ASC' ? 'A → Z' : 'Z → A';
   }
 
   alternarPreviaExpandida(): void {

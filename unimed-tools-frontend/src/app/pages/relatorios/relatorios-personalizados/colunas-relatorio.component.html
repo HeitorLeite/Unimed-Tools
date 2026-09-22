@@ -1,40 +1,97 @@
 <section class="ordem-colunas" *ngIf="selecionadas.length">
-  <h3>Ordem de saída</h3>
+  <div class="ordem-heading">
+    <div>
+      <h3>Ordem de saída</h3>
+      <small>Arraste as colunas para definir a ordem no relatório.</small>
+    </div>
+    <span>{{ selecionadas.length }} coluna(s)</span>
+  </div>
+
   <ol>
-    <li *ngFor="let coluna of selecionadas; index as indice; trackBy: trackCampo">
-      <span>{{ indice + 1 }}. {{ coluna.rotulo }}</span>
-      <div class="acoes-coluna">
-        <button type="button" [disabled]="bloqueado || indice === 0" [attr.aria-label]="'Mover ' + coluna.rotulo + ' para cima'" (click)="mover.emit({id: coluna.id, deslocamento: -1})">↑</button>
-        <button type="button" [disabled]="bloqueado || indice === ordem.length - 1" [attr.aria-label]="'Mover ' + coluna.rotulo + ' para baixo'" (click)="mover.emit({id: coluna.id, deslocamento: 1})">↓</button>
-        <button type="button" [disabled]="bloqueado" [attr.aria-label]="'Remover coluna ' + coluna.rotulo" (click)="alternar.emit(coluna)">×</button>
-      </div>
+    <li
+      *ngFor="let coluna of selecionadas; index as indice; trackBy: trackCampo"
+      [class.dragging]="arrastandoId === coluna.id"
+      [attr.draggable]="!bloqueado"
+      (dragstart)="iniciarArraste($event, coluna.id)"
+      (dragover)="permitirSoltar($event)"
+      (drop)="soltar($event, coluna.id)"
+      (dragend)="finalizarArraste()"
+    >
+      <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+      <span class="ordem-numero">{{ indice + 1 }}</span>
+      <span class="ordem-rotulo">
+        {{ coluna.rotulo }}
+        <small>{{ coluna.grupo }}</small>
+      </span>
+      <button
+        type="button"
+        class="remove-column"
+        [disabled]="bloqueado"
+        [attr.aria-label]="'Remover coluna ' + coluna.rotulo"
+        (click)="alternar.emit(coluna)"
+      >
+        ×
+      </button>
     </li>
   </ol>
 </section>
-<div class="busca-campos">
-  <label for="buscar-coluna">Adicionar colunas</label>
-  <input id="buscar-coluna" type="search" placeholder="Busque uma coluna" [(ngModel)]="busca" [disabled]="bloqueado" />
-  <label for="categoria-coluna">Categoria</label>
-  <select id="categoria-coluna" [(ngModel)]="grupo" [disabled]="bloqueado">
-    <option value="">Todas as categorias</option>
-    <option *ngFor="let categoria of categorias" [value]="categoria">{{ categoria }}</option>
-  </select>
+
+<div class="busca-campos column-search">
+  <div>
+    <label for="buscar-coluna">Adicionar colunas</label>
+    <input
+      id="buscar-coluna"
+      type="search"
+      placeholder="Busque uma coluna"
+      [(ngModel)]="busca"
+      [disabled]="bloqueado"
+    />
+  </div>
+  <div>
+    <label for="categoria-coluna">Categoria</label>
+    <select id="categoria-coluna" [(ngModel)]="grupo" [disabled]="bloqueado">
+      <option value="">Todas as categorias</option>
+      <option *ngFor="let categoria of categorias" [value]="categoria">
+        {{ categoria }}
+      </option>
+    </select>
+  </div>
 </div>
-<p *ngIf="ordem.length >= maximo" role="status">Limite de {{ maximo }} colunas atingido. Remova uma para adicionar outra.</p>
+
+<p *ngIf="ordem.length >= maximo" role="status">
+  Limite de {{ maximo }} colunas atingido. Remova uma para adicionar outra.
+</p>
+
 <div class="lista-colunas">
   <section class="campo-grupo" *ngFor="let grupo of gruposVisiveis; trackBy: trackGrupo">
     <div class="campo-titulo">
       <h3>{{ grupo.nome }}</h3>
-      <button type="button" [disabled]="bloqueado || (!grupoSelecionado(grupo.itens) && ordem.length >= maximo)" (click)="alternarGrupo.emit(grupo)">
+      <button
+        type="button"
+        [disabled]="bloqueado || (!grupoSelecionado(grupo.itens) && ordem.length >= maximo)"
+        (click)="alternarGrupo.emit(grupo)"
+      >
         {{ grupoSelecionado(grupo.itens) ? 'Remover visíveis' : 'Adicionar visíveis' }}
       </button>
     </div>
+
     <label class="coluna-opcao" *ngFor="let coluna of grupo.itens; trackBy: trackCampo">
-      <input type="checkbox" [checked]="selecionado(coluna.id)" [disabled]="bloqueado || !podeAdicionar(coluna)" (change)="alternar.emit(coluna)" />
-      <span>{{ coluna.rotulo }}<small *ngIf="coluna.sensivel">Dado sensível</small>
-        <small *ngIf="coluna.id === 'RECEITA' || coluna.id === 'SINISTRALIDADE'">Agrega por beneficiário, contrato ou empresa</small>
+      <input
+        type="checkbox"
+        [checked]="selecionado(coluna.id)"
+        [disabled]="bloqueado || !podeAdicionar(coluna)"
+        (change)="alternar.emit(coluna)"
+      />
+      <span>
+        {{ coluna.rotulo }}
+        <small *ngIf="coluna.sensivel">Dado sensível</small>
+        <small *ngIf="coluna.tipo === 'number'">Coluna numérica</small>
+        <small *ngIf="coluna.id === 'RECEITA' || coluna.id === 'SINISTRALIDADE'">
+          Agrega por beneficiário, contrato ou empresa
+        </small>
       </span>
     </label>
   </section>
 </div>
+
 <p *ngIf="!gruposVisiveis.length" role="status">Nenhuma coluna encontrada.</p>

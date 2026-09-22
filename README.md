@@ -56,19 +56,44 @@ Fluxo:
 
 ## Assistencial
 
-O Assistencial substitui a antiga entrada de relatório personalizado.
+O Assistencial monta relatórios sob medida a partir da base de despesas, receita e
+sinistralidade. O navegador nunca envia SQL arbitrário: colunas, filtros,
+agregações e ordenações continuam controlados por allowlist no backend.
 
-Fluxo:
+Fluxo atual:
 
-1. escolher colunas;
-2. conferir a ordem das colunas;
-3. adicionar filtros;
-4. gerar a prévia;
-5. exportar CSV, TXT ou XLSX.
+1. **Escolha das colunas** — seleção e ordem de saída por drag-and-drop;
+2. **Filtros e análises** — período, empresa, demais filtros, DISTINCT, separação
+   mensal e ranking;
+3. **Gerar e conferir** — prévia paginada, reordenação por drag-and-drop,
+   ordenação por uma coluna e exportação CSV, TXT ou XLSX.
 
-Modelos de estrutura podem ser salvos no navegador para reutilização. Eles guardam colunas, filtros escolhidos e opções de estrutura, mas **não guardam os valores digitados nos filtros**.
+O filtro de empresa usa o mesmo catálogo do Comercial e permite selecionar uma
+ou várias empresas por nome. Os códigos são resolvidos automaticamente; o modo
+por código permanece disponível como opção avançada.
 
-O SQL do relatório personalizado continua montado exclusivamente no backend por allowlist. SQL arbitrário não é aceito do navegador.
+A opção **Separar meses** transforma o período selecionado em colunas mensais.
+Por exemplo, uma análise de janeiro a setembro com Despesa total gera
+`Despesa total JAN/AAAA`, `FEV/AAAA` etc. Mais de uma métrica pode ser separada
+ao mesmo tempo. A coluna normal de competência não aparece no resultado
+pivotado.
+
+O ranking de **Maiores / menores gastadores** permite escolher a dimensão, a
+métrica financeira e um limite entre 1 e 1000. A opção só fica disponível
+quando a seleção contém uma dimensão e uma métrica compatível.
+
+Além dos campos já existentes, o catálogo inclui região do beneficiário e
+situação ativo/inativo, seguindo as regras das consultas corporativas usadas
+como referência.
+
+Modelos de estrutura podem ser salvos no navegador para reutilização. Eles
+guardam colunas, filtros escolhidos e opções de análise, mas **não guardam os
+valores digitados nos filtros**.
+
+Para reduzir falhas de buffer na rotina `ins_atu_query_api`, a definição
+dinâmica enviada ao SGU é compactada e a ordenação publicada usa aliases curtos.
+Validações no backend impedem definições de filtro/ordenação excessivamente
+grandes.
 
 ## Hospital
 
@@ -181,26 +206,36 @@ Faça backup antes de qualquer migração.
 
 ## Inicializador local
 
-O atalho `Iniciar Unimed Tools.cmd` chama `scripts/iniciar-unimed-tools.ps1`.
+O atalho `Iniciar Unimed Tools.cmd` inicia um **watch mode** e mantém a janela
+aberta enquanto o ambiente de desenvolvimento estiver ativo.
 
-Em toda execução ele:
+Os ambientes são separados:
 
-1. valida Java/Maven/npm e as variáveis necessárias;
-2. garante que o MariaDB esteja ativo;
-3. testa e gera um novo build do frontend;
-4. testa e empacota novamente o backend;
-5. remove arquivos MFA/TOTP legados que possam ter sobrado fisicamente de versões antigas;
-6. encerra o backend anterior;
-7. encerra e reinicia o Apache que serve o frontend;
-8. remove a publicação antiga em `C:\xampp\htdocs\unimed-tools`;
-9. publica o novo frontend do zero;
-10. inicia o novo backend;
-11. valida os dois endereços:
-   - `http://localhost/unimed-tools/`
-   - `http://192.168.3.242/unimed-tools/`
+- **teste local:** `http://localhost:4200/`;
+- **rede interna:** `http://192.168.3.242/unimed-tools/`.
 
-Assim, localhost e o endereço da rede usam exatamente o mesmo build publicado e
-não permanecem com arquivos antigos depois de clicar novamente no atalho.
+O localhost usa o servidor de desenvolvimento do Angular e um backend separado
+na porta `8081`. Alterações em arquivos do frontend são recompiladas
+automaticamente pelo Angular; alterações no backend são detectadas pelo watcher,
+empacotadas e reiniciam somente o backend local.
+
+A versão da rede **não é alterada automaticamente**. O watcher não executa
+`git fetch`, `git pull` nem qualquer sincronização com o GitHub. A atualização
+dos arquivos do repositório continua sendo feita manualmente pelo responsável.
+
+Na janela do watcher:
+
+- `P` publica a versão atual para a rede, executando testes/build e reiniciando
+  somente o backend de produção;
+- `R` força a recompilação/reinício do backend local;
+- `T` executa a validação completa sem publicar;
+- `H` mostra os atalhos;
+- `Q` encerra apenas o ambiente local e o watcher.
+
+Ao pressionar `P`, o frontend de rede é gerado com `build:lan`, publicado em
+`C:\xampp\htdocs\unimed-tools`, o backend de rede usa a porta `8080` e o
+endereço `192.168.3.242` é validado. A versão publicada continua ativa mesmo
+depois que o watcher local é encerrado.
 
 ## Desenvolvimento
 

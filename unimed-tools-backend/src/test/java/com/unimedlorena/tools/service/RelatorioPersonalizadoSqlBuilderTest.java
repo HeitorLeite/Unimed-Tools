@@ -254,7 +254,9 @@ class RelatorioPersonalizadoSqlBuilderTest {
             "GROUP BY\n  RP.O_BNF_UNIMED,\n  RP.O_BNF_CONTRATO,\n  RP.O_BNF_CODIGO,\n  RP.O_BNF_DEPENDENTE,\n  RP.COD_BENEFICIARIO,\n  RP.NOME_BENEFICIARIO")
         .doesNotContain("SELECT DISTINCT");
     assertThat(api.ordenacao())
-        .isEqualTo("COD_BENEFICIARIO")
+        .isEqualTo(
+            "RP.O_BNF_UNIMED, RP.O_BNF_CONTRATO, RP.O_BNF_CODIGO, " +
+                "RP.O_BNF_DEPENDENTE, RP.COD_BENEFICIARIO, RP.NOME_BENEFICIARIO")
         .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
   }
 
@@ -268,7 +270,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .contains("RP.VALOR_TOTAL")
         .doesNotContain("SUM(RP.VALOR_TOTAL)", "GROUP BY");
     assertThat(api.ordenacao())
-        .isEqualTo("COD_BENEFICIARIO");
+        .isEqualTo("RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ");
   }
 
   @Test
@@ -283,7 +285,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .contains("AS O_COMPETENCIA", "AS O_GUIA_ID", "AS O_ITEM_SEQ")
         .contains(") RP\nWHERE 1 = 1\n  /*FILTROS*/");
     assertThat(api.ordenacao())
-        .isEqualTo("COD_BENEFICIARIO");
+        .isEqualTo("RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ");
   }
 
   @Test
@@ -307,7 +309,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
     assertThat(api.consultaSql())
         .contains("SELECT DISTINCT\n  RP.NUMERO_GUIA,\n  RP.PERIODO\nFROM (");
     assertThat(api.ordenacao())
-        .isEqualTo("NUMERO_GUIA")
+        .isEqualTo("RP.NUMERO_GUIA, RP.PERIODO")
         .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
   }
 

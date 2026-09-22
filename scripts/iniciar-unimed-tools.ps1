@@ -303,6 +303,10 @@ try {
   $configuredDbPassword = Get-ConfiguredValue 'DB_PASSWORD'
   $env:DB_PASSWORD = if ($null -eq $configuredDbPassword) { '' } else { $configuredDbPassword }
   $env:SERVER_ADDRESS = '127.0.0.1'
+  # Producao usa as APIs reservadas oficiais. O watch mode de testes usa
+  # nomes -dev em outro processo e nunca altera estes valores persistentes.
+  $env:RELATORIO_PERSONALIZADO_API_NOME = '0090-relatorio-personalizado'
+  $env:RELATORIO_HOSPITAL_API_NOME = '0090-hospital-autorizacoes'
   $env:SGU_API_KEY = $sguKey
   $configuredHeaders = Get-ConfiguredValue 'SGU_API_KEY_HEADERS'
   $env:SGU_API_KEY_HEADERS = if ([string]::IsNullOrWhiteSpace($configuredHeaders)) {

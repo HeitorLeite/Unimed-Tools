@@ -81,8 +81,8 @@ export interface RelatorioPersonalizadoColuna {
   grupo: string;
   selecionadaPorPadrao: boolean;
   sensivel: boolean;
-  numerica: boolean;
-  ranqueavel: boolean;
+  numerica?: boolean;
+  ranqueavel?: boolean;
 }
 
 export interface RelatorioPersonalizadoOpcao {

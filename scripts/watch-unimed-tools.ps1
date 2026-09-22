@@ -207,8 +207,30 @@ function Get-BackendStamp {
   return ($files | Measure-Object -Property LastWriteTimeUtc -Maximum).Maximum
 }
 
+function Get-FrontendConfigStamp {
+  $files = @(
+    Get-Item -LiteralPath (Join-Path $frontendDir 'package.json') -ErrorAction SilentlyContinue
+    Get-Item -LiteralPath (Join-Path $frontendDir 'package-lock.json') -ErrorAction SilentlyContinue
+    Get-Item -LiteralPath (Join-Path $frontendDir 'angular.json') -ErrorAction SilentlyContinue
+    Get-Item -LiteralPath (Join-Path $frontendDir 'proxy.conf.json') -ErrorAction SilentlyContinue
+    Get-ChildItem -LiteralPath $frontendDir -Filter 'tsconfig*.json' -File -ErrorAction SilentlyContinue
+  ) | Where-Object { $_ -ne $null }
+
+  if (-not $files.Count) { return [DateTime]::MinValue }
+  return ($files | Measure-Object -Property LastWriteTimeUtc -Maximum).Maximum
+}
+
+function Ensure-FrontendDependencies {
+  if (Test-Path -LiteralPath (Join-Path $frontendDir 'node_modules') -PathType Container) {
+    return
+  }
+  Write-Step 'Instalando dependencias do frontend'
+  Invoke-Checked 'npm.cmd' @('ci') $frontendDir
+}
+
 function Start-FrontendWatch {
   Stop-TestFrontend
+  Ensure-FrontendDependencies
   if (Test-LocalPort 4200) {
     throw 'A porta 4200 ja esta ocupada. Encerre o processo antes de iniciar o frontend de teste.'
   }
@@ -258,6 +280,7 @@ try {
   $backendProcess = Start-TestBackend
   $frontendProcess = Start-FrontendWatch
   $backendStamp = Get-BackendStamp
+  $frontendConfigStamp = Get-FrontendConfigStamp
 
   Write-Step 'Watch mode ativo'
   Write-Host "TESTE:    $testFrontendUrl" -ForegroundColor Green
@@ -276,6 +299,24 @@ try {
     if ($backendProcess.HasExited) {
       Write-Host 'Backend de teste encerrou. Tentando iniciar novamente...' -ForegroundColor Yellow
       $backendProcess = Start-TestBackend
+    }
+
+    $novoFrontendConfigStamp = Get-FrontendConfigStamp
+    if ($novoFrontendConfigStamp -gt $frontendConfigStamp) {
+      Start-Sleep -Milliseconds 800
+      Write-Step 'Configuracao do frontend alterada'
+      try {
+        if ((Get-Item -LiteralPath (Join-Path $frontendDir 'package-lock.json') -ErrorAction SilentlyContinue).LastWriteTimeUtc -ge $frontendConfigStamp) {
+          Write-Host 'package-lock.json alterado; sincronizando dependencias...' -ForegroundColor Yellow
+          Invoke-Checked 'npm.cmd' @('ci') $frontendDir
+        }
+        $frontendProcess = Start-FrontendWatch
+        $frontendConfigStamp = Get-FrontendConfigStamp
+        Write-Host 'Frontend de teste reiniciado com a nova configuracao.' -ForegroundColor Green
+      } catch {
+        Write-Host "Falha ao reiniciar frontend de teste: $($_.Exception.Message)" -ForegroundColor Red
+        $frontendConfigStamp = $novoFrontendConfigStamp
+      }
     }
 
     $novoStamp = Get-BackendStamp

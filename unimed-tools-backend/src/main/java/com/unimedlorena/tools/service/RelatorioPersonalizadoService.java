@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.unimedlorena.tools.dto.RelatorioPersonalizadoRequest;
@@ -27,6 +28,9 @@ import com.unimedlorena.tools.dto.RelatorioPersonalizadoRequest;
 public class RelatorioPersonalizadoService {
 
   public static final String API_NOME = "0090-relatorio-personalizado";
+
+  @Value("${relatorios.personalizado.api-nome:0090-relatorio-personalizado}")
+  private String apiNome = API_NOME;
 
   public record Coluna(
       String id,
@@ -120,7 +124,7 @@ public class RelatorioPersonalizadoService {
         .toList();
 
     return new Configuracao(
-        API_NOME,
+        apiNome,
         "Despesas, receita e sinistralidade",
         colunas,
         filtros,
@@ -128,7 +132,13 @@ public class RelatorioPersonalizadoService {
   }
 
   public boolean ehApiReservada(String nome) {
-    return nome != null && API_NOME.equalsIgnoreCase(nome.trim());
+    if (nome == null) return false;
+    String valor = nome.trim();
+    return API_NOME.equalsIgnoreCase(valor) || apiNome.equalsIgnoreCase(valor);
+  }
+
+  public String apiNome() {
+    return apiNome;
   }
 
   public Map<String, Object> executar(RelatorioPersonalizadoRequest request) {
@@ -147,7 +157,7 @@ public class RelatorioPersonalizadoService {
       parametros.put("page", normalizada.pagina());
       parametros.put("size", normalizada.tamanhoPagina());
 
-      Map<String, Object> resposta = sgu.executar(API_NOME, parametros);
+      Map<String, Object> resposta = sgu.executar(apiNome, parametros);
       Map<String, Object> projetada = new LinkedHashMap<>(resposta);
       projetada.put(
           "content",
@@ -207,7 +217,7 @@ public class RelatorioPersonalizadoService {
     }
 
     Map<String, Object> definicao = new LinkedHashMap<>();
-    definicao.put("nome", API_NOME);
+    definicao.put("nome", apiNome);
     /*
      * O PL/SQL ins_atu_query_api possui buffers internos menores que um CLOB.
      * A consulta gerada é compactada antes da publicação para não desperdiçar
@@ -701,7 +711,7 @@ public class RelatorioPersonalizadoService {
       RequisicaoNormalizada normalizada) {
     List<LinkedHashMap<String, Object>> registros = projetarRegistros(
         exportacao.carregarRegistros(
-            API_NOME,
+            apiNome,
             parametrosSgu(normalizada.filtros())),
         colunasConsulta(normalizada));
 

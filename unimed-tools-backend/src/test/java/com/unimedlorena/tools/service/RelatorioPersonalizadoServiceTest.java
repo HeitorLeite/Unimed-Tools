@@ -219,7 +219,7 @@ class RelatorioPersonalizadoServiceTest {
     ArgumentCaptor<Map<String, Object>> definicao = ArgumentCaptor.forClass(Map.class);
     verify(sgu).criarOuAtualizar(definicao.capture());
     assertThat(String.valueOf(definicao.getValue().get("consultaSQL")))
-        .contains("SELECT DISTINCT\n  RP.NUMERO_GUIA");
+        .contains("SELECT DISTINCT RP.NUMERO_GUIA");
   }
 
   @Test
@@ -252,8 +252,8 @@ class RelatorioPersonalizadoServiceTest {
     assertThat(String.valueOf(definicao.getValue().get("consultaSQL")))
         .contains(
             "SUM(RP.VALOR_TOTAL) AS VALOR_TOTAL",
-            "GROUP BY\n  RP.O_BNF_UNIMED,\n  RP.O_BNF_CONTRATO,\n  " +
-                "RP.O_BNF_CODIGO,\n  RP.O_BNF_DEPENDENTE");
+            "GROUP BY RP.O_BNF_UNIMED, RP.O_BNF_CONTRATO, " +
+                "RP.O_BNF_CODIGO, RP.O_BNF_DEPENDENTE");
   }
 
   @Test

@@ -21,7 +21,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
 
   @Test
   void deveExporNovosIndicadoresFinanceirosNoCatalogo() {
-    assertThat(builder.campos()).hasSize(53);
+    assertThat(builder.campos()).hasSize(55);
     assertThat(builder.campo("VALOR_TOTAL").rotulo()).isEqualTo("Despesa total");
     assertThat(builder.campo("VALOR_TOTAL_21").rotulo())
         .isEqualTo("Despesa total com 21%");
@@ -88,11 +88,13 @@ class RelatorioPersonalizadoSqlBuilderTest {
 
       assertThat(nomePublico).matches("[a-z0-9]+");
       assertThat(nomesExternos.add(nomePublico)).isTrue();
-      if (Set.of("codigoempresa", "idguia").contains(nomePublico)) {
+      if (Set.of("codigoempresa", "nomeempresa", "idguia").contains(nomePublico)) {
         assertThat(conteudo).isEqualTo(
             nomePublico.equals("codigoempresa")
                 ? "and :codigoempresa LIKE RP.F_CODIGO_EMPRESA"
-                : "and :idguia LIKE RP.F_ID_GUIA");
+                : nomePublico.equals("nomeempresa")
+                    ? "and :nomeempresa LIKE RP.F_NOME_EMPRESA"
+                    : "and :idguia LIKE RP.F_ID_GUIA");
       } else {
         assertThat(conteudo)
             .matches("and RP\\.F_[A-Z0-9_]+ (?:=|>=|<=|LIKE) :" + nomePublico);
@@ -247,9 +249,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
             "GROUP BY\n  RP.O_BNF_UNIMED,\n  RP.O_BNF_CONTRATO,\n  RP.O_BNF_CODIGO,\n  RP.O_BNF_DEPENDENTE,\n  RP.COD_BENEFICIARIO,\n  RP.NOME_BENEFICIARIO")
         .doesNotContain("SELECT DISTINCT");
     assertThat(api.ordenacao())
-        .isEqualTo(
-            "RP.O_BNF_UNIMED, RP.O_BNF_CONTRATO, RP.O_BNF_CODIGO, " +
-                "RP.O_BNF_DEPENDENTE, RP.COD_BENEFICIARIO, RP.NOME_BENEFICIARIO")
+        .isEqualTo("COD_BENEFICIARIO")
         .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
   }
 
@@ -302,7 +302,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
     assertThat(api.consultaSql())
         .contains("SELECT DISTINCT\n  RP.NUMERO_GUIA,\n  RP.PERIODO\nFROM (");
     assertThat(api.ordenacao())
-        .isEqualTo("RP.NUMERO_GUIA, RP.PERIODO")
+        .isEqualTo("NUMERO_GUIA")
         .doesNotContain("O_GUIA_ID", "O_ITEM_SEQ");
   }
 
@@ -390,4 +390,54 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("filtros de período, beneficiário, contrato ou empresa");
   }
+
+  @Test
+  void deveExporDadosComplementaresDoBeneficiarioEtiposDeColuna() {
+    assertThat(builder.campo("REGIAO_BENEF")).satisfies(campo -> {
+      assertThat(campo.rotulo()).isEqualTo("Região do beneficiário");
+      assertThat(campo.grupo()).isEqualTo("Beneficiário");
+    });
+    assertThat(builder.campo("ATIVO").rotulo()).isEqualTo("Beneficiário ativo");
+    assertThat(builder.tipoColuna("VALOR_TOTAL")).isEqualTo("number");
+    assertThat(builder.tipoColuna("DATA_GUIA")).isEqualTo("date");
+    assertThat(builder.tipoColuna("PERIODO")).isEqualTo("competencia");
+    assertThat(builder.ehColunaNumerica("QUANTIDADE")).isTrue();
+  }
+
+  @Test
+  void deveManterOrdenacaoPadraoCurtaParaNaoEstourarBufferDoSgu() {
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of(
+            "COD_BENEFICIARIO",
+            "NOME_BENEFICIARIO",
+            "PARENTESCO",
+            "CPF",
+            "IDADE",
+            "UF",
+            "MUNICIPIO",
+            "REGIAO_BENEF",
+            "VALOR_TOTAL"),
+        Set.of("competencia_inicio", "competencia_fim"),
+        true);
+
+    assertThat(api.ordenacao()).isEqualTo("COD_BENEFICIARIO");
+    assertThat(api.ordenacao().length()).isLessThan(80);
+  }
+
+  @Test
+  void deveUsarCatalogoDeEmpresaComoFiltroDeCodigos() {
+    RelatorioPersonalizadoSqlBuilder.Filtro filtro = builder.filtro("nome_empresa");
+    assertThat(filtro.tipoTela()).isEqualTo("empresa");
+    assertThat(filtro.tipoSgu()).isEqualTo("VARCHAR(240)");
+
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of("NOME_EMPRESA"),
+        Set.of("nome_empresa"));
+
+    assertThat(api.filtros()).singleElement().satisfies(definicao ->
+        assertThat(definicao)
+            .containsEntry("nomeFiltro", "nomeempresa")
+            .containsEntry("conteudoFiltro", "and :nomeempresa LIKE RP.F_NOME_EMPRESA"));
+  }
+
 }

@@ -1,6 +1,5 @@
 /**
- * Construtor guiado de relatórios: coleta filtros autorizados, escolhe colunas
- * e apresenta somente a projeção devolvida pelo backend.
+ * Construtor guiado de relatórios Assistencial.
  */
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
@@ -14,8 +13,6 @@ import {
   Output,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { FiltrosRelatorioComponent } from './filtros-relatorio.component';
-import { ColunasRelatorioComponent } from './colunas-relatorio.component';
 import { finalize } from 'rxjs';
 
 import {
@@ -31,6 +28,8 @@ import {
   formatReportPreviewValue,
   isProtectedBeneficiaryColumn,
 } from '../../../shared/utils/report-preview.utils';
+import { ColunasRelatorioComponent } from './colunas-relatorio.component';
+import { FiltrosRelatorioComponent } from './filtros-relatorio.component';
 
 interface Grupo<T> {
   nome: string;
@@ -43,6 +42,13 @@ interface AssistencialPreset {
   colunas: string[];
   filtros: string[];
   distinct: boolean;
+  separarMeses?: boolean;
+  colunasMeses?: string[];
+  rankingAtivo?: boolean;
+  rankingDimensao?: string;
+  rankingMetrica?: string;
+  rankingDirecao?: 'MAIORES' | 'MENORES';
+  rankingLimite?: number;
 }
 
 type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
@@ -66,20 +72,33 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   presets: AssistencialPreset[] = [];
   presetSelecionado = '';
   nomeNovoPreset = '';
+
   colunasSelecionadas = new Set<string>();
   ordemColunasSelecionadas: string[] = [];
-
-  registros: Record<string, unknown>[] = [];
   colunasResultado: string[] = [];
+  rotulosResultado: Record<string, string> = {};
+  registros: Record<string, unknown>[] = [];
+
+  somenteDistintos = false;
+  separarMeses = false;
+  colunasMesesSelecionadas: string[] = [];
+  rankingAtivo = false;
+  rankingDimensao = '';
+  rankingMetrica = '';
+  rankingDirecao: 'MAIORES' | 'MENORES' = 'MAIORES';
+  rankingLimite = 10;
+
   pagina = 1;
   tamanhoPagina = 50;
   ultimaPagina = false;
   totalRegistros: number | null = null;
   totalRegistrosExportados: number | null = null;
-  somenteDistintos = false;
   previaExpandida = false;
   colunaOrdenacao: string | null = null;
   direcaoOrdenacao: 'ASC' | 'DESC' = 'ASC';
+
+  colunaArrastadaResultado: string | null = null;
+  colunaSobreResultado: string | null = null;
 
   formatoSelecionado: FormatoExportacao = 'xlsx';
   nomeArquivo = 'relatorio_personalizado';
@@ -96,6 +115,28 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
 
   get operacaoRelatorioEmAndamento(): boolean {
     return this.gerando || this.exportando;
+  }
+
+  get colunasNumericasSelecionadas(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) => this.colunasSelecionadas.has(coluna.id) && !!coluna.numerica,
+    );
+  }
+
+  get metricasRankingSelecionadas(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) => this.colunasSelecionadas.has(coluna.id) && !!coluna.ranqueavel,
+    );
+  }
+
+  get dimensoesRankingSelecionadas(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) => this.colunasSelecionadas.has(coluna.id) && !coluna.numerica,
+    );
+  }
+
+  get rankingDisponivel(): boolean {
+    return this.metricasRankingSelecionadas.length > 0 && this.dimensoesRankingSelecionadas.length > 0;
   }
 
   constructor(
@@ -141,7 +182,6 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
         finalize(() => {
           this.gerando = false;
           this.pararProgresso();
-          // HttpClient não agenda a atualização desta view no modo zoneless.
           this.cdr.detectChanges();
         }),
       )
@@ -194,9 +234,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
           }
 
           if (evento.type !== HttpEventType.Response) return;
-
-          const resposta = evento;
-          const arquivo = resposta.body;
+          const arquivo = evento.body;
           if (!arquivo) {
             this.erro = 'O backend não devolveu o arquivo solicitado.';
             return;
@@ -212,7 +250,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
           link.click();
           setTimeout(() => URL.revokeObjectURL(url), 0);
 
-          const totalCabecalho = resposta.headers.get('X-Total-Registros');
+          const totalCabecalho = evento.headers.get('X-Total-Registros');
           const totalConvertido = totalCabecalho === null ? Number.NaN : Number(totalCabecalho);
           this.totalRegistrosExportados = Number.isFinite(totalConvertido) ? totalConvertido : null;
           this.sucesso =
@@ -230,30 +268,35 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => id !== coluna.id,
       );
-      if (this.colunaOrdenacao === coluna.id) {
+      this.colunasMesesSelecionadas = this.colunasMesesSelecionadas.filter(
+        (id) => id !== coluna.id,
+      );
+      if (this.colunaOrdenacao === coluna.id || this.baseColunaResultado(this.colunaOrdenacao) === coluna.id) {
         this.colunaOrdenacao = null;
         this.direcaoOrdenacao = 'ASC';
       }
+      this.validarRankingAposColunas();
     } else if (this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)) {
       this.colunasSelecionadas.add(coluna.id);
       this.ordemColunasSelecionadas.push(coluna.id);
     }
-    this.colunasResultado = [...this.ordemColunasSelecionadas];
+
+    this.sincronizarColunasResultadoComBase();
     this.limparPrevia();
   }
 
   alternarGrupo(grupo: Grupo<RelatorioPersonalizadoColuna>): void {
     const todosSelecionados = grupo.itens.every((item) => this.colunasSelecionadas.has(item.id));
+
     if (todosSelecionados) {
-      grupo.itens.forEach((item) => this.colunasSelecionadas.delete(item.id));
       const idsGrupo = new Set(grupo.itens.map((item) => item.id));
+      grupo.itens.forEach((item) => this.colunasSelecionadas.delete(item.id));
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => !idsGrupo.has(id),
       );
-      if (this.colunaOrdenacao && idsGrupo.has(this.colunaOrdenacao)) {
-        this.colunaOrdenacao = null;
-        this.direcaoOrdenacao = 'ASC';
-      }
+      this.colunasMesesSelecionadas = this.colunasMesesSelecionadas.filter(
+        (id) => !idsGrupo.has(id),
+      );
     } else {
       grupo.itens.forEach((item) => {
         if (
@@ -265,10 +308,23 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
         }
       });
     }
-    this.colunasResultado = [...this.ordemColunasSelecionadas];
+
+    this.validarRankingAposColunas();
+    this.sincronizarColunasResultadoComBase();
     this.limparPrevia();
   }
 
+  reordenarColunas(ordem: string[]): void {
+    const permitidas = new Set(this.colunasSelecionadas);
+    const novaOrdem = ordem.filter((id) => permitidas.has(id));
+    permitidas.forEach((id) => {
+      if (!novaOrdem.includes(id)) novaOrdem.push(id);
+    });
+    this.ordemColunasSelecionadas = novaOrdem;
+    this.reordenarResultadoPelaBase();
+  }
+
+  // Mantido para compatibilidade com testes antigos; a interface usa drag and drop.
   moverColuna(id: string, deslocamento: -1 | 1): void {
     this.sincronizarOrdemColunas();
     const indiceAtual = this.ordemColunasSelecionadas.indexOf(id);
@@ -276,12 +332,9 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length) {
       return;
     }
-
     const ordem = [...this.ordemColunasSelecionadas];
     [ordem[indiceAtual], ordem[novoIndice]] = [ordem[novoIndice], ordem[indiceAtual]];
-    this.ordemColunasSelecionadas = ordem;
-    this.colunasResultado = [...ordem];
-    this.limparPrevia();
+    this.reordenarColunas(ordem);
   }
 
   alternarDistinct(): void {
@@ -289,19 +342,55 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.limparPrevia();
   }
 
-  ordenarPor(coluna: string): void {
-    if (this.gerando || this.exportando) return;
+  alternarSeparacaoMeses(): void {
+    if (!this.colunasNumericasSelecionadas.length) return;
+    this.separarMeses = !this.separarMeses;
+    if (this.separarMeses && !this.colunasMesesSelecionadas.length) {
+      this.colunasMesesSelecionadas = [this.colunasNumericasSelecionadas[0].id];
+    }
+    if (!this.separarMeses) {
+      this.colunasMesesSelecionadas = [];
+    }
+    this.limparPrevia();
+  }
 
-    if (this.colunaOrdenacao === coluna) {
-      this.direcaoOrdenacao = this.direcaoOrdenacao === 'ASC' ? 'DESC' : 'ASC';
+  alternarColunaMes(id: string): void {
+    if (this.operacaoRelatorioEmAndamento) return;
+    if (this.colunasMesesSelecionadas.includes(id)) {
+      this.colunasMesesSelecionadas = this.colunasMesesSelecionadas.filter((atual) => atual !== id);
     } else {
-      this.colunaOrdenacao = coluna;
-      this.direcaoOrdenacao = 'ASC';
+      this.colunasMesesSelecionadas = [...this.colunasMesesSelecionadas, id];
     }
+    this.limparPrevia();
+  }
 
-    if (this.registros.length) {
-      this.gerar(1);
+  alternarRanking(): void {
+    if (!this.rankingDisponivel || this.operacaoRelatorioEmAndamento) return;
+    this.rankingAtivo = !this.rankingAtivo;
+    if (this.rankingAtivo) {
+      this.rankingDimensao ||= this.dimensoesRankingSelecionadas[0]?.id ?? '';
+      this.rankingMetrica ||= this.metricasRankingSelecionadas[0]?.id ?? '';
+      this.rankingLimite = this.limitarRanking(this.rankingLimite);
     }
+    this.limparPrevia();
+  }
+
+  atualizarRankingLimite(valor: string | number): void {
+    this.rankingLimite = this.limitarRanking(Number(valor));
+    this.limparPrevia();
+  }
+
+  ordenarPor(coluna: string, direcao: 'ASC' | 'DESC'): void {
+    if (this.gerando || this.exportando) return;
+    this.colunaOrdenacao = coluna;
+    this.direcaoOrdenacao = direcao;
+    if (this.registros.length) this.gerar(1);
+  }
+
+  limparOrdenacao(): void {
+    this.colunaOrdenacao = null;
+    this.direcaoOrdenacao = 'ASC';
+    if (this.registros.length) this.gerar(1);
   }
 
   ariaOrdenacao(coluna: string): 'ascending' | 'descending' | 'none' {
@@ -312,6 +401,61 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   simboloOrdenacao(coluna: string): string {
     if (this.colunaOrdenacao !== coluna) return '↕';
     return this.direcaoOrdenacao === 'ASC' ? '↑' : '↓';
+  }
+
+  colunaNumerica(coluna: string): boolean {
+    const base = this.baseColunaResultado(coluna);
+    return !!this.configuracao?.colunas.find((item) => item.id === base)?.numerica;
+  }
+
+  rotuloOrdenacaoAsc(coluna: string): string {
+    return this.colunaNumerica(coluna) ? 'Menor → maior' : 'A → Z';
+  }
+
+  rotuloOrdenacaoDesc(coluna: string): string {
+    return this.colunaNumerica(coluna) ? 'Maior → menor' : 'Z → A';
+  }
+
+  iniciarArrasteResultado(coluna: string, event: DragEvent): void {
+    if (this.operacaoRelatorioEmAndamento) {
+      event.preventDefault();
+      return;
+    }
+    this.colunaArrastadaResultado = coluna;
+    this.colunaSobreResultado = coluna;
+    event.dataTransfer?.setData('text/plain', coluna);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  }
+
+  sobreArrasteResultado(coluna: string, event: DragEvent): void {
+    if (!this.colunaArrastadaResultado || this.operacaoRelatorioEmAndamento) return;
+    event.preventDefault();
+    this.colunaSobreResultado = coluna;
+  }
+
+  soltarResultado(coluna: string, event: DragEvent): void {
+    event.preventDefault();
+    const origemId = this.colunaArrastadaResultado;
+    if (!origemId || origemId === coluna) {
+      this.finalizarArrasteResultado();
+      return;
+    }
+
+    const ordem = [...this.colunasResultado];
+    const origem = ordem.indexOf(origemId);
+    const destino = ordem.indexOf(coluna);
+    if (origem >= 0 && destino >= 0) {
+      const [movida] = ordem.splice(origem, 1);
+      ordem.splice(destino, 0, movida);
+      this.colunasResultado = ordem;
+      this.sincronizarBasePelaOrdemResultado();
+    }
+    this.finalizarArrasteResultado();
+  }
+
+  finalizarArrasteResultado(): void {
+    this.colunaArrastadaResultado = null;
+    this.colunaSobreResultado = null;
   }
 
   alternarPreviaExpandida(): void {
@@ -337,11 +481,8 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   }
 
   alternarSecao(secao: SecaoRelatorio): void {
-    if (this.secoesRecolhidas.has(secao)) {
-      this.secoesRecolhidas.delete(secao);
-    } else {
-      this.secoesRecolhidas.add(secao);
-    }
+    if (this.secoesRecolhidas.has(secao)) this.secoesRecolhidas.delete(secao);
+    else this.secoesRecolhidas.add(secao);
   }
 
   secaoRecolhida(secao: SecaoRelatorio): boolean {
@@ -354,16 +495,18 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     Object.keys(this.valoresFiltro).forEach((chave) => (this.valoresFiltro[chave] = ''));
     this.valoresFiltro['competencia_inicio'] = competenciaAtual;
     this.valoresFiltro['competencia_fim'] = competenciaAtual;
-    this.filtrosAtivos = this.configuracao?.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id) ?? [];
-    this.registros = [];
-    this.totalRegistros = null;
-    this.totalRegistrosExportados = null;
+    this.filtrosAtivos =
+      this.configuracao?.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id) ?? [];
+    this.limparPrevia();
     this.erro = '';
-    this.sucesso = '';
   }
 
   rotuloColuna(id: string): string {
-    return this.configuracao?.colunas.find((coluna) => coluna.id === id)?.rotulo ?? id;
+    return (
+      this.rotulosResultado[id] ??
+      this.configuracao?.colunas.find((coluna) => coluna.id === id)?.rotulo ??
+      id
+    );
   }
 
   atualizarFiltros(valores: Record<string, string>): void {
@@ -382,13 +525,22 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.erro = 'Informe um nome e selecione ao menos uma coluna antes de salvar o modelo.';
       return;
     }
+
     const preset: AssistencialPreset = {
       id: this.novoId(),
       nome,
       colunas: [...this.ordemColunasSelecionadas],
       filtros: [...new Set(this.filtrosAtivos)],
       distinct: this.somenteDistintos,
+      separarMeses: this.separarMeses,
+      colunasMeses: [...this.colunasMesesSelecionadas],
+      rankingAtivo: this.rankingAtivo,
+      rankingDimensao: this.rankingDimensao,
+      rankingMetrica: this.rankingMetrica,
+      rankingDirecao: this.rankingDirecao,
+      rankingLimite: this.rankingLimite,
     };
+
     this.presets = [...this.presets, preset];
     this.salvarPresets();
     this.presetSelecionado = preset.id;
@@ -399,17 +551,33 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   aplicarPreset(id: string): void {
     const preset = this.presets.find((item) => item.id === id);
     if (!preset || !this.configuracao) return;
+
     const permitidas = new Set(this.configuracao.colunas.map((coluna) => coluna.id));
     this.ordemColunasSelecionadas = preset.colunas.filter((idColuna) => permitidas.has(idColuna));
     this.colunasSelecionadas = new Set(this.ordemColunasSelecionadas);
-    const obrigatorios = this.configuracao.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id);
+
+    const obrigatorios = this.configuracao.filtros
+      .filter((filtro) => filtro.obrigatorio)
+      .map((filtro) => filtro.id);
     this.filtrosAtivos = [...new Set([...obrigatorios, ...preset.filtros])];
     this.somenteDistintos = preset.distinct;
-    Object.keys(this.valoresFiltro).forEach((key) => this.valoresFiltro[key] = '');
+    this.separarMeses = !!preset.separarMeses;
+    this.colunasMesesSelecionadas = (preset.colunasMeses ?? []).filter(
+      (coluna) => this.colunasSelecionadas.has(coluna),
+    );
+    this.rankingAtivo = !!preset.rankingAtivo;
+    this.rankingDimensao = preset.rankingDimensao ?? '';
+    this.rankingMetrica = preset.rankingMetrica ?? '';
+    this.rankingDirecao = preset.rankingDirecao ?? 'MAIORES';
+    this.rankingLimite = this.limitarRanking(preset.rankingLimite ?? 10);
+    this.validarRankingAposColunas();
+
+    Object.keys(this.valoresFiltro).forEach((key) => (this.valoresFiltro[key] = ''));
     const competencia = this.competenciaAtual();
     this.valoresFiltro['competencia_inicio'] = competencia;
     this.valoresFiltro['competencia_fim'] = competencia;
     this.colunasResultado = [...this.ordemColunasSelecionadas];
+    this.rotulosResultado = {};
     this.limparPrevia();
     this.sucesso = `Modelo “${preset.nome}” aplicado. Preencha os filtros para gerar o relatório.`;
   }
@@ -422,11 +590,11 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   }
 
   valorCelula(coluna: string, valor: unknown): string {
-    return formatReportPreviewValue(coluna, valor);
+    return formatReportPreviewValue(this.baseColunaResultado(coluna), valor);
   }
 
   colunaProtegida(coluna: string): boolean {
-    return isProtectedBeneficiaryColumn(coluna);
+    return isProtectedBeneficiaryColumn(this.baseColunaResultado(coluna));
   }
 
   indiceLinha(indice: number): number {
@@ -468,17 +636,21 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.gruposFiltros = this.agrupar(configuracao.filtros);
     this.gruposColunas = this.agrupar(configuracao.colunas);
     this.valoresFiltro = Object.fromEntries(configuracao.filtros.map((filtro) => [filtro.id, '']));
-    this.filtrosAtivos = configuracao.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id);
+    this.filtrosAtivos = configuracao.filtros
+      .filter((filtro) => filtro.obrigatorio)
+      .map((filtro) => filtro.id);
 
     const competenciaAtual = this.competenciaAtual();
     this.valoresFiltro['competencia_inicio'] = competenciaAtual;
     this.valoresFiltro['competencia_fim'] = competenciaAtual;
+
     configuracao.colunas
       .filter((coluna) => coluna.selecionadaPorPadrao)
       .forEach((coluna) => {
         this.colunasSelecionadas.add(coluna.id);
         this.ordemColunasSelecionadas.push(coluna.id);
       });
+
     this.colunasResultado = [...this.ordemColunasSelecionadas];
   }
 
@@ -494,9 +666,18 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.erro = 'Selecione pelo menos uma coluna para o relatório.';
       return null;
     }
-    if (!this.validarIndicadoresFinanceiros()) {
+    if (this.separarMeses && !this.colunasMesesSelecionadas.length) {
+      this.erro = 'Escolha pelo menos uma coluna numérica para separar por mês.';
       return null;
     }
+    if (this.rankingAtivo) {
+      if (!this.rankingDisponivel || !this.rankingDimensao || !this.rankingMetrica) {
+        this.erro = 'Escolha a dimensão e a métrica para maiores/menores gastadores.';
+        return null;
+      }
+      this.rankingLimite = this.limitarRanking(this.rankingLimite);
+    }
+    if (!this.validarIndicadoresFinanceiros()) return null;
 
     const filtros = Object.fromEntries(
       Object.entries(this.valoresFiltro)
@@ -505,6 +686,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     );
 
     this.sincronizarOrdemColunas();
+
     return {
       colunas: [...this.ordemColunasSelecionadas],
       filtros,
@@ -515,6 +697,17 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
             direcaoOrdenacao: this.direcaoOrdenacao,
           }
         : {}),
+      separarMeses: this.separarMeses,
+      colunasMeses: this.separarMeses ? [...this.colunasMesesSelecionadas] : [],
+      ...(this.rankingAtivo
+        ? {
+            rankingDimensao: this.rankingDimensao,
+            rankingMetrica: this.rankingMetrica,
+            rankingDirecao: this.rankingDirecao,
+            rankingLimite: this.rankingLimite,
+          }
+        : {}),
+      ordemResultado: this.registros.length ? [...this.colunasResultado] : [],
       pagina,
       tamanhoPagina: this.tamanhoPagina,
       nomeArquivo: this.nomeArquivoSeguro(),
@@ -572,20 +765,29 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   private aplicarResultado(resposta: SguResultado, paginaSolicitada: number): void {
     const respostaGenerica = resposta as any;
     const paginacao = respostaGenerica?.data ?? respostaGenerica;
+
     this.registros = Array.isArray(respostaGenerica?.content)
       ? respostaGenerica.content
       : Array.isArray(paginacao?.content)
         ? paginacao.content
         : [];
+
     const colunasResposta = Array.isArray(respostaGenerica?.colunas)
       ? (respostaGenerica.colunas as string[])
       : [...this.ordemColunasSelecionadas];
+
     this.colunasResultado = colunasResposta;
+    this.rotulosResultado =
+      respostaGenerica?.rotulosColunas && typeof respostaGenerica.rotulosColunas === 'object'
+        ? { ...respostaGenerica.rotulosColunas }
+        : {};
+
     this.pagina = paginaSolicitada;
     this.ultimaPagina =
       typeof paginacao?.last === 'boolean'
         ? paginacao.last
         : this.registros.length < this.tamanhoPagina;
+
     const totalBruto =
       respostaGenerica?.totalElements ??
       paginacao?.totalElements ??
@@ -594,11 +796,13 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       null;
     const totalInformado =
       totalBruto === null || totalBruto === '' ? Number.NaN : Number(totalBruto);
+
     this.totalRegistros = Number.isFinite(totalInformado)
       ? totalInformado
       : this.ultimaPagina
         ? (paginaSolicitada - 1) * this.tamanhoPagina + this.registros.length
         : null;
+
     this.sucesso = this.registros.length
       ? `${this.registros.length} registro(s) carregado(s) nesta página.`
       : 'A consulta foi concluída, mas não encontrou registros.';
@@ -611,6 +815,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.pagina = 1;
     this.ultimaPagina = false;
     this.sucesso = '';
+    this.rotulosResultado = {};
   }
 
   private sincronizarOrdemColunas(): void {
@@ -622,6 +827,84 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.ordemColunasSelecionadas = ordemValida;
   }
 
+  private sincronizarColunasResultadoComBase(): void {
+    if (!this.registros.length) {
+      this.colunasResultado = [...this.ordemColunasSelecionadas];
+      return;
+    }
+    this.reordenarResultadoPelaBase();
+  }
+
+  private reordenarResultadoPelaBase(): void {
+    if (!this.colunasResultado.length) {
+      this.colunasResultado = [...this.ordemColunasSelecionadas];
+      return;
+    }
+
+    const indices = new Map(this.ordemColunasSelecionadas.map((id, index) => [id, index]));
+    this.colunasResultado = this.colunasResultado
+      .map((coluna, index) => ({ coluna, index }))
+      .sort((a, b) => {
+        const ia = indices.get(this.baseColunaResultado(a.coluna)) ?? Number.MAX_SAFE_INTEGER;
+        const ib = indices.get(this.baseColunaResultado(b.coluna)) ?? Number.MAX_SAFE_INTEGER;
+        return ia === ib ? a.index - b.index : ia - ib;
+      })
+      .map((item) => item.coluna);
+  }
+
+  private sincronizarBasePelaOrdemResultado(): void {
+    const vistos = new Set<string>();
+    const novaBase: string[] = [];
+
+    this.colunasResultado.forEach((coluna) => {
+      const base = this.baseColunaResultado(coluna);
+      if (this.colunasSelecionadas.has(base) && !vistos.has(base)) {
+        vistos.add(base);
+        novaBase.push(base);
+      }
+    });
+
+    this.ordemColunasSelecionadas.forEach((coluna) => {
+      if (!vistos.has(coluna) && this.colunasSelecionadas.has(coluna)) {
+        vistos.add(coluna);
+        novaBase.push(coluna);
+      }
+    });
+
+    this.ordemColunasSelecionadas = novaBase;
+  }
+
+  private baseColunaResultado(coluna: string | null): string {
+    if (!coluna) return '';
+    if (this.configuracao?.colunas.some((item) => item.id === coluna)) return coluna;
+    const match = coluna.match(/^(.+)_\d{6}$/);
+    if (match && this.configuracao?.colunas.some((item) => item.id === match[1])) {
+      return match[1];
+    }
+    return coluna;
+  }
+
+  private validarRankingAposColunas(): void {
+    if (!this.rankingDisponivel) {
+      this.rankingAtivo = false;
+      this.rankingDimensao = '';
+      this.rankingMetrica = '';
+      return;
+    }
+
+    if (!this.dimensoesRankingSelecionadas.some((item) => item.id === this.rankingDimensao)) {
+      this.rankingDimensao = this.dimensoesRankingSelecionadas[0]?.id ?? '';
+    }
+    if (!this.metricasRankingSelecionadas.some((item) => item.id === this.rankingMetrica)) {
+      this.rankingMetrica = this.metricasRankingSelecionadas[0]?.id ?? '';
+    }
+  }
+
+  private limitarRanking(valor: number): number {
+    if (!Number.isFinite(valor)) return 10;
+    return Math.min(1000, Math.max(1, Math.trunc(valor)));
+  }
+
   private agrupar<T extends { grupo: string }>(itens: T[]): Grupo<T>[] {
     const mapa = new Map<string, T[]>();
     itens.forEach((item) => mapa.set(item.grupo, [...(mapa.get(item.grupo) ?? []), item]));
@@ -631,7 +914,9 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   private carregarPresets(): AssistencialPreset[] {
     if (typeof localStorage === 'undefined') return [];
     try {
-      return JSON.parse(localStorage.getItem('unimed-tools.assistencial.modelos.v1') || '[]') as AssistencialPreset[];
+      return JSON.parse(
+        localStorage.getItem('unimed-tools.assistencial.modelos.v1') || '[]',
+      ) as AssistencialPreset[];
     } catch {
       return [];
     }

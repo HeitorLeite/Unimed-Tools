@@ -425,7 +425,7 @@ class RelatorioPersonalizadoServiceTest {
     assertThat(String.valueOf(definicao.getValue().get("consultaSQL")))
         .doesNotContain("\n", "\r");
     assertThat(String.valueOf(definicao.getValue().get("ordenacao")))
-        .isEqualTo("COD_BENEFICIARIO")
+        .isEqualTo("RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ")
         .hasSizeLessThan(200);
   }
 

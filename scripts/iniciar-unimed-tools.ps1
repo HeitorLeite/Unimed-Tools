@@ -15,7 +15,6 @@ $backendLog = Join-Path $runtimeDir 'backend.log'
 $backendErrorLog = Join-Path $runtimeDir 'backend-error.log'
 $backendPidFile = Join-Path $runtimeDir 'backend.pid'
 $backendRuntimeJar = Join-Path $runtimeDir 'unimed-tools-backend.jar'
-$localFrontendUrl = 'http://localhost/unimed-tools/'
 $lanFrontendUrl = 'http://192.168.3.242/unimed-tools/'
 
 function Write-Step([string]$message) {
@@ -350,13 +349,11 @@ try {
   Set-Content -LiteralPath $backendPidFile -Value $backendProcess.Id -Encoding ascii
   Wait-UnimedBackend $backendProcess
 
-  Write-Step 'Validando os dois enderecos do frontend'
-  Wait-HttpUrl $localFrontendUrl 30 'Frontend local'
+  Write-Step 'Validando a publicacao de producao'
   Wait-HttpUrl $lanFrontendUrl 30 'Frontend da rede'
 
-  Write-Step 'Unimed Tools atualizada e reiniciada'
-  Write-Host "Local: $localFrontendUrl" -ForegroundColor Green
-  Write-Host "Rede:  $lanFrontendUrl" -ForegroundColor Green
+  Write-Step 'Unimed Tools publicada em producao'
+  Write-Host "Producao: $lanFrontendUrl" -ForegroundColor Green
   Write-Host "Backend: PID $($backendProcess.Id) - logs em $runtimeDir" -ForegroundColor Green
   exit 0
 } catch {

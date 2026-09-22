@@ -81,6 +81,15 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   colunaOrdenacao: string | null = null;
   direcaoOrdenacao: 'ASC' | 'DESC' = 'ASC';
 
+  separarMeses = false;
+  metricasMesSelecionadas = new Set<string>();
+  rankingAtivo = false;
+  rankingTipo: 'MAIORES' | 'MENORES' = 'MAIORES';
+  rankingLimite = 10;
+  rankingDimensao = '';
+  rankingMetrica = '';
+  arrastandoResultado = '';
+
   formatoSelecionado: FormatoExportacao = 'xlsx';
   nomeArquivo = 'relatorio_personalizado';
   carregandoConfiguracao = true;
@@ -230,23 +239,36 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => id !== coluna.id,
       );
+      this.metricasMesSelecionadas.delete(coluna.id);
+      if (this.rankingDimensao === coluna.id) this.rankingDimensao = '';
+      if (this.rankingMetrica === coluna.id) this.rankingMetrica = '';
       if (this.colunaOrdenacao === coluna.id) {
         this.colunaOrdenacao = null;
         this.direcaoOrdenacao = 'ASC';
       }
-    } else if (this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)) {
+    } else if (
+      this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)
+    ) {
       this.colunasSelecionadas.add(coluna.id);
       this.ordemColunasSelecionadas.push(coluna.id);
     }
-    this.colunasResultado = [...this.ordemColunasSelecionadas];
+
+    this.ajustarAnalisesSelecionadas();
+    this.sincronizarResultadoComOrdem();
     this.limparPrevia();
   }
 
   alternarGrupo(grupo: Grupo<RelatorioPersonalizadoColuna>): void {
-    const todosSelecionados = grupo.itens.every((item) => this.colunasSelecionadas.has(item.id));
+    const todosSelecionados = grupo.itens.every((item) =>
+      this.colunasSelecionadas.has(item.id),
+    );
+
     if (todosSelecionados) {
-      grupo.itens.forEach((item) => this.colunasSelecionadas.delete(item.id));
       const idsGrupo = new Set(grupo.itens.map((item) => item.id));
+      grupo.itens.forEach((item) => {
+        this.colunasSelecionadas.delete(item.id);
+        this.metricasMesSelecionadas.delete(item.id);
+      });
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => !idsGrupo.has(id),
       );
@@ -265,23 +287,19 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
         }
       });
     }
-    this.colunasResultado = [...this.ordemColunasSelecionadas];
+
+    this.ajustarAnalisesSelecionadas();
+    this.sincronizarResultadoComOrdem();
     this.limparPrevia();
   }
 
-  moverColuna(id: string, deslocamento: -1 | 1): void {
-    this.sincronizarOrdemColunas();
-    const indiceAtual = this.ordemColunasSelecionadas.indexOf(id);
-    const novoIndice = indiceAtual + deslocamento;
-    if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length) {
-      return;
-    }
-
-    const ordem = [...this.ordemColunasSelecionadas];
-    [ordem[indiceAtual], ordem[novoIndice]] = [ordem[novoIndice], ordem[indiceAtual]];
-    this.ordemColunasSelecionadas = ordem;
-    this.colunasResultado = [...ordem];
-    this.limparPrevia();
+  reordenarColunas(ordem: string[]): void {
+    const validas = ordem.filter((id) => this.colunasSelecionadas.has(id));
+    this.colunasSelecionadas.forEach((id) => {
+      if (!validas.includes(id)) validas.push(id);
+    });
+    this.ordemColunasSelecionadas = validas;
+    this.sincronizarResultadoComOrdem();
   }
 
   alternarDistinct(): void {
@@ -289,14 +307,69 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.limparPrevia();
   }
 
-  ordenarPor(coluna: string): void {
+  alternarSepararMeses(): void {
+    this.separarMeses = !this.separarMeses;
+    if (!this.separarMeses) {
+      this.metricasMesSelecionadas.clear();
+    } else if (!this.metricasMesSelecionadas.size && this.colunasNumericasSelecionadas.length) {
+      this.metricasMesSelecionadas.add(this.colunasNumericasSelecionadas[0].id);
+    }
+    this.colunaOrdenacao = null;
+    this.limparPrevia();
+  }
+
+  alternarMetricaMes(id: string, marcada: boolean): void {
+    if (marcada) {
+      this.metricasMesSelecionadas.add(id);
+    } else {
+      this.metricasMesSelecionadas.delete(id);
+    }
+    this.colunaOrdenacao = null;
+    this.limparPrevia();
+  }
+
+  alternarRanking(): void {
+    this.rankingAtivo = !this.rankingAtivo;
+    if (this.rankingAtivo) {
+      this.rankingDimensao ||= this.dimensoesRanking[0]?.id ?? '';
+      this.rankingMetrica ||= this.colunasNumericasSelecionadas[0]?.id ?? '';
+    } else {
+      this.rankingDimensao = '';
+      this.rankingMetrica = '';
+    }
+    this.colunaOrdenacao = null;
+    this.limparPrevia();
+  }
+
+  get colunasNumericasSelecionadas(): RelatorioPersonalizadoColuna[] {
+    if (!this.configuracao) return [];
+    return this.ordemColunasSelecionadas
+      .map((id) => this.configuracao!.colunas.find((coluna) => coluna.id === id))
+      .filter(
+        (coluna): coluna is RelatorioPersonalizadoColuna =>
+          !!coluna && coluna.tipo === 'number',
+      );
+  }
+
+  get dimensoesRanking(): RelatorioPersonalizadoColuna[] {
+    if (!this.configuracao) return [];
+    return this.ordemColunasSelecionadas
+      .map((id) => this.configuracao!.colunas.find((coluna) => coluna.id === id))
+      .filter(
+        (coluna): coluna is RelatorioPersonalizadoColuna =>
+          !!coluna && coluna.tipo !== 'number' && coluna.id !== 'PERIODO',
+      );
+  }
+
+  aplicarOrdenacao(coluna: string, direcao: '' | 'ASC' | 'DESC'): void {
     if (this.gerando || this.exportando) return;
 
-    if (this.colunaOrdenacao === coluna) {
-      this.direcaoOrdenacao = this.direcaoOrdenacao === 'ASC' ? 'DESC' : 'ASC';
+    if (!direcao) {
+      this.colunaOrdenacao = null;
+      this.direcaoOrdenacao = 'ASC';
     } else {
       this.colunaOrdenacao = coluna;
-      this.direcaoOrdenacao = 'ASC';
+      this.direcaoOrdenacao = direcao;
     }
 
     if (this.registros.length) {
@@ -304,14 +377,66 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     }
   }
 
+  opcaoOrdenacao(coluna: string): '' | 'ASC' | 'DESC' {
+    return this.colunaOrdenacao === coluna ? this.direcaoOrdenacao : '';
+  }
+
+  rotuloOrdenacaoAsc(coluna: string): string {
+    const tipo = this.tipoColunaResultado(coluna);
+    if (tipo === 'number') return 'Menor → maior';
+    if (tipo === 'date' || tipo === 'competencia') return 'Mais antiga → mais recente';
+    return 'A → Z';
+  }
+
+  rotuloOrdenacaoDesc(coluna: string): string {
+    const tipo = this.tipoColunaResultado(coluna);
+    if (tipo === 'number') return 'Maior → menor';
+    if (tipo === 'date' || tipo === 'competencia') return 'Mais recente → mais antiga';
+    return 'Z → A';
+  }
+
   ariaOrdenacao(coluna: string): 'ascending' | 'descending' | 'none' {
     if (this.colunaOrdenacao !== coluna) return 'none';
     return this.direcaoOrdenacao === 'ASC' ? 'ascending' : 'descending';
   }
 
-  simboloOrdenacao(coluna: string): string {
-    if (this.colunaOrdenacao !== coluna) return '↕';
-    return this.direcaoOrdenacao === 'ASC' ? '↑' : '↓';
+  iniciarArrasteResultado(evento: DragEvent, coluna: string): void {
+    if (this.operacaoRelatorioEmAndamento) {
+      evento.preventDefault();
+      return;
+    }
+    this.arrastandoResultado = coluna;
+    evento.dataTransfer?.setData('text/plain', coluna);
+    if (evento.dataTransfer) evento.dataTransfer.effectAllowed = 'move';
+  }
+
+  permitirSoltarResultado(evento: DragEvent): void {
+    if (this.operacaoRelatorioEmAndamento) return;
+    evento.preventDefault();
+  }
+
+  soltarResultado(evento: DragEvent, destino: string): void {
+    if (this.operacaoRelatorioEmAndamento) return;
+    evento.preventDefault();
+
+    const origem =
+      this.arrastandoResultado || evento.dataTransfer?.getData('text/plain') || '';
+    this.arrastandoResultado = '';
+    if (!origem || origem === destino) return;
+
+    const ordem = [...this.colunasResultado];
+    const indiceOrigem = ordem.indexOf(origem);
+    const indiceDestino = ordem.indexOf(destino);
+    if (indiceOrigem < 0 || indiceDestino < 0) return;
+
+    ordem.splice(indiceOrigem, 1);
+    ordem.splice(indiceDestino, 0, origem);
+    this.colunasResultado = ordem;
+    this.sincronizarParteUmPeloResultado();
+  }
+
+  finalizarArrasteResultado(): void {
+    this.arrastandoResultado = '';
   }
 
   alternarPreviaExpandida(): void {
@@ -332,7 +457,8 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
 
   grupoSelecionado(grupo: Grupo<RelatorioPersonalizadoColuna>): boolean {
     return (
-      grupo.itens.length > 0 && grupo.itens.every((item) => this.colunasSelecionadas.has(item.id))
+      grupo.itens.length > 0 &&
+      grupo.itens.every((item) => this.colunasSelecionadas.has(item.id))
     );
   }
 
@@ -465,6 +591,13 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.ordemColunasSelecionadas = [];
     this.colunaOrdenacao = null;
     this.direcaoOrdenacao = 'ASC';
+    this.separarMeses = false;
+    this.metricasMesSelecionadas.clear();
+    this.rankingAtivo = false;
+    this.rankingTipo = 'MAIORES';
+    this.rankingLimite = 10;
+    this.rankingDimensao = '';
+    this.rankingMetrica = '';
     this.gruposFiltros = this.agrupar(configuracao.filtros);
     this.gruposColunas = this.agrupar(configuracao.colunas);
     this.valoresFiltro = Object.fromEntries(configuracao.filtros.map((filtro) => [filtro.id, '']));
@@ -505,6 +638,24 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     );
 
     this.sincronizarOrdemColunas();
+
+    if (this.separarMeses && !this.metricasMesSelecionadas.size) {
+      this.erro = 'Selecione pelo menos uma coluna numérica para separar por mês.';
+      return null;
+    }
+
+    if (this.rankingAtivo) {
+      const limite = Number(this.rankingLimite);
+      if (!this.rankingDimensao || !this.rankingMetrica) {
+        this.erro = 'Selecione a dimensão e a métrica do ranking.';
+        return null;
+      }
+      if (!Number.isInteger(limite) || limite < 1 || limite > 1000) {
+        this.erro = 'A quantidade do ranking deve ficar entre 1 e 1000.';
+        return null;
+      }
+    }
+
     return {
       colunas: [...this.ordemColunasSelecionadas],
       filtros,
@@ -513,6 +664,16 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
         ? {
             ordenarPor: this.colunaOrdenacao,
             direcaoOrdenacao: this.direcaoOrdenacao,
+          }
+        : {}),
+      separarMeses: this.separarMeses,
+      metricasMes: this.separarMeses ? [...this.metricasMesSelecionadas] : [],
+      ...(this.rankingAtivo
+        ? {
+            rankingTipo: this.rankingTipo,
+            rankingLimite: Number(this.rankingLimite),
+            rankingDimensao: this.rankingDimensao,
+            rankingMetrica: this.rankingMetrica,
           }
         : {}),
       pagina,
@@ -620,6 +781,81 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       if (!ordemValida.includes(id)) ordemValida.push(id);
     });
     this.ordemColunasSelecionadas = ordemValida;
+  }
+
+  private ajustarAnalisesSelecionadas(): void {
+    for (const id of [...this.metricasMesSelecionadas]) {
+      if (!this.colunasSelecionadas.has(id) || this.tipoColunaResultado(id) !== 'number') {
+        this.metricasMesSelecionadas.delete(id);
+      }
+    }
+
+    if (
+      this.rankingDimensao &&
+      !this.dimensoesRanking.some((coluna) => coluna.id === this.rankingDimensao)
+    ) {
+      this.rankingDimensao = this.dimensoesRanking[0]?.id ?? '';
+    }
+    if (
+      this.rankingMetrica &&
+      !this.colunasNumericasSelecionadas.some((coluna) => coluna.id === this.rankingMetrica)
+    ) {
+      this.rankingMetrica = this.colunasNumericasSelecionadas[0]?.id ?? '';
+    }
+    if (this.rankingAtivo && (!this.rankingDimensao || !this.rankingMetrica)) {
+      this.rankingAtivo = false;
+    }
+    if (this.separarMeses && !this.colunasNumericasSelecionadas.length) {
+      this.separarMeses = false;
+    }
+  }
+
+  private tipoColunaResultado(
+    id: string,
+  ): 'text' | 'number' | 'date' | 'competencia' {
+    const direta = this.configuracao?.colunas.find((coluna) => coluna.id === id);
+    if (direta) return direta.tipo;
+
+    const metrica = this.colunasNumericasSelecionadas.find((coluna) =>
+      id.startsWith(coluna.rotulo + ' '),
+    );
+    return metrica ? 'number' : 'text';
+  }
+
+  private sincronizarResultadoComOrdem(): void {
+    if (!this.registros.length || !this.separarMeses) {
+      this.colunasResultado = [...this.ordemColunasSelecionadas];
+      return;
+    }
+
+    const dimensoes = this.ordemColunasSelecionadas.filter(
+      (id) => id !== 'PERIODO' && !this.metricasMesSelecionadas.has(id),
+    );
+    const gruposMetricas = [...this.metricasMesSelecionadas].flatMap((id) => {
+      const rotulo = this.rotuloColuna(id) + ' ';
+      return this.colunasResultado.filter((coluna) => coluna.startsWith(rotulo));
+    });
+    this.colunasResultado = [...dimensoes, ...gruposMetricas];
+  }
+
+  private sincronizarParteUmPeloResultado(): void {
+    if (!this.configuracao) return;
+
+    const posicao = (id: string): number => {
+      const direta = this.colunasResultado.indexOf(id);
+      if (direta >= 0) return direta;
+
+      if (this.metricasMesSelecionadas.has(id)) {
+        const prefixo = this.rotuloColuna(id) + ' ';
+        const indice = this.colunasResultado.findIndex((coluna) => coluna.startsWith(prefixo));
+        if (indice >= 0) return indice;
+      }
+      return Number.MAX_SAFE_INTEGER;
+    };
+
+    this.ordemColunasSelecionadas = [...this.ordemColunasSelecionadas].sort(
+      (a, b) => posicao(a) - posicao(b),
+    );
   }
 
   private agrupar<T extends { grupo: string }>(itens: T[]): Grupo<T>[] {

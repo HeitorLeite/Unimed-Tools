@@ -56,19 +56,44 @@ Fluxo:
 
 ## Assistencial
 
-O Assistencial substitui a antiga entrada de relatório personalizado.
+O Assistencial substitui a antiga entrada de relatório personalizado e usa como base as regras aprovadas do relatório de despesas.
 
 Fluxo:
 
-1. escolher colunas;
-2. conferir a ordem das colunas;
-3. adicionar filtros;
-4. gerar a prévia;
-5. exportar CSV, TXT ou XLSX.
+1. **Escolher colunas** — as colunas selecionadas podem ser reorganizadas por drag and drop;
+2. **Filtros e análises** — período obrigatório, filtros opcionais, empresas do mesmo catálogo usado no Comercial, remoção de duplicidades, separação mensal e ranking;
+3. **Gerar e conferir** — prévia completa, drag and drop dos cabeçalhos, ordenação por uma coluna e exportação CSV, TXT ou XLSX.
+
+A ordem alterada na prévia permanece sincronizada com a etapa 1. Reordenar visualmente as colunas não dispara uma nova consulta; uma nova consulta só ocorre quando a ordenação dos registros é alterada ou o usuário pede outra página.
+
+### Empresas
+
+O filtro **Nome da empresa** usa o catálogo de empresas do Comercial. É possível pesquisar e selecionar mais de uma empresa; a interface resolve os códigos automaticamente. O filtro técnico por código continua disponível para necessidades avançadas.
+
+### Separar meses
+
+Ao selecionar um intervalo de competências, a opção **Separar meses** permite escolher uma ou mais colunas numéricas. A competência deixa de ser exibida como uma coluna comum e cada métrica passa a ter uma coluna por mês, por exemplo:
+
+`Despesa total JAN/2026 | Despesa total FEV/2026 | Receita JAN/2026 | Receita FEV/2026`
+
+O intervalo continua limitado a 12 meses.
+
+### Maiores e menores gastadores
+
+Quando existe uma métrica do grupo **Valores** selecionada, o usuário pode montar um ranking escolhendo:
+
+- maiores ou menores;
+- quantidade entre 1 e 1000;
+- dimensão, como beneficiário, empresa, contrato ou prestador;
+- métrica financeira usada no ranking.
+
+### Dados de beneficiário
+
+Além dos campos já existentes de UF, município, CEP, idade e titular, o catálogo inclui **Região do beneficiário** e **Beneficiário ativo**. As regras de endereço/titular foram alinhadas ao relatório `Despesa_Empresa_com_grupo.sql`.
 
 Modelos de estrutura podem ser salvos no navegador para reutilização. Eles guardam colunas, filtros escolhidos e opções de estrutura, mas **não guardam os valores digitados nos filtros**.
 
-O SQL do relatório personalizado continua montado exclusivamente no backend por allowlist. SQL arbitrário não é aceito do navegador.
+O SQL do relatório personalizado continua montado exclusivamente no backend por allowlist. Antes de publicar a definição dinâmica no SGU, a consulta é compactada e a ordenação é mantida curta para respeitar os limites da rotina `ins_atu_query_api`. SQL arbitrário não é aceito do navegador.
 
 ## Hospital
 
@@ -179,28 +204,50 @@ O backend também sincroniza de forma idempotente as permissões das ferramentas
 
 Faça backup antes de qualquer migração.
 
-## Inicializador local
+## Ambientes local e de produção
 
-O atalho `Iniciar Unimed Tools.cmd` chama `scripts/iniciar-unimed-tools.ps1`.
+Os ambientes são separados para que alterações na pasta de trabalho não sejam promovidas automaticamente para a rede.
 
-Em toda execução ele:
+### Ambiente local / teste
 
-1. valida Java/Maven/npm e as variáveis necessárias;
-2. garante que o MariaDB esteja ativo;
-3. testa e gera um novo build do frontend;
-4. testa e empacota novamente o backend;
-5. remove arquivos MFA/TOTP legados que possam ter sobrado fisicamente de versões antigas;
-6. encerra o backend anterior;
-7. encerra e reinicia o Apache que serve o frontend;
-8. remove a publicação antiga em `C:\xampp\htdocs\unimed-tools`;
-9. publica o novo frontend do zero;
-10. inicia o novo backend;
-11. valida os dois endereços:
-   - `http://localhost/unimed-tools/`
-   - `http://192.168.3.242/unimed-tools/`
+O atalho `Iniciar Unimed Tools.cmd` inicia o **Watch Mode** e mantém a janela aberta.
 
-Assim, localhost e o endereço da rede usam exatamente o mesmo build publicado e
-não permanecem com arquivos antigos depois de clicar novamente no atalho.
+Endereços locais:
+
+- frontend: `http://localhost:4200/`;
+- backend: `http://127.0.0.1:8081`.
+
+O Angular usa seu dev server em modo watch. Alterações em `src` e `public` são recompiladas automaticamente. O inicializador também observa o código do backend; quando detecta alteração em `src` ou `pom.xml`, compila um novo JAR e reinicia somente o backend local.
+
+Se uma compilação do backend falhar, o processo local anterior não é derrubado antes do build e o erro aparece na janela. Nenhum `git pull`, `git fetch` ou atualização do GitHub é feito pelo inicializador.
+
+Use `Ctrl+C` para encerrar o ambiente local. Isso não encerra a produção.
+
+### Produção / rede
+
+A produção continua disponível em:
+
+`http://192.168.3.242/unimed-tools/`
+
+Ela **não é atualizada pelo Watch Mode**.
+
+Para promover deliberadamente a versão que está na pasta local, execute:
+
+`Publicar Unimed Tools - Producao.cmd`
+
+A publicação manual:
+
+1. instala as dependências do frontend a partir do lockfile;
+2. executa os testes do frontend;
+3. gera o build `build:lan`;
+4. executa `mvn clean package` com os testes do backend;
+5. somente depois das validações encerra os serviços de produção;
+6. republica o frontend no XAMPP;
+7. reinicia o backend de produção na porta 8080;
+8. reinicia/valida o Apache;
+9. valida o endereço da rede.
+
+Assim, atualizar arquivos em `C:\Users\pcti02\Downloads\Unimed Tools\Aplicacao` atualiza o ambiente de teste automaticamente, mas a rede só recebe uma versão quando o atalho de publicação é executado explicitamente.
 
 ## Desenvolvimento
 

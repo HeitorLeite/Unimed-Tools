@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.unimedlorena.tools.dto.RelatorioPersonalizadoRequest;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -289,6 +290,102 @@ class RelatorioPersonalizadoServiceTest {
         .containsEntry(
             "ordenacao",
             "NOME_BENEFICIARIO DESC");
+  }
+
+  @Test
+  void deveExporEmpresaPorCatalogoEOcultarBuscaLivrePorNome() {
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        mock(SguRelatorioService.class),
+        mock(ExportacaoRelatorioService.class),
+        new RelatorioPersonalizadoSqlBuilder());
+
+    RelatorioPersonalizadoService.Configuracao configuracao = service.configuracao();
+
+    assertThat(configuracao.filtros())
+        .anySatisfy(filtro -> {
+          if ("codigo_empresa".equals(filtro.id())) {
+            assertThat(filtro.rotulo()).isEqualTo("Nome da empresa");
+            assertThat(filtro.tipo()).isEqualTo("empresa");
+          }
+        })
+        .noneSatisfy(filtro -> assertThat(filtro.id()).isNotEqualTo("nome_empresa"));
+    assertThat(configuracao.colunas())
+        .anySatisfy(coluna -> {
+          if ("REGIAO_BENEFICIARIO".equals(coluna.id())) {
+            assertThat(coluna.rotulo()).isEqualTo("Região do beneficiário");
+          }
+        })
+        .anySatisfy(coluna -> {
+          if ("ATIVO".equals(coluna.id())) {
+            assertThat(coluna.rotulo()).isEqualTo("Beneficiário ativo");
+          }
+        });
+  }
+
+  @Test
+  void deveAplicarRankingEPivotMensalNoBackend() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(exportacao.carregarRegistros(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(List.of(
+            new LinkedHashMap<>(Map.of(
+                "NOME_EMPRESA", "ACME",
+                "VALOR_TOTAL", 10,
+                "PERIODO", 202601)),
+            new LinkedHashMap<>(Map.of(
+                "NOME_EMPRESA", "ACME",
+                "VALOR_TOTAL", 20,
+                "PERIODO", 202602)),
+            new LinkedHashMap<>(Map.of(
+                "NOME_EMPRESA", "BETA",
+                "VALOR_TOTAL", 5,
+                "PERIODO", 202601)),
+            new LinkedHashMap<>(Map.of(
+                "NOME_EMPRESA", "BETA",
+                "VALOR_TOTAL", 6,
+                "PERIODO", 202602))));
+
+    RelatorioPersonalizadoRequest request = new RelatorioPersonalizadoRequest(
+        List.of("NOME_EMPRESA", "VALOR_TOTAL"),
+        Map.of(
+            "competencia_inicio", "202601",
+            "competencia_fim", "202602"),
+        false,
+        null,
+        null,
+        true,
+        List.of("VALOR_TOTAL"),
+        new RelatorioPersonalizadoRequest.Ranking(
+            "MAIORES",
+            1,
+            "NOME_EMPRESA",
+            "VALOR_TOTAL"),
+        List.of(),
+        1,
+        50,
+        "top_empresa_mes");
+
+    Map<String, Object> resposta = service.executar(request);
+
+    assertThat(resposta.get("colunas"))
+        .isEqualTo(List.of(
+            "NOME_EMPRESA",
+            "VALOR_TOTAL__202601",
+            "VALOR_TOTAL__202602"));
+    assertThat((List<?>) resposta.get("content")).singleElement().satisfies(item -> {
+      @SuppressWarnings("unchecked")
+      Map<String, Object> linha = (Map<String, Object>) item;
+      assertThat(linha)
+          .containsEntry("NOME_EMPRESA", "ACME")
+          .containsEntry("VALOR_TOTAL__202601", new java.math.BigDecimal("10"))
+          .containsEntry("VALOR_TOTAL__202602", new java.math.BigDecimal("20"));
+    });
   }
 
   private RelatorioPersonalizadoRequest requisicao(Map<String, Object> filtros) {

@@ -663,11 +663,10 @@ public class RelatorioPersonalizadoSqlBuilder {
       // O alias projetado é suficiente e evita reenviar critérios técnicos longos.
       return ordenarPor + " " + direcaoOrdenacao;
     }
-    /*
-     * A procedure ins_atu_query_api possui buffer curto para a ordenação.
-     * Um único alias projetado mantém a definição pequena e estável.
-     */
-    return camposSelecionados.getFirst().id();
+    String padrao = !agrupamentos.isEmpty()
+        ? String.join(", ", agrupamentos)
+        : camposSelecionados.getFirst().id();
+    return limitarOrdenacaoSgu(padrao, camposSelecionados.getFirst().id());
   }
 
   private String ordenacaoDetalhada(
@@ -682,11 +681,24 @@ public class RelatorioPersonalizadoSqlBuilder {
       // Mantê-lo curto evita estourar o buffer da rotina de publicação do SGU.
       return ordenarPor + " " + direcaoOrdenacao;
     }
+    String padrao;
+    if (consolidarPorBeneficiario) {
+      padrao = String.join(", ", colunasAgrupamentoBeneficiario(camposSelecionados));
+    } else if (distinct) {
+      padrao = String.join(", ", projecoes);
+    } else {
+      padrao = "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
+    }
+
+    return limitarOrdenacaoSgu(padrao, camposSelecionados.getFirst().id());
+  }
+
+  private String limitarOrdenacaoSgu(String preferida, String fallback) {
     /*
-     * Evita enviar listas longas ao campo de ordenação do SGU. A ordenação
-     * técnica antiga podia ultrapassar o buffer interno de ins_atu_query_api.
+     * Mantém a ordenação determinística sempre que ela cabe com folga no
+     * buffer do SGU. Configurações com muitas colunas recebem um alias curto.
      */
-    return camposSelecionados.getFirst().id();
+    return preferida.length() <= 180 ? preferida : fallback;
   }
 
   private Set<String> normalizarFiltrosAtivos(Set<String> filtrosAtivos) {

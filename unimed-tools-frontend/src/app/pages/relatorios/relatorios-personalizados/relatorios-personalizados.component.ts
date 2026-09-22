@@ -43,6 +43,14 @@ interface AssistencialPreset {
   colunas: string[];
   filtros: string[];
   distinct: boolean;
+  separarMeses?: boolean;
+  metricasPorMes?: string[];
+  ranking?: {
+    modo: 'MAIORES' | 'MENORES';
+    quantidade: number;
+    dimensao: string;
+    metrica: string;
+  } | null;
 }
 
 type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
@@ -80,6 +88,14 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   previaExpandida = false;
   colunaOrdenacao: string | null = null;
   direcaoOrdenacao: 'ASC' | 'DESC' = 'ASC';
+  separarMeses = false;
+  metricasPorMes: string[] = [];
+  rankingAtivo = false;
+  rankingModo: 'MAIORES' | 'MENORES' = 'MAIORES';
+  rankingQuantidade = 10;
+  rankingDimensao = '';
+  rankingMetrica = '';
+  colunaResultadoArrastada: string | null = null;
 
   formatoSelecionado: FormatoExportacao = 'xlsx';
   nomeArquivo = 'relatorio_personalizado';
@@ -96,6 +112,27 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
 
   get operacaoRelatorioEmAndamento(): boolean {
     return this.gerando || this.exportando;
+  }
+
+  get metricasMensaisDisponiveis(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) => this.colunasSelecionadas.has(coluna.id) && coluna.separavelPorMes,
+    );
+  }
+
+  get metricasRankingDisponiveis(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) => this.colunasSelecionadas.has(coluna.id) && coluna.disponivelParaRanking,
+    );
+  }
+
+  get dimensoesRankingDisponiveis(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) =>
+        this.colunasSelecionadas.has(coluna.id) &&
+        !coluna.disponivelParaRanking &&
+        coluna.id !== 'PERIODO',
+    );
   }
 
   constructor(

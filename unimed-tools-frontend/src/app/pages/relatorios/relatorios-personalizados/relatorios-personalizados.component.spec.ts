@@ -60,6 +60,7 @@ describe('RelatoriosPersonalizadosComponent', () => {
           grupo: 'Beneficiário',
           selecionadaPorPadrao: true,
           sensivel: true,
+          tipo: 'text',
         },
       ],
       filtros: [],
@@ -114,8 +115,7 @@ describe('RelatoriosPersonalizadosComponent', () => {
     component.colunasSelecionadas = new Set(['CPF', 'NOME_BENEFICIARIO', 'NUMERO_GUIA']);
     component.ordemColunasSelecionadas = ['CPF', 'NOME_BENEFICIARIO', 'NUMERO_GUIA'];
 
-    component.moverColuna('NUMERO_GUIA', -1);
-    component.moverColuna('NUMERO_GUIA', -1);
+    component.reordenarColunas(['NUMERO_GUIA', 'CPF', 'NOME_BENEFICIARIO']);
 
     expect(component.ordemColunasSelecionadas).toEqual(['NUMERO_GUIA', 'CPF', 'NOME_BENEFICIARIO']);
     expect(component.colunasResultado).toEqual(component.ordemColunasSelecionadas);
@@ -140,6 +140,7 @@ describe('RelatoriosPersonalizadosComponent', () => {
           grupo: 'Valores',
           selecionadaPorPadrao: true,
           sensivel: true,
+          tipo: 'number',
         },
       ],
       filtros: [],
@@ -153,8 +154,8 @@ describe('RelatoriosPersonalizadosComponent', () => {
     component.ordemColunasSelecionadas = ['VALOR_TOTAL'];
     component.registros = [{ VALOR_TOTAL: 5 }];
 
-    component.ordenarPor('VALOR_TOTAL');
-    component.ordenarPor('VALOR_TOTAL');
+    component.aplicarOrdenacao('VALOR_TOTAL', 'ASC');
+    component.aplicarOrdenacao('VALOR_TOTAL', 'DESC');
 
     expect(relatorioService.executarPersonalizado).toHaveBeenNthCalledWith(
       1,
@@ -165,6 +166,69 @@ describe('RelatoriosPersonalizadosComponent', () => {
       expect.objectContaining({ ordenarPor: 'VALOR_TOTAL', direcaoOrdenacao: 'DESC' }),
     );
     expect(component.ariaOrdenacao('VALOR_TOTAL')).toBe('descending');
-    expect(component.simboloOrdenacao('VALOR_TOTAL')).toBe('↓');
+    expect(component.rotuloOrdenacaoDesc('VALOR_TOTAL')).toBe('Maior → menor');
   });
+
+  it('envia configuracao de separacao mensal e ranking quando ativos', () => {
+    const relatorioService = {
+      executarPersonalizado: vi.fn(() =>
+        of({ content: [], colunas: [], last: true }),
+      ),
+    } as unknown as RelatorioService;
+    const component = new RelatoriosPersonalizadosComponent(relatorioService, {
+      detectChanges: vi.fn(),
+    } as unknown as ChangeDetectorRef);
+
+    component.configuracao = {
+      apiNome: '0090-relatorio-personalizado',
+      fonte: 'Teste',
+      colunas: [
+        {
+          id: 'NOME_EMPRESA',
+          rotulo: 'Nome da empresa',
+          grupo: 'Contrato e empresa',
+          selecionadaPorPadrao: false,
+          sensivel: false,
+          tipo: 'text',
+        },
+        {
+          id: 'VALOR_TOTAL',
+          rotulo: 'Despesa total',
+          grupo: 'Valores',
+          selecionadaPorPadrao: false,
+          sensivel: true,
+          tipo: 'number',
+        },
+      ],
+      filtros: [],
+      limites: { maximoColunas: 10, maximoMeses: 12, maximoLinhasPagina: 100 },
+    };
+    component.valoresFiltro = {
+      competencia_inicio: '2026-01',
+      competencia_fim: '2026-03',
+    };
+    component.colunasSelecionadas = new Set(['NOME_EMPRESA', 'VALOR_TOTAL']);
+    component.ordemColunasSelecionadas = ['NOME_EMPRESA', 'VALOR_TOTAL'];
+    component.separarMeses = true;
+    component.metricasMesSelecionadas.add('VALOR_TOTAL');
+    component.rankingAtivo = true;
+    component.rankingTipo = 'MAIORES';
+    component.rankingLimite = 20;
+    component.rankingDimensao = 'NOME_EMPRESA';
+    component.rankingMetrica = 'VALOR_TOTAL';
+
+    component.gerar();
+
+    expect(relatorioService.executarPersonalizado).toHaveBeenCalledWith(
+      expect.objectContaining({
+        separarMeses: true,
+        metricasMes: ['VALOR_TOTAL'],
+        rankingTipo: 'MAIORES',
+        rankingLimite: 20,
+        rankingDimensao: 'NOME_EMPRESA',
+        rankingMetrica: 'VALOR_TOTAL',
+      }),
+    );
+  });
+
 });

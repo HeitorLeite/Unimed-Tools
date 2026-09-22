@@ -205,6 +205,25 @@ public class RelatorioPersonalizadoSqlBuilder {
       "codigo_empresa",
       "nome_empresa");
 
+  private static final Set<String> COLUNAS_NUMERICAS = Set.of(
+      "IDADE",
+      "QUANTIDADE",
+      "VALOR_FATOR",
+      "VALOR_PG_PROCEDIMENTO",
+      "VALOR_PG_FILME",
+      "VALOR_PG_CO",
+      "VALOR_TOTAL",
+      "VALOR_TOTAL_21",
+      CAMPO_RECEITA,
+      CAMPO_SINISTRALIDADE,
+      "VALOR_RECEBER");
+
+  private static final Set<String> COLUNAS_DATA = Set.of(
+      "DATA_GUIA",
+      "DATA_INTERNACAO",
+      "DATA_ALTA",
+      "DATA_PAGAMENTO");
+
   private static final String TIPO_PROCEDIMENTO = """
       CASE
         WHEN IT.TPITE_COD = 1 AND IT.TPITV_COD = 1 THEN '92'
@@ -314,6 +333,27 @@ public class RelatorioPersonalizadoSqlBuilder {
 
   public Campo campo(String id) {
     return CAMPOS.get(id);
+  }
+
+  public boolean ehColunaNumerica(String id) {
+    return id != null && COLUNAS_NUMERICAS.contains(id.trim().toUpperCase(Locale.ROOT));
+  }
+
+  public String tipoColuna(String id) {
+    if (id == null) {
+      return "text";
+    }
+    String normalizado = id.trim().toUpperCase(Locale.ROOT);
+    if (COLUNAS_NUMERICAS.contains(normalizado)) {
+      return "number";
+    }
+    if (COLUNAS_DATA.contains(normalizado)) {
+      return "date";
+    }
+    if ("PERIODO".equals(normalizado)) {
+      return "competencia";
+    }
+    return "text";
   }
 
   public Filtro filtro(String id) {
@@ -623,7 +663,11 @@ public class RelatorioPersonalizadoSqlBuilder {
       return ordenarPor + " " + direcaoOrdenacao;
     }
     if (!agrupamentos.isEmpty()) {
-      return String.join(", ", agrupamentos);
+      return camposSelecionados.stream()
+          .map(Campo::id)
+          .filter(id -> !CAMPOS_VALORES_INDICADORES.contains(id))
+          .findFirst()
+          .orElse(camposSelecionados.getFirst().id());
     }
     return camposSelecionados.getFirst().id();
   }
@@ -640,12 +684,10 @@ public class RelatorioPersonalizadoSqlBuilder {
       // Mantê-lo curto evita estourar o buffer da rotina de publicação do SGU.
       return ordenarPor + " " + direcaoOrdenacao;
     }
-    if (consolidarPorBeneficiario) {
-      return String.join(", ", colunasAgrupamentoBeneficiario(camposSelecionados));
+    if (consolidarPorBeneficiario || distinct) {
+      return camposSelecionados.getFirst().id();
     }
-    return distinct
-        ? String.join(", ", projecoes)
-        : "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
+    return "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
   }
 
   private Set<String> normalizarFiltrosAtivos(Set<String> filtrosAtivos) {
@@ -765,6 +807,10 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(campos, "MUNICIPIO", "Município", "Beneficiário", false, true,
         "NVL(NVL(PE.END_DES_CIDAD, PE_TIT.END_DES_CIDAD), CIDADE.CIDAD_DES)");
     adicionar(campos, "CEP", "CEP", "Beneficiário", false, true, "NVL(PE.CEP_COD, PE_TIT.CEP_COD)");
+    adicionar(campos, "REGIAO_BENEF", "Região do beneficiário", "Beneficiário", false, true,
+        REGIAO_BENEFICIARIO);
+    adicionar(campos, "ATIVO", "Beneficiário ativo", "Beneficiário", false, false,
+        "CASE WHEN BF.BNF_DAT_EXCL IS NULL OR BF.BNF_DAT_EXCL = DATE '0001-01-01' THEN 'S' ELSE 'N' END");
     adicionar(campos, "CODIGO_CONTRATO", "Código do contrato", "Contrato e empresa", true, false, CODIGO_CONTRATO);
     adicionar(campos, "NUMERO_CONTRATO", "Número do contrato", "Contrato e empresa", false, false, NUMERO_CONTRATO);
     adicionar(campos, "NOME_CONTRATO", "Nome do contrato", "Contrato e empresa", true, false, NOME_EMPRESA);
@@ -864,9 +910,10 @@ public class RelatorioPersonalizadoSqlBuilder {
         "F_CODIGO_EMPRESA", "'%,' || TO_CHAR(" + CODIGO_EMPRESA + ") || ',%'",
         "and :codigo_empresa LIKE RP.F_CODIGO_EMPRESA",
         "VARCHAR(240)", "");
-    adicionar(filtros, "nome_empresa", "Nome da empresa", "Contrato e empresa", "text", "Digite parte do nome", false,
-        "F_NOME_EMPRESA", "UPPER(" + NOME_EMPRESA + ")",
-        "and RP.F_NOME_EMPRESA LIKE :nome_empresa", "VARCHAR(120)", "");
+    adicionar(filtros, "nome_empresa", "Nome da empresa", "Contrato e empresa", "empresa",
+        "Selecione uma ou mais empresas", false,
+        "F_NOME_EMPRESA", "'%,' || TO_CHAR(" + CODIGO_EMPRESA + ") || ',%'",
+        "and :nome_empresa LIKE RP.F_NOME_EMPRESA", "VARCHAR(240)", "");
     adicionar(filtros, "id_guia", "ID da guia", "Guia", "text", "Ex.: 375354, 375355", false,
         "F_ID_GUIA", "'%,' || TO_CHAR(G.GUIA_COD_ID) || ',%'",
         "and :id_guia LIKE RP.F_ID_GUIA", "VARCHAR(240)", "");

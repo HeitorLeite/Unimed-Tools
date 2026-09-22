@@ -129,6 +129,7 @@ export interface RelatorioPersonalizadoRequest {
   separarMeses?: boolean;
   metricasPorMes?: string[];
   ranking?: RelatorioPersonalizadoRanking | null;
+  ordemResultado?: string[];
   pagina: number;
   tamanhoPagina: number;
   nomeArquivo: string;

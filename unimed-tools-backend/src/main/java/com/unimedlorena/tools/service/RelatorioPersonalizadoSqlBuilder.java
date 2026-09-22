@@ -812,9 +812,9 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(campos, "IDADE", "Idade", "Beneficiário", false, true,
         "TRUNC(MONTHS_BETWEEN(SYSDATE, P.PES_DAT_NASC) / 12)");
     adicionar(campos, "UF", "UF", "Beneficiário", false, true,
-        "NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)");
+        "NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))");
     adicionar(campos, "MUNICIPIO", "Município", "Beneficiário", false, true,
-        "NVL(NVL(PE.END_DES_CIDAD, PE_TIT.END_DES_CIDAD), CIDADE.CIDAD_DES)");
+        "NVL(PE_TIT.END_DES_CIDAD, NVL(PE.END_DES_CIDAD, CIDADE.CIDAD_DES))");
     adicionar(campos, "CEP", "CEP", "Beneficiário", false, true, "NVL(PE_TIT.CEP_COD, PE.CEP_COD)");
     adicionar(campos, "REGIAO_BENEFICIARIO", "Região do beneficiário", "Beneficiário", false, false,
         REGIAO_BENEFICIARIO);

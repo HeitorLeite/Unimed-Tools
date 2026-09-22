@@ -153,8 +153,8 @@ describe('RelatoriosPersonalizadosComponent', () => {
     component.ordemColunasSelecionadas = ['VALOR_TOTAL'];
     component.registros = [{ VALOR_TOTAL: 5 }];
 
-    component.ordenarPor('VALOR_TOTAL');
-    component.ordenarPor('VALOR_TOTAL');
+    component.ordenarPor('VALOR_TOTAL', 'ASC');
+    component.ordenarPor('VALOR_TOTAL', 'DESC');
 
     expect(relatorioService.executarPersonalizado).toHaveBeenNthCalledWith(
       1,

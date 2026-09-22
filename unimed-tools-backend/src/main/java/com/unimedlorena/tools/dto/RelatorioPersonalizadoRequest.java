@@ -15,6 +15,7 @@ public record RelatorioPersonalizadoRequest(
   Boolean separarMeses,
   List<String> metricasPorMes,
   Ranking ranking,
+  List<String> ordemResultado,
   Integer pagina,
   Integer tamanhoPagina,
   String nomeArquivo
@@ -46,6 +47,7 @@ public record RelatorioPersonalizadoRequest(
       false,
       List.of(),
       null,
+      List.of(),
       pagina,
       tamanhoPagina,
       nomeArquivo
@@ -73,6 +75,7 @@ public record RelatorioPersonalizadoRequest(
       false,
       List.of(),
       null,
+      List.of(),
       pagina,
       tamanhoPagina,
       nomeArquivo

@@ -259,6 +259,15 @@ public class RelatorioPersonalizadoService {
     String direcaoOrdenacao = normalizarDirecaoOrdenacao(
         request.direcaoOrdenacao(),
         ordenarPor);
+    List<String> ordemResultado = request.ordemResultado() == null
+        ? List.of()
+        : request.ordemResultado().stream()
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .filter(valor -> !valor.isBlank())
+            .map(valor -> valor.toUpperCase(Locale.ROOT))
+            .distinct()
+            .toList();
 
     return new RequisicaoNormalizada(
         colunas,
@@ -269,6 +278,7 @@ public class RelatorioPersonalizadoService {
         separarMeses,
         metricasPorMes,
         ranking,
+        ordemResultado,
         pagina,
         tamanho);
   }
@@ -708,7 +718,19 @@ public class RelatorioPersonalizadoService {
     }
 
     ordenarAnalise(registros, normalizada);
-    return registros;
+    return reordenarMapas(registros, colunasResultado(normalizada));
+  }
+
+  private List<LinkedHashMap<String, Object>> reordenarMapas(
+      List<LinkedHashMap<String, Object>> registros,
+      List<String> colunas) {
+    List<LinkedHashMap<String, Object>> ordenados = new ArrayList<>();
+    for (LinkedHashMap<String, Object> registro : registros) {
+      LinkedHashMap<String, Object> novo = new LinkedHashMap<>();
+      colunas.forEach(coluna -> novo.put(coluna, registro.get(coluna)));
+      ordenados.add(novo);
+    }
+    return ordenados;
   }
 
   private List<LinkedHashMap<String, Object>> aplicarRanking(
@@ -802,19 +824,29 @@ public class RelatorioPersonalizadoService {
   }
 
   private List<String> colunasResultado(RequisicaoNormalizada normalizada) {
+    List<String> padrao = new ArrayList<>();
     if (!normalizada.separarMeses()) {
-      return normalizada.colunas();
+      padrao.addAll(normalizada.colunas());
+    } else {
+      normalizada.colunas().stream()
+          .filter(coluna -> !"PERIODO".equals(coluna))
+          .filter(coluna -> !normalizada.metricasPorMes().contains(coluna))
+          .forEach(padrao::add);
+      padrao.addAll(colunasMensais(
+          normalizada.metricasPorMes(),
+          competencias(normalizada.filtros())));
     }
 
-    List<String> colunas = new ArrayList<>();
-    normalizada.colunas().stream()
-        .filter(coluna -> !"PERIODO".equals(coluna))
-        .filter(coluna -> !normalizada.metricasPorMes().contains(coluna))
-        .forEach(colunas::add);
-    colunas.addAll(colunasMensais(
-        normalizada.metricasPorMes(),
-        competencias(normalizada.filtros())));
-    return List.copyOf(colunas);
+    if (normalizada.ordemResultado().isEmpty()) {
+      return List.copyOf(padrao);
+    }
+
+    LinkedHashSet<String> ordenadas = new LinkedHashSet<>();
+    normalizada.ordemResultado().stream()
+        .filter(padrao::contains)
+        .forEach(ordenadas::add);
+    padrao.forEach(ordenadas::add);
+    return List.copyOf(ordenadas);
   }
 
   private List<String> colunasMensais(
@@ -996,6 +1028,7 @@ public class RelatorioPersonalizadoService {
       boolean separarMeses,
       List<String> metricasPorMes,
       RankingNormalizado ranking,
+      List<String> ordemResultado,
       int pagina,
       int tamanhoPagina) {
 

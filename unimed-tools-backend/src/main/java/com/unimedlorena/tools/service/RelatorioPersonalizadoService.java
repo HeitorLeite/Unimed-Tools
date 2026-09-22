@@ -270,6 +270,11 @@ public class RelatorioPersonalizadoService {
             colunas,
             true,
             "métrica do ranking");
+    if (rankingMetrica != null &&
+        !"Valores".equals(sqlBuilder.campo(rankingMetrica).grupo())) {
+      throw new IllegalArgumentException(
+          "A métrica do ranking deve ser uma coluna do grupo Valores.");
+    }
 
     LinkedHashSet<String> consulta = new LinkedHashSet<>(colunas);
     if (separarMeses) {

@@ -25,6 +25,8 @@ $productionBackendJar = Join-Path $productionRuntimeDir 'unimed-tools-backend.ja
 $productionBackendLog = Join-Path $productionRuntimeDir 'backend.log'
 $productionBackendErrorLog = Join-Path $productionRuntimeDir 'backend-error.log'
 $productionBackendPidFile = Join-Path $productionRuntimeDir 'backend.pid'
+$legacyBackendPidFile = Join-Path $runtimeDir 'backend.pid'
+$legacyBackendJar = Join-Path $runtimeDir 'unimed-tools-backend.jar'
 
 $localFrontendUrl = 'http://localhost:4200/'
 $localBackendHealthUrl = 'http://127.0.0.1:8081/health'
@@ -266,7 +268,7 @@ function Build-Backend([switch]$RunTests) {
     if ($RunTests) {
       Invoke-Checked 'mvn.cmd' @('clean', 'package')
     } else {
-      Invoke-Checked 'mvn.cmd' @('-DskipTests', 'package')
+      Invoke-Checked 'mvn.cmd' @('clean', '-DskipTests', 'package')
     }
   } finally {
     Pop-Location
@@ -340,6 +342,21 @@ function Publish-Production {
 
   New-Item -ItemType Directory -Path $productionRuntimeDir -Force | Out-Null
   Stop-BackendFromPidFile $productionBackendPidFile 'backend da rede'
+  # Compatibilidade com o inicializador anterior ao watch mode.
+  Stop-BackendFromPidFile $legacyBackendPidFile 'backend legado da rede'
+
+  if (Test-Path -LiteralPath $legacyBackendJar -PathType Leaf) {
+    $legacyProcesses = Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
+      Where-Object {
+        $_.CommandLine -and
+        $_.CommandLine.IndexOf($legacyBackendJar, [StringComparison]::OrdinalIgnoreCase) -ge 0
+      }
+    foreach ($legacyProcess in $legacyProcesses) {
+      Write-Host "Encerrando backend legado da rede (PID $($legacyProcess.ProcessId))..." -ForegroundColor Yellow
+      $process = Get-Process -Id $legacyProcess.ProcessId -ErrorAction SilentlyContinue
+      Stop-ProcessTree $process
+    }
+  }
 
   if (Test-LocalPort 8080) {
     throw 'A porta 8080 esta ocupada por um processo que nao foi iniciado por este watcher. Encerre o backend antigo antes de publicar.'
@@ -488,7 +505,7 @@ try {
   $running = $true
 
   while ($running) {
-    foreach ($event in @(Get-Event)) {
+    foreach ($event in @(Get-Event | Where-Object { $_.SourceIdentifier -like 'UnimedBackend-*' -or $_.SourceIdentifier -like 'UnimedFrontend-*' })) {
       try {
         $sourceIdentifier = [string]$event.SourceIdentifier
         $fullPath = [string]$event.SourceEventArgs.FullPath
@@ -562,9 +579,12 @@ try {
   Write-Host "Logs locais: $localRuntimeDir" -ForegroundColor DarkYellow
   exit 1
 } finally {
-  foreach ($registration in $registrations) {
+  foreach ($subscriber in @(Get-EventSubscriber | Where-Object {
+    $_.SourceIdentifier -like 'UnimedBackend-*' -or
+    $_.SourceIdentifier -like 'UnimedFrontend-*'
+  })) {
     try {
-      Unregister-Event -SubscriptionId $registration.Id -ErrorAction SilentlyContinue
+      Unregister-Event -SubscriptionId $subscriber.SubscriptionId -ErrorAction SilentlyContinue
     } catch {
       # Ignora assinaturas que ja tenham sido encerradas.
     }

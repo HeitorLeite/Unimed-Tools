@@ -472,9 +472,11 @@ function Publish-Production {
   Write-Host 'O watch local nao promove alteracoes automaticamente.' -ForegroundColor DarkYellow
 
   Write-Step 'Testando e gerando frontend de producao'
+  # Nao executa npm ci se o watch local estiver usando node_modules.
+  # O watcher reinstala dependencias quando package.json/lockfile mudam.
+  Ensure-FrontendDependencies
   Push-Location $frontendDir
   try {
-    Invoke-Checked 'npm.cmd' @('ci')
     Invoke-Checked 'npm.cmd' @('test', '--', '--watch=false')
     Invoke-Checked 'npm.cmd' @('run', 'build:lan')
   } finally {

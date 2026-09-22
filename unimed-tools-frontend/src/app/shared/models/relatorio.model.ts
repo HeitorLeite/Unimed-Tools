@@ -81,6 +81,7 @@ export interface RelatorioPersonalizadoColuna {
   grupo: string;
   selecionadaPorPadrao: boolean;
   sensivel: boolean;
+  tipo: 'text' | 'number' | 'date' | 'competencia';
 }
 
 export interface RelatorioPersonalizadoOpcao {
@@ -92,7 +93,7 @@ export interface RelatorioPersonalizadoFiltro {
   id: string;
   rotulo: string;
   grupo: string;
-  tipo: 'text' | 'number' | 'decimal' | 'date' | 'competencia' | 'select';
+  tipo: 'text' | 'number' | 'decimal' | 'date' | 'competencia' | 'select' | 'empresa';
   placeholder: string;
   obrigatorio: boolean;
   opcoes: RelatorioPersonalizadoOpcao[];
@@ -116,6 +117,12 @@ export interface RelatorioPersonalizadoRequest {
   distinct: boolean;
   ordenarPor?: string;
   direcaoOrdenacao?: 'ASC' | 'DESC';
+  separarMeses?: boolean;
+  metricasMes?: string[];
+  rankingTipo?: 'MAIORES' | 'MENORES';
+  rankingLimite?: number;
+  rankingDimensao?: string;
+  rankingMetrica?: string;
   pagina: number;
   tamanhoPagina: number;
   nomeArquivo: string;

@@ -194,6 +194,43 @@ public class RelatorioPersonalizadoSqlBuilder {
       "VALOR_TOTAL_21",
       CAMPO_RECEITA,
       CAMPO_SINISTRALIDADE);
+
+  private static final Set<String> CAMPOS_NUMERICOS = Set.of(
+      "IDADE",
+      "NUMERO_CONTRATO",
+      "CODIGO_EMPRESA",
+      "CODIGO_PESSOA_PRESTADOR",
+      "CODIGO_ESPECIALIDADE",
+      "CODIGO_SOLICITANTE",
+      "TIPO_GUIA",
+      "QUANTIDADE",
+      "VALOR_FATOR",
+      "VALOR_PG_PROCEDIMENTO",
+      "VALOR_PG_FILME",
+      "VALOR_PG_CO",
+      "VALOR_TOTAL",
+      "VALOR_TOTAL_21",
+      CAMPO_RECEITA,
+      CAMPO_SINISTRALIDADE,
+      "VALOR_RECEBER");
+
+  /*
+   * Métricas que fazem sentido quando o usuário pede uma coluna por mês.
+   * Além dos valores financeiros, Quantidade e Idade são numéricas e podem
+   * ser escolhidas explicitamente, conforme a necessidade da análise.
+   */
+  private static final Set<String> CAMPOS_SEPARAVEIS_POR_MES = Set.of(
+      "IDADE",
+      "QUANTIDADE",
+      "VALOR_FATOR",
+      "VALOR_PG_PROCEDIMENTO",
+      "VALOR_PG_FILME",
+      "VALOR_PG_CO",
+      "VALOR_TOTAL",
+      "VALOR_TOTAL_21",
+      CAMPO_RECEITA,
+      CAMPO_SINISTRALIDADE,
+      "VALOR_RECEBER");
   private static final Set<String> FILTROS_INDICADORES = Set.of(
       "competencia_inicio",
       "competencia_fim",
@@ -228,16 +265,16 @@ public class RelatorioPersonalizadoSqlBuilder {
 
   private static final String REGIAO_BENEFICIARIO = """
       CASE
-        WHEN NVL(PE.CEP_COD, PE_TIT.CEP_COD) LIKE '12%' THEN 'Vale do Paraiba'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.CEP_COD, PE.CEP_COD) LIKE '12%' THEN 'Vale do Paraiba'
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('AC', 'AM', 'AP', 'PA', 'RO', 'RR', 'TO') THEN 'Norte'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE') THEN 'Nordeste'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('DF', 'GO', 'MS', 'MT') THEN 'Centro-Oeste'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('ES', 'MG', 'RJ', 'SP') THEN 'Sudeste'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('PR', 'RS', 'SC') THEN 'Sul'
       END
       """.strip();
@@ -318,6 +355,23 @@ public class RelatorioPersonalizadoSqlBuilder {
 
   public Filtro filtro(String id) {
     return FILTROS.get(normalizarIdFiltro(id));
+  }
+
+  public String tipoCampo(String id) {
+    if ("PERIODO".equals(id)) return "competencia";
+    if (Set.of("DATA_GUIA", "DATA_INTERNACAO", "DATA_ALTA", "DATA_PAGAMENTO").contains(id)) {
+      return "data";
+    }
+    return CAMPOS_NUMERICOS.contains(id) ? "numero" : "texto";
+  }
+
+  public boolean campoSeparavelPorMes(String id) {
+    return CAMPOS_SEPARAVEIS_POR_MES.contains(id);
+  }
+
+  public boolean campoRanking(String id) {
+    Campo campo = CAMPOS.get(id);
+    return campo != null && GRUPO_CAMPOS_VALORES.equals(campo.grupo());
   }
 
   /**
@@ -622,9 +676,6 @@ public class RelatorioPersonalizadoSqlBuilder {
       // O alias projetado é suficiente e evita reenviar critérios técnicos longos.
       return ordenarPor + " " + direcaoOrdenacao;
     }
-    if (!agrupamentos.isEmpty()) {
-      return String.join(", ", agrupamentos);
-    }
     return camposSelecionados.getFirst().id();
   }
 
@@ -640,12 +691,12 @@ public class RelatorioPersonalizadoSqlBuilder {
       // Mantê-lo curto evita estourar o buffer da rotina de publicação do SGU.
       return ordenarPor + " " + direcaoOrdenacao;
     }
-    if (consolidarPorBeneficiario) {
-      return String.join(", ", colunasAgrupamentoBeneficiario(camposSelecionados));
-    }
-    return distinct
-        ? String.join(", ", projecoes)
-        : "RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ";
+    /*
+     * ins_atu_query_api usa um buffer pequeno para a ordenação. Ordenar pela
+     * primeira coluna visível mantém a paginação previsível sem reenviar uma
+     * lista extensa de aliases quando muitas colunas são escolhidas.
+     */
+    return camposSelecionados.getFirst().id();
   }
 
   private Set<String> normalizarFiltrosAtivos(Set<String> filtrosAtivos) {
@@ -764,7 +815,11 @@ public class RelatorioPersonalizadoSqlBuilder {
         "NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)");
     adicionar(campos, "MUNICIPIO", "Município", "Beneficiário", false, true,
         "NVL(NVL(PE.END_DES_CIDAD, PE_TIT.END_DES_CIDAD), CIDADE.CIDAD_DES)");
-    adicionar(campos, "CEP", "CEP", "Beneficiário", false, true, "NVL(PE.CEP_COD, PE_TIT.CEP_COD)");
+    adicionar(campos, "CEP", "CEP", "Beneficiário", false, true, "NVL(PE_TIT.CEP_COD, PE.CEP_COD)");
+    adicionar(campos, "REGIAO_BENEFICIARIO", "Região do beneficiário", "Beneficiário", false, false,
+        REGIAO_BENEFICIARIO);
+    adicionar(campos, "ATIVO", "Beneficiário ativo", "Beneficiário", false, false,
+        "CASE WHEN BF.BNF_DAT_EXCL IS NULL OR BF.BNF_DAT_EXCL = DATE '0001-01-01' THEN 'S' ELSE 'N' END");
     adicionar(campos, "CODIGO_CONTRATO", "Código do contrato", "Contrato e empresa", true, false, CODIGO_CONTRATO);
     adicionar(campos, "NUMERO_CONTRATO", "Número do contrato", "Contrato e empresa", false, false, NUMERO_CONTRATO);
     adicionar(campos, "NOME_CONTRATO", "Nome do contrato", "Contrato e empresa", true, false, NOME_EMPRESA);
@@ -859,8 +914,8 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(filtros, "numero_contrato", "Número do contrato", "Contrato e empresa", "number", "", false,
         "F_NUMERO_CONTRATO", NUMERO_CONTRATO,
         "and RP.F_NUMERO_CONTRATO = :numero_contrato", "NUMBER", "");
-    adicionar(filtros, "codigo_empresa", "Código da empresa", "Contrato e empresa", "text",
-        "Ex.: 2010038, 2011533, 2011372", false,
+    adicionar(filtros, "codigo_empresa", "Nome da empresa", "Contrato e empresa", "empresa",
+        "Selecione uma ou mais empresas", false,
         "F_CODIGO_EMPRESA", "'%,' || TO_CHAR(" + CODIGO_EMPRESA + ") || ',%'",
         "and :codigo_empresa LIKE RP.F_CODIGO_EMPRESA",
         "VARCHAR(240)", "");

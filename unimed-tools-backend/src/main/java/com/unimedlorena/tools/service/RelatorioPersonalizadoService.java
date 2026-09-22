@@ -6,12 +6,15 @@ package com.unimedlorena.tools.service;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
@@ -30,7 +33,10 @@ public class RelatorioPersonalizadoService {
       String rotulo,
       String grupo,
       boolean selecionadaPorPadrao,
-      boolean sensivel) {
+      boolean sensivel,
+      String tipo,
+      boolean separavelPorMes,
+      boolean disponivelParaRanking) {
   }
 
   public record Opcao(String valor, String rotulo) {
@@ -92,12 +98,17 @@ public class RelatorioPersonalizadoService {
             campo.rotulo(),
             campo.grupo(),
             campo.selecionadaPorPadrao(),
-            campo.sensivel()))
+            campo.sensivel(),
+            sqlBuilder.tipoCampo(campo.id()),
+            sqlBuilder.campoSeparavelPorMes(campo.id()),
+            sqlBuilder.campoRanking(campo.id())))
         .toList();
 
     List<Filtro> filtros = sqlBuilder
         .filtros()
         .stream()
+        // O catálogo de empresas substitui a busca textual livre por nome.
+        .filter(filtro -> !"nome_empresa".equals(filtro.id()))
         .map(filtro -> new Filtro(
             filtro.id(),
             filtro.rotulo(),

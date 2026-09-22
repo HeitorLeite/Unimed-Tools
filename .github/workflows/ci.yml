@@ -70,13 +70,20 @@ jobs:
         run: |
           $tokens = $null
           $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Join-Path $PWD 'scripts/iniciar-unimed-tools.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
+          foreach ($script in @(
+            'scripts/iniciar-unimed-tools.ps1',
+            'scripts/watch-unimed-tools.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $script),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "$script: $($_.Message)" }
+              exit 1
+            }
+            Write-Host "Sintaxe valida: $script"
           }
-          Write-Host 'Sintaxe do inicializador valida.'

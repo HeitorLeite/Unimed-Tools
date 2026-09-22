@@ -397,4 +397,23 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("filtros de período, beneficiário, contrato ou empresa");
   }
+
+  @Test
+  void deveUsarFallbackCurtoQuandoOrdenacaoPadraoUltrapassarBufferSeguro() {
+    List<String> colunas = builder.campos().stream()
+        .map(RelatorioPersonalizadoSqlBuilder.Campo::id)
+        .filter(id -> !Set.of("RECEITA", "SINISTRALIDADE").contains(id))
+        .limit(30)
+        .toList();
+
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        colunas,
+        Set.of("competencia_inicio", "competencia_fim"),
+        true);
+
+    assertThat(api.ordenacao())
+        .isEqualTo(colunas.getFirst())
+        .hasSizeLessThanOrEqualTo(180);
+  }
+
 }

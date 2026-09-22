@@ -762,11 +762,12 @@ public class RelatorioPersonalizadoService {
         .map(Map.Entry::getKey)
         .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
-    return registros.stream()
-        .filter(registro -> permitidos.contains(
-            chaveRanking(registro.get(normalizada.rankingDimensao()))))
-        .map(LinkedHashMap::new)
-        .toList();
+    return new ArrayList<>(
+        registros.stream()
+            .filter(registro -> permitidos.contains(
+                chaveRanking(registro.get(normalizada.rankingDimensao()))))
+            .map(LinkedHashMap::new)
+            .toList());
   }
 
   private ResultadoProcessado pivotarMeses(

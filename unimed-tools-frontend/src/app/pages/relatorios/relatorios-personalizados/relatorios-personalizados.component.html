@@ -59,8 +59,8 @@
         <div class="flow-title">
           <span>1</span>
           <div>
-            <strong>Escolha as colunas</strong
-            ><small>Busque, marque e ajuste a ordem de saída.</small>
+            <strong>Escolha as colunas</strong>
+            <small>Busque, marque e arraste para definir a ordem de saída.</small>
           </div>
           <b>{{ ordemColunasSelecionadas.length }} selecionada(s)</b>
         </div>
@@ -71,47 +71,20 @@
           [bloqueado]="operacaoRelatorioEmAndamento"
           (alternar)="alternarColuna($event)"
           (alternarGrupo)="alternarGrupo($event)"
-          (mover)="moverColuna($event.id, $event.deslocamento)"
+          (reordenar)="reordenarColunas($event)"
         />
-      </div>
-
-      <div class="flow-panel structure-panel">
-        <div class="flow-title">
-          <span>2</span>
-          <div>
-            <strong>Prévia da estrutura</strong
-            ><small>Esta será a ordem das colunas no arquivo.</small>
-          </div>
-        </div>
-        <div class="column-preview" *ngIf="ordemColunasSelecionadas.length; else noColumns">
-          <span *ngFor="let id of ordemColunasSelecionadas; index as i"
-            ><b>{{ i + 1 }}</b
-            >{{ rotuloColuna(id) }}</span
-          >
-        </div>
-        <ng-template #noColumns
-          ><p class="empty-copy">Selecione pelo menos uma coluna na etapa anterior.</p></ng-template
-        >
-        <label class="distinct-option" [class.active]="somenteDistintos">
-          <input type="checkbox" [checked]="somenteDistintos" (change)="alternarDistinct()" />
-          <span
-            ><strong>Remover linhas duplicadas</strong
-            ><small>Aplica DISTINCT somente às colunas escolhidas.</small></span
-          >
-        </label>
       </div>
 
       <div class="flow-panel filters-panel">
         <div class="flow-title">
-          <span>3</span>
+          <span>2</span>
           <div>
-            <strong>Adicione os filtros</strong
-            ><small
-              >Competência é obrigatória; os demais entram somente quando você precisar.</small
-            >
+            <strong>Adicione os filtros e análises</strong>
+            <small>Competência é obrigatória; os demais filtros e análises são opcionais.</small>
           </div>
-          <button type="button" class="text-button" (click)="limparFiltros()">Limpar</button>
+          <button type="button" class="text-button" (click)="limparFiltros()">Limpar filtros</button>
         </div>
+
         <app-filtros-relatorio
           [filtros]="configuracao.filtros"
           [valores]="valoresFiltro"
@@ -121,14 +94,131 @@
           (valoresChange)="atualizarFiltros($event)"
           (ativosChange)="atualizarFiltrosAtivos($event)"
         />
+
+        <div class="analysis-options">
+          <label class="analysis-card" [class.active]="somenteDistintos">
+            <input
+              type="checkbox"
+              [checked]="somenteDistintos"
+              [disabled]="operacaoRelatorioEmAndamento"
+              (change)="alternarDistinct()"
+            />
+            <span>
+              <strong>Remover linhas duplicadas</strong>
+              <small>Aplica DISTINCT às colunas selecionadas.</small>
+            </span>
+          </label>
+
+          <div class="analysis-card stacked" [class.active]="separarMeses">
+            <label class="analysis-toggle">
+              <input
+                type="checkbox"
+                [checked]="separarMeses"
+                [disabled]="operacaoRelatorioEmAndamento || !metricasMensaisDisponiveis.length"
+                (change)="alternarSepararMeses()"
+              />
+              <span>
+                <strong>Separar meses</strong>
+                <small>
+                  Transforma as métricas escolhidas em uma coluna para cada mês do período.
+                </small>
+              </span>
+            </label>
+
+            <div class="analysis-detail" *ngIf="separarMeses">
+              <span class="detail-label">Colunas que serão divididas por mês</span>
+              <div class="metric-options">
+                <label
+                  *ngFor="let coluna of metricasMensaisDisponiveis; trackBy: trackById"
+                  [class.selected]="metricasPorMes.includes(coluna.id)"
+                >
+                  <input
+                    type="checkbox"
+                    [checked]="metricasPorMes.includes(coluna.id)"
+                    [disabled]="operacaoRelatorioEmAndamento"
+                    (change)="alternarMetricaMes(coluna.id)"
+                  />
+                  {{ coluna.rotulo }}
+                </label>
+              </div>
+              <small *ngIf="!metricasMensaisDisponiveis.length">
+                Selecione primeiro uma coluna numérica compatível.
+              </small>
+            </div>
+          </div>
+
+          <div
+            class="analysis-card stacked"
+            [class.active]="rankingAtivo"
+            [class.unavailable]="!metricasRankingDisponiveis.length || !dimensoesRankingDisponiveis.length"
+          >
+            <label class="analysis-toggle">
+              <input
+                type="checkbox"
+                [checked]="rankingAtivo"
+                [disabled]="
+                  operacaoRelatorioEmAndamento ||
+                  !metricasRankingDisponiveis.length ||
+                  !dimensoesRankingDisponiveis.length
+                "
+                (change)="alternarRanking()"
+              />
+              <span>
+                <strong>Maiores / menores gastadores</strong>
+                <small>Escolha a dimensão, a métrica e quantos resultados deseja manter.</small>
+              </span>
+            </label>
+
+            <div class="ranking-grid" *ngIf="rankingAtivo">
+              <label>
+                <span>Mostrar</span>
+                <select [(ngModel)]="rankingModo" [disabled]="operacaoRelatorioEmAndamento">
+                  <option value="MAIORES">Maiores</option>
+                  <option value="MENORES">Menores</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Quantidade</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  [(ngModel)]="rankingQuantidade"
+                  [disabled]="operacaoRelatorioEmAndamento"
+                />
+              </label>
+
+              <label>
+                <span>Dimensão</span>
+                <select [(ngModel)]="rankingDimensao" [disabled]="operacaoRelatorioEmAndamento">
+                  <option value="">Selecione</option>
+                  <option *ngFor="let coluna of dimensoesRankingDisponiveis" [value]="coluna.id">
+                    {{ coluna.rotulo }}
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                <span>Métrica</span>
+                <select [(ngModel)]="rankingMetrica" [disabled]="operacaoRelatorioEmAndamento">
+                  <option value="">Selecione</option>
+                  <option *ngFor="let coluna of metricasRankingDisponiveis" [value]="coluna.id">
+                    {{ coluna.rotulo }}
+                  </option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="generate-panel">
         <div>
-          <span>4</span>
+          <span>3</span>
           <div>
-            <strong>Gerar e conferir</strong
-            ><small>A consulta usa somente os campos autorizados pelo servidor.</small>
+            <strong>Gerar e conferir</strong>
+            <small>A prévia completa usa a mesma ordem que será aplicada ao arquivo.</small>
           </div>
         </div>
         <button
@@ -213,11 +303,30 @@
           <thead>
             <tr>
               <th class="row-number">#</th>
-              <th *ngFor="let coluna of colunasResultado" [attr.aria-sort]="ariaOrdenacao(coluna)">
-                <button class="sort-button" type="button" (click)="ordenarPor(coluna)">
-                  <span>{{ rotuloColuna(coluna) }}</span
-                  ><b [class.active]="colunaOrdenacao === coluna">{{ simboloOrdenacao(coluna) }}</b>
-                </button>
+              <th
+                *ngFor="let coluna of colunasResultado"
+                [attr.aria-sort]="ariaOrdenacao(coluna)"
+                [class.dragging-column]="colunaResultadoArrastada === coluna"
+                (dragover)="permitirSoltarResultado($event)"
+                (drop)="soltarColunaResultado($event, coluna)"
+              >
+                <div class="result-column-head">
+                  <span
+                    class="result-drag-handle"
+                    draggable="true"
+                    (dragstart)="iniciarArrasteResultado($event, coluna)"
+                    (dragend)="encerrarArrasteResultado()"
+                    title="Arraste para alterar a posição"
+                    [attr.aria-label]="'Arraste para alterar a posição de ' + rotuloColuna(coluna)"
+                  >⋮⋮</span>
+                  <button class="sort-button" type="button" (click)="ordenarPor(coluna)">
+                    <span>
+                      <strong>{{ rotuloColuna(coluna) }}</strong>
+                      <small>{{ textoOrdenacao(coluna) }}</small>
+                    </span>
+                    <b [class.active]="colunaOrdenacao === coluna">{{ simboloOrdenacao(coluna) }}</b>
+                  </button>
+                </div>
               </th>
             </tr>
           </thead>

@@ -111,7 +111,18 @@ function Start-MariaDB {
 function Stop-TestFrontend {
   if (-not (Test-Path -LiteralPath $frontendPidFile -PathType Leaf)) { return }
   $pidValue = Get-Content -LiteralPath $frontendPidFile -ErrorAction SilentlyContinue | Select-Object -First 1
-  if ($pidValue -match '^\d+  if (-not (Test-Path -LiteralPath $backendPidFile -PathType Leaf)) { return }
+  if ($pidValue -match '^\d+$') {
+    $process = Get-Process -Id ([int]$pidValue) -ErrorAction SilentlyContinue
+    if ($process) {
+      Write-Host "Encerrando frontend de teste (PID $pidValue)..." -ForegroundColor Yellow
+      & taskkill.exe /PID $pidValue /T /F | Out-Null
+    }
+  }
+  Remove-Item -LiteralPath $frontendPidFile -Force -ErrorAction SilentlyContinue
+}
+
+function Stop-TestBackend {
+  if (-not (Test-Path -LiteralPath $backendPidFile -PathType Leaf)) { return }
   $pidValue = Get-Content -LiteralPath $backendPidFile -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($pidValue -match '^\d+$') {
     $process = Get-Process -Id ([int]$pidValue) -ErrorAction SilentlyContinue

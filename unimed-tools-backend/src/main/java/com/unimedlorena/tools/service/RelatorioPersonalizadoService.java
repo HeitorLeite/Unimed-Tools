@@ -30,7 +30,9 @@ public class RelatorioPersonalizadoService {
       String rotulo,
       String grupo,
       boolean selecionadaPorPadrao,
-      boolean sensivel) {
+      boolean sensivel,
+      boolean numerica,
+      boolean ranqueavel) {
   }
 
   public record Opcao(String valor, String rotulo) {
@@ -92,7 +94,9 @@ public class RelatorioPersonalizadoService {
             campo.rotulo(),
             campo.grupo(),
             campo.selecionadaPorPadrao(),
-            campo.sensivel()))
+            campo.sensivel(),
+            sqlBuilder.campoNumerico(campo.id()),
+            sqlBuilder.campoRanking(campo.id())))
         .toList();
 
     List<Filtro> filtros = sqlBuilder
@@ -127,6 +131,16 @@ public class RelatorioPersonalizadoService {
     try {
       publicarApi(normalizada);
 
+      if (normalizada.requerTransformacao()) {
+        List<LinkedHashMap<String, Object>> registros = exportacao.carregarRegistros(
+            API_NOME,
+            parametrosSgu(normalizada.filtros()));
+        List<LinkedHashMap<String, Object>> processados = processarRegistros(
+            registros,
+            normalizada);
+        return respostaPaginada(processados, normalizada);
+      }
+
       Map<String, Object> parametros = parametrosSgu(normalizada.filtros());
       parametros.put("page", normalizada.pagina());
       parametros.put("size", normalizada.tamanhoPagina());
@@ -137,6 +151,7 @@ public class RelatorioPersonalizadoService {
           "content",
           projetarRegistros(resposta.get("content"), normalizada.colunas()));
       projetada.put("colunas", normalizada.colunas());
+      projetada.put("rotulosColunas", rotulosResultado(normalizada));
       return projetada;
     } finally {
       API_LOCK.unlock();
@@ -152,35 +167,41 @@ public class RelatorioPersonalizadoService {
     try {
       publicarApi(normalizada);
 
-      /*
-       * O lock permanece durante todas as páginas. Sem isso, outra consulta
-       * poderia substituir a definição no meio da exportação.
-       */
       List<LinkedHashMap<String, Object>> registros = exportacao.carregarRegistros(
           API_NOME,
           parametrosSgu(normalizada.filtros()));
-      List<LinkedHashMap<String, Object>> projetados = projetarRegistros(
+      List<LinkedHashMap<String, Object>> processados = processarRegistros(
           registros,
-          normalizada.colunas());
-      return exportacao.gerarArquivo(formato, projetados);
+          normalizada);
+      return exportacao.gerarArquivo(formato, processados);
     } finally {
       API_LOCK.unlock();
     }
   }
 
   private void publicarApi(RequisicaoNormalizada normalizada) {
-    RelatorioPersonalizadoSqlBuilder.ApiGerada gerada = sqlBuilder.gerar(
-        normalizada.colunas(),
+    String ordenarNoSgu = normalizada.requerTransformacao()
+        ? null
+        : normalizada.ordenarPor();
+    String direcaoNoSgu = ordenarNoSgu == null
+        ? null
+        : normalizada.direcaoOrdenacao();
+
+    RelatorioPersonalizadoSqlBuilder.ApiGerada geradaOriginal = sqlBuilder.gerar(
+        normalizada.colunasConsulta(),
         normalizada.filtros().keySet(),
         normalizada.distinct(),
-        normalizada.ordenarPor(),
-        normalizada.direcaoOrdenacao());
+        ordenarNoSgu,
+        direcaoNoSgu);
 
-    /*
-     * Paginação e repetições com a mesma estrutura não precisam republicar a
-     * API reservada. O acesso ocorre dentro de API_LOCK; se colunas ou filtros
-     * ativos mudarem, ApiGerada também muda e a publicação é refeita.
-     */
+    RelatorioPersonalizadoSqlBuilder.ApiGerada gerada =
+        new RelatorioPersonalizadoSqlBuilder.ApiGerada(
+            compactarSql(geradaOriginal.consultaSql()),
+            compactarSql(geradaOriginal.ordenacao()),
+            geradaOriginal.filtros());
+
+    validarDefinicaoSgu(gerada);
+
     if (gerada.equals(ultimaApiPublicada)) {
       return;
     }
@@ -191,7 +212,6 @@ public class RelatorioPersonalizadoService {
     definicao.put("ordenacao", gerada.ordenacao());
     definicao.put("filtros", gerada.filtros());
 
-    // ins_atu_query_api atualiza a definição existente com o mesmo nome.
     sgu.criarOuAtualizar(definicao);
     ultimaApiPublicada = gerada;
   }
@@ -206,6 +226,34 @@ public class RelatorioPersonalizadoService {
 
     List<String> colunas = normalizarColunas(request.colunas());
     Map<String, Object> filtros = normalizarFiltros(request.filtros());
+    boolean separarMeses = Boolean.TRUE.equals(request.separarMeses());
+    List<String> colunasMeses = normalizarColunasMeses(
+        request.colunasMeses(),
+        colunas,
+        separarMeses);
+
+    Ranking ranking = normalizarRanking(request, colunas);
+
+    LinkedHashSet<String> consulta = new LinkedHashSet<>(colunas);
+    if (separarMeses) {
+      consulta.add("PERIODO");
+    }
+
+    List<String> colunasPrevistas = colunasResultadoPrevistas(
+        colunas,
+        filtros,
+        separarMeses,
+        colunasMeses);
+    String ordenarPor = normalizarOrdenarPor(
+        request.ordenarPor(),
+        colunasPrevistas);
+    String direcaoOrdenacao = normalizarDirecaoOrdenacao(
+        request.direcaoOrdenacao(),
+        ordenarPor);
+    List<String> ordemResultado = normalizarOrdemResultado(
+        request.ordemResultado(),
+        colunasPrevistas);
+
     int pagina = paginado
         ? limitar(request.pagina(), 1, 10_000, 1, "Página")
         : 1;
@@ -217,32 +265,35 @@ public class RelatorioPersonalizadoService {
             50,
             "Tamanho da página")
         : MAXIMO_LINHAS_PAGINA;
-    boolean distinct = Boolean.TRUE.equals(request.distinct());
-    String ordenarPor = normalizarOrdenarPor(request.ordenarPor(), colunas);
-    String direcaoOrdenacao = normalizarDirecaoOrdenacao(
-        request.direcaoOrdenacao(),
-        ordenarPor);
 
     return new RequisicaoNormalizada(
         colunas,
+        List.copyOf(consulta),
         filtros,
-        distinct,
+        Boolean.TRUE.equals(request.distinct()),
         ordenarPor,
         direcaoOrdenacao,
+        separarMeses,
+        colunasMeses,
+        ranking.dimensao(),
+        ranking.metrica(),
+        ranking.direcao(),
+        ranking.limite(),
+        ordemResultado,
         pagina,
         tamanho);
   }
 
   private String normalizarOrdenarPor(
       String recebido,
-      List<String> colunasSelecionadas) {
+      List<String> colunasResultado) {
     if (recebido == null || recebido.isBlank()) {
       return null;
     }
     String coluna = recebido.trim().toUpperCase(Locale.ROOT);
-    if (!colunasSelecionadas.contains(coluna)) {
+    if (!colunasResultado.contains(coluna)) {
       throw new IllegalArgumentException(
-          "A coluna de ordenação deve estar entre as colunas selecionadas.");
+          "A coluna de ordenação deve estar entre as colunas exibidas.");
     }
     return coluna;
   }
@@ -546,6 +597,498 @@ public class RelatorioPersonalizadoService {
     return projetados;
   }
 
+  private List<String> normalizarColunasMeses(
+      List<String> solicitadas,
+      List<String> selecionadas,
+      boolean separarMeses) {
+    if (!separarMeses) {
+      return List.of();
+    }
+
+    LinkedHashSet<String> unicas = new LinkedHashSet<>();
+    if (solicitadas != null) {
+      for (String coluna : solicitadas) {
+        String id = coluna == null ? "" : coluna.trim().toUpperCase(Locale.ROOT);
+        if (!selecionadas.contains(id) || !sqlBuilder.campoNumerico(id)) {
+          throw new IllegalArgumentException(
+              "Só é possível separar por mês uma coluna numérica selecionada.");
+        }
+        unicas.add(id);
+      }
+    }
+
+    if (unicas.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Selecione pelo menos uma coluna numérica para separar por mês.");
+    }
+    return List.copyOf(unicas);
+  }
+
+  private Ranking normalizarRanking(
+      RelatorioPersonalizadoRequest request,
+      List<String> colunas) {
+    String dimensao = textoMaiusculo(request.rankingDimensao());
+    String metrica = textoMaiusculo(request.rankingMetrica());
+    String direcao = textoMaiusculo(request.rankingDirecao());
+    Integer limiteRecebido = request.rankingLimite();
+
+    boolean informado = dimensao != null || metrica != null ||
+        direcao != null || limiteRecebido != null;
+    if (!informado) {
+      return new Ranking(null, null, null, null);
+    }
+
+    if (dimensao == null || metrica == null) {
+      throw new IllegalArgumentException(
+          "Escolha a dimensão e a métrica do ranking.");
+    }
+    if (!colunas.contains(dimensao) || sqlBuilder.campoNumerico(dimensao)) {
+      throw new IllegalArgumentException(
+          "A dimensão do ranking deve ser uma coluna descritiva selecionada.");
+    }
+    if (!colunas.contains(metrica) || !sqlBuilder.campoRanking(metrica)) {
+      throw new IllegalArgumentException(
+          "A métrica do ranking deve ser uma coluna de gasto selecionada.");
+    }
+
+    String direcaoNormalizada = direcao == null ? "MAIORES" : direcao;
+    if (!Set.of("MAIORES", "MENORES").contains(direcaoNormalizada)) {
+      throw new IllegalArgumentException(
+          "O ranking deve usar MAIORES ou MENORES.");
+    }
+    int limite = limitar(limiteRecebido, 1, 1000, 10, "Quantidade do ranking");
+    return new Ranking(dimensao, metrica, direcaoNormalizada, limite);
+  }
+
+  private String textoMaiusculo(String valor) {
+    if (valor == null || valor.isBlank()) {
+      return null;
+    }
+    return valor.trim().toUpperCase(Locale.ROOT);
+  }
+
+  private List<String> colunasResultadoPrevistas(
+      List<String> colunas,
+      Map<String, Object> filtros,
+      boolean separarMeses,
+      List<String> colunasMeses) {
+    if (!separarMeses) {
+      return List.copyOf(colunas);
+    }
+
+    List<Integer> meses = competencias(filtros);
+    List<String> resultado = new ArrayList<>();
+    for (String coluna : colunas) {
+      if ("PERIODO".equals(coluna)) {
+        continue;
+      }
+      if (colunasMeses.contains(coluna)) {
+        for (Integer mes : meses) {
+          resultado.add(aliasMes(coluna, mes));
+        }
+      } else {
+        resultado.add(coluna);
+      }
+    }
+    return List.copyOf(resultado);
+  }
+
+  private List<String> normalizarOrdemResultado(
+      List<String> recebida,
+      List<String> prevista) {
+    if (recebida == null || recebida.isEmpty()) {
+      return prevista;
+    }
+
+    LinkedHashSet<String> normalizada = new LinkedHashSet<>();
+    for (String coluna : recebida) {
+      String id = coluna == null ? "" : coluna.trim().toUpperCase(Locale.ROOT);
+      if (!prevista.contains(id)) {
+        throw new IllegalArgumentException(
+            "A ordem do resultado contém uma coluna que não está disponível: " + id + ".");
+      }
+      normalizada.add(id);
+    }
+    for (String coluna : prevista) {
+      normalizada.add(coluna);
+    }
+    return List.copyOf(normalizada);
+  }
+
+  private boolean requerTransformacao(RequisicaoNormalizada normalizada) {
+    return normalizada.separarMeses() || normalizada.rankingDimensao() != null;
+  }
+
+  private List<LinkedHashMap<String, Object>> processarRegistros(
+      Object conteudo,
+      RequisicaoNormalizada normalizada) {
+    List<LinkedHashMap<String, Object>> registros = projetarRegistros(
+        conteudo,
+        normalizada.colunasConsulta());
+
+    if (normalizada.rankingDimensao() != null) {
+      registros = aplicarRanking(registros, normalizada);
+    }
+    if (normalizada.separarMeses()) {
+      registros = separarMeses(registros, normalizada);
+    } else {
+      registros = projetarRegistros(registros, normalizada.colunas());
+    }
+
+    registros = reordenarRegistros(registros, normalizada.ordemResultado());
+    ordenarRegistros(registros, normalizada);
+    return registros;
+  }
+
+  private List<LinkedHashMap<String, Object>> aplicarRanking(
+      List<LinkedHashMap<String, Object>> registros,
+      RequisicaoNormalizada normalizada) {
+    Map<String, BigDecimal> totais = new LinkedHashMap<>();
+    for (Map<String, Object> registro : registros) {
+      String chave = textoChave(registro.get(normalizada.rankingDimensao()));
+      if (chave == null) {
+        continue;
+      }
+      totais.merge(
+          chave,
+          numero(registro.get(normalizada.rankingMetrica())),
+          BigDecimal::add);
+    }
+
+    List<Map.Entry<String, BigDecimal>> ordenados = new ArrayList<>(totais.entrySet());
+    ordenados.sort((a, b) -> {
+      int comparacao = a.getValue().compareTo(b.getValue());
+      if ("MAIORES".equals(normalizada.rankingDirecao())) {
+        comparacao = -comparacao;
+      }
+      return comparacao != 0
+          ? comparacao
+          : a.getKey().compareToIgnoreCase(b.getKey());
+    });
+
+    LinkedHashSet<String> permitidos = new LinkedHashSet<>();
+    ordenados.stream()
+        .limit(normalizada.rankingLimite())
+        .map(Map.Entry::getKey)
+        .forEach(permitidos::add);
+
+    return registros.stream()
+        .filter(registro -> {
+          String chave = textoChave(registro.get(normalizada.rankingDimensao()));
+          return chave != null && permitidos.contains(chave);
+        })
+        .map(LinkedHashMap::new)
+        .toList();
+  }
+
+  private List<LinkedHashMap<String, Object>> separarMeses(
+      List<LinkedHashMap<String, Object>> registros,
+      RequisicaoNormalizada normalizada) {
+    List<String> dimensoes = normalizada.colunas().stream()
+        .filter(coluna -> !"PERIODO".equals(coluna))
+        .filter(coluna -> !sqlBuilder.campoNumerico(coluna))
+        .toList();
+    List<String> metricasTotais = normalizada.colunas().stream()
+        .filter(sqlBuilder::campoNumerico)
+        .filter(coluna -> !normalizada.colunasMeses().contains(coluna))
+        .toList();
+    List<Integer> meses = competencias(normalizada.filtros());
+
+    Map<String, LinkedHashMap<String, Object>> grupos = new LinkedHashMap<>();
+    for (LinkedHashMap<String, Object> registro : registros) {
+      String chave = chaveGrupo(registro, dimensoes);
+      LinkedHashMap<String, Object> saida = grupos.computeIfAbsent(
+          chave,
+          ignored -> criarLinhaMensal(
+              registro,
+              dimensoes,
+              metricasTotais,
+              normalizada.colunasMeses(),
+              meses));
+
+      for (String metrica : metricasTotais) {
+        acumular(saida, metrica, registro.get(metrica), metrica);
+      }
+
+      Integer competencia = competenciaRegistro(registro.get("PERIODO"));
+      if (competencia == null || !meses.contains(competencia)) {
+        continue;
+      }
+      for (String metrica : normalizada.colunasMeses()) {
+        acumular(
+            saida,
+            aliasMes(metrica, competencia),
+            registro.get(metrica),
+            metrica);
+      }
+    }
+
+    return new ArrayList<>(grupos.values());
+  }
+
+  private LinkedHashMap<String, Object> criarLinhaMensal(
+      Map<String, Object> origem,
+      List<String> dimensoes,
+      List<String> metricasTotais,
+      List<String> metricasMeses,
+      List<Integer> meses) {
+    LinkedHashMap<String, Object> linha = new LinkedHashMap<>();
+    dimensoes.forEach(coluna -> linha.put(coluna, origem.get(coluna)));
+    metricasTotais.forEach(coluna -> linha.put(coluna, BigDecimal.ZERO));
+    for (String metrica : metricasMeses) {
+      for (Integer mes : meses) {
+        linha.put(aliasMes(metrica, mes), BigDecimal.ZERO);
+      }
+    }
+    return linha;
+  }
+
+  private void acumular(
+      Map<String, Object> destino,
+      String colunaDestino,
+      Object valor,
+      String metricaBase) {
+    BigDecimal numero = numero(valor);
+    if ("IDADE".equals(metricaBase) || "SINISTRALIDADE".equals(metricaBase)) {
+      BigDecimal atual = numero(destino.get(colunaDestino));
+      destino.put(colunaDestino, atual.max(numero));
+      return;
+    }
+    destino.put(
+        colunaDestino,
+        numero(destino.get(colunaDestino)).add(numero));
+  }
+
+  private List<Integer> competencias(Map<String, Object> filtros) {
+    int inicio = (Integer) filtros.get("competencia_inicio");
+    int fim = (Integer) filtros.get("competencia_fim");
+    List<Integer> meses = new ArrayList<>();
+    int ano = inicio / 100;
+    int mes = inicio % 100;
+    while (ano * 100 + mes <= fim) {
+      meses.add(ano * 100 + mes);
+      mes++;
+      if (mes == 13) {
+        mes = 1;
+        ano++;
+      }
+    }
+    return meses;
+  }
+
+  private Integer competenciaRegistro(Object valor) {
+    if (valor == null) {
+      return null;
+    }
+    String texto = String.valueOf(valor).trim();
+    if (texto.matches("\\d{6}")) {
+      return Integer.valueOf(texto);
+    }
+    return null;
+  }
+
+  private String aliasMes(String coluna, int competencia) {
+    return coluna + "_" + competencia;
+  }
+
+  private String chaveGrupo(
+      Map<String, Object> registro,
+      List<String> dimensoes) {
+    StringBuilder chave = new StringBuilder();
+    for (String dimensao : dimensoes) {
+      String valor = String.valueOf(registro.get(dimensao));
+      chave.append(valor.length()).append(':').append(valor).append('|');
+    }
+    return chave.toString();
+  }
+
+  private String textoChave(Object valor) {
+    if (valor == null) {
+      return null;
+    }
+    String texto = String.valueOf(valor).trim();
+    return texto.isBlank() ? null : texto;
+  }
+
+  private BigDecimal numero(Object valor) {
+    if (valor == null) {
+      return BigDecimal.ZERO;
+    }
+    if (valor instanceof BigDecimal decimal) {
+      return decimal;
+    }
+    if (valor instanceof Number numero) {
+      return new BigDecimal(numero.toString());
+    }
+
+    String texto = String.valueOf(valor).trim();
+    if (texto.isBlank()) {
+      return BigDecimal.ZERO;
+    }
+    if (texto.contains(",") && texto.contains(".")) {
+      texto = texto.replace(".", "").replace(',', '.');
+    } else if (texto.contains(",")) {
+      texto = texto.replace(',', '.');
+    }
+    try {
+      return new BigDecimal(texto);
+    } catch (NumberFormatException ex) {
+      return BigDecimal.ZERO;
+    }
+  }
+
+  private List<LinkedHashMap<String, Object>> reordenarRegistros(
+      List<LinkedHashMap<String, Object>> registros,
+      List<String> ordem) {
+    List<LinkedHashMap<String, Object>> resultado = new ArrayList<>();
+    for (Map<String, Object> registro : registros) {
+      LinkedHashMap<String, Object> linha = new LinkedHashMap<>();
+      ordem.forEach(coluna -> linha.put(coluna, registro.get(coluna)));
+      resultado.add(linha);
+    }
+    return resultado;
+  }
+
+  private void ordenarRegistros(
+      List<LinkedHashMap<String, Object>> registros,
+      RequisicaoNormalizada normalizada) {
+    if (normalizada.ordenarPor() == null || registros.size() < 2) {
+      return;
+    }
+    String coluna = normalizada.ordenarPor();
+    boolean numerica = colunaNumericaResultado(coluna);
+    registros.sort((a, b) -> {
+      int comparacao = numerica
+          ? numero(a.get(coluna)).compareTo(numero(b.get(coluna)))
+          : String.valueOf(a.getOrDefault(coluna, ""))
+              .compareToIgnoreCase(String.valueOf(b.getOrDefault(coluna, "")));
+      return "DESC".equals(normalizada.direcaoOrdenacao())
+          ? -comparacao
+          : comparacao;
+    });
+  }
+
+  private boolean colunaNumericaResultado(String coluna) {
+    if (sqlBuilder.campoNumerico(coluna)) {
+      return true;
+    }
+    int separador = coluna.lastIndexOf('_');
+    if (separador <= 0 || separador == coluna.length() - 1) {
+      return false;
+    }
+    String sufixo = coluna.substring(separador + 1);
+    return sufixo.matches("\\d{6}") &&
+        sqlBuilder.campoNumerico(coluna.substring(0, separador));
+  }
+
+  private Map<String, Object> respostaPaginada(
+      List<LinkedHashMap<String, Object>> registros,
+      RequisicaoNormalizada normalizada) {
+    int total = registros.size();
+    int inicio = Math.min((normalizada.pagina() - 1) * normalizada.tamanhoPagina(), total);
+    int fim = Math.min(inicio + normalizada.tamanhoPagina(), total);
+    List<LinkedHashMap<String, Object>> pagina = registros.subList(inicio, fim);
+
+    Map<String, Object> resposta = new LinkedHashMap<>();
+    resposta.put("content", pagina);
+    resposta.put("colunas", normalizada.ordemResultado());
+    resposta.put("rotulosColunas", rotulosResultado(normalizada));
+    resposta.put("totalElements", total);
+    resposta.put("numberOfElements", pagina.size());
+    resposta.put(
+        "totalPages",
+        total == 0 ? 0 : (int) Math.ceil((double) total / normalizada.tamanhoPagina()));
+    resposta.put("number", normalizada.pagina() - 1);
+    resposta.put("last", fim >= total);
+    return resposta;
+  }
+
+  private Map<String, String> rotulosResultado(RequisicaoNormalizada normalizada) {
+    Map<String, String> rotulos = new LinkedHashMap<>();
+    for (String coluna : normalizada.ordemResultado()) {
+      int separador = coluna.lastIndexOf('_');
+      if (separador > 0) {
+        String sufixo = coluna.substring(separador + 1);
+        String base = coluna.substring(0, separador);
+        if (sufixo.matches("\\d{6}") && sqlBuilder.campo(base) != null) {
+          int competencia = Integer.parseInt(sufixo);
+          rotulos.put(
+              coluna,
+              sqlBuilder.campo(base).rotulo() + " " + rotuloMes(competencia));
+          continue;
+        }
+      }
+      RelatorioPersonalizadoSqlBuilder.Campo campo = sqlBuilder.campo(coluna);
+      rotulos.put(coluna, campo == null ? coluna : campo.rotulo());
+    }
+    return rotulos;
+  }
+
+  private String rotuloMes(int competencia) {
+    String[] meses = {
+        "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
+        "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"
+    };
+    int ano = competencia / 100;
+    int mes = competencia % 100;
+    return meses[mes - 1] + "/" + ano;
+  }
+
+  private void validarDefinicaoSgu(
+      RelatorioPersonalizadoSqlBuilder.ApiGerada gerada) {
+    if (gerada.ordenacao().length() > 200) {
+      throw new IllegalArgumentException(
+          "A ordenação gerada ficou grande demais para a rotina do SGU. " +
+              "Escolha uma única coluna para ordenar.");
+    }
+    for (Map<String, Object> filtro : gerada.filtros()) {
+      String conteudo = String.valueOf(filtro.getOrDefault("conteudoFiltro", ""));
+      if (conteudo.length() > 1000) {
+        throw new IllegalArgumentException(
+            "Um dos filtros gerados excedeu o tamanho seguro aceito pelo SGU.");
+      }
+    }
+  }
+
+  private String compactarSql(String sql) {
+    if (sql == null || sql.isBlank()) {
+      return "";
+    }
+
+    StringBuilder saida = new StringBuilder(sql.length());
+    boolean emTexto = false;
+    boolean espacoPendente = false;
+    for (int i = 0; i < sql.length(); i++) {
+      char atual = sql.charAt(i);
+
+      if (atual == '\'') {
+        saida.append(atual);
+        if (emTexto && i + 1 < sql.length() && sql.charAt(i + 1) == '\'') {
+          saida.append(sql.charAt(++i));
+          continue;
+        }
+        emTexto = !emTexto;
+        espacoPendente = false;
+        continue;
+      }
+
+      if (!emTexto && Character.isWhitespace(atual)) {
+        espacoPendente = true;
+        continue;
+      }
+
+      if (espacoPendente && saida.length() > 0) {
+        char anterior = saida.charAt(saida.length() - 1);
+        if (anterior != '(' && atual != ')' && atual != ',') {
+          saida.append(' ');
+        }
+      }
+      espacoPendente = false;
+      saida.append(atual);
+    }
+    return saida.toString().trim();
+  }
+
   /**
    * O SGU rejeita nomes de filtros com underscore. A conversão fica restrita
    * à borda da integração para não alterar o contrato interno do frontend.
@@ -570,13 +1113,31 @@ public class RelatorioPersonalizadoService {
     return numero;
   }
 
+  private record Ranking(
+      String dimensao,
+      String metrica,
+      String direcao,
+      Integer limite) {
+  }
+
   private record RequisicaoNormalizada(
       List<String> colunas,
+      List<String> colunasConsulta,
       Map<String, Object> filtros,
       boolean distinct,
       String ordenarPor,
       String direcaoOrdenacao,
+      boolean separarMeses,
+      List<String> colunasMeses,
+      String rankingDimensao,
+      String rankingMetrica,
+      String rankingDirecao,
+      Integer rankingLimite,
+      List<String> ordemResultado,
       int pagina,
       int tamanhoPagina) {
-  }
-}
+
+    boolean requerTransformacao() {
+      return separarMeses || rankingDimensao != null;
+    }
+  }}

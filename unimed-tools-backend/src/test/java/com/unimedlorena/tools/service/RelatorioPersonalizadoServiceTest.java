@@ -219,7 +219,8 @@ class RelatorioPersonalizadoServiceTest {
     ArgumentCaptor<Map<String, Object>> definicao = ArgumentCaptor.forClass(Map.class);
     verify(sgu).criarOuAtualizar(definicao.capture());
     assertThat(String.valueOf(definicao.getValue().get("consultaSQL")))
-        .contains("SELECT DISTINCT\n  RP.NUMERO_GUIA");
+        .contains("SELECT DISTINCT RP.NUMERO_GUIA")
+        .doesNotContain("\n", "\r");
   }
 
   @Test
@@ -252,8 +253,8 @@ class RelatorioPersonalizadoServiceTest {
     assertThat(String.valueOf(definicao.getValue().get("consultaSQL")))
         .contains(
             "SUM(RP.VALOR_TOTAL) AS VALOR_TOTAL",
-            "GROUP BY\n  RP.O_BNF_UNIMED,\n  RP.O_BNF_CONTRATO,\n  " +
-                "RP.O_BNF_CODIGO,\n  RP.O_BNF_DEPENDENTE");
+            "GROUP BY RP.O_BNF_UNIMED, RP.O_BNF_CONTRATO, " +
+                "RP.O_BNF_CODIGO, RP.O_BNF_DEPENDENTE");
   }
 
   @Test
@@ -288,6 +289,125 @@ class RelatorioPersonalizadoServiceTest {
         .containsEntry(
             "ordenacao",
             "NOME_BENEFICIARIO DESC");
+  }
+
+
+  @Test
+  void deveNormalizarEmpresasSelecionadasPeloNomeComoListaDeCodigos() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(sgu.executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(Map.of("content", List.of(), "last", true));
+
+    service.executar(requisicao(Map.of(
+        "competencia_inicio", "202601",
+        "competencia_fim", "202601",
+        "nome_empresa", "2010038,2011533,2011372")));
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> parametros = ArgumentCaptor.forClass(Map.class);
+    verify(sgu).executar(eq(RelatorioPersonalizadoService.API_NOME), parametros.capture());
+    assertThat(parametros.getValue())
+        .containsEntry("nomeempresa", ",2010038,2011533,2011372,");
+  }
+
+  @Test
+  void deveSepararMesesNoBackendSemCriarSqlPivotGigante() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(exportacao.carregarRegistros(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(List.of(
+            new java.util.LinkedHashMap<>(Map.of(
+                "NOME_EMPRESA", "Empresa A",
+                "PERIODO", 202601,
+                "VALOR_TOTAL", 10)),
+            new java.util.LinkedHashMap<>(Map.of(
+                "NOME_EMPRESA", "Empresa A",
+                "PERIODO", 202602,
+                "VALOR_TOTAL", 20))));
+
+    RelatorioPersonalizadoRequest request = new RelatorioPersonalizadoRequest(
+        List.of("NOME_EMPRESA", "VALOR_TOTAL"),
+        Map.of(
+            "competencia_inicio", "202601",
+            "competencia_fim", "202602"),
+        false,
+        null,
+        null,
+        true,
+        List.of("VALOR_TOTAL"),
+        null,
+        null,
+        null,
+        null,
+        1,
+        50,
+        "mensal");
+
+    Map<String, Object> resposta = service.executar(request);
+
+    assertThat(resposta.get("colunas")).isEqualTo(
+        List.of("NOME_EMPRESA", "Despesa total JAN/2026", "Despesa total FEV/2026"));
+    assertThat((List<?>) resposta.get("content")).singleElement().satisfies(registro -> {
+      @SuppressWarnings("unchecked")
+      Map<String, Object> linha = (Map<String, Object>) registro;
+      assertThat(linha)
+          .containsEntry("NOME_EMPRESA", "Empresa A")
+          .containsEntry("Despesa total JAN/2026", new java.math.BigDecimal("10"))
+          .containsEntry("Despesa total FEV/2026", new java.math.BigDecimal("20"));
+    });
+  }
+
+  @Test
+  void deveAplicarRankingPorDimensaoEMetricaDeValor() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(exportacao.carregarRegistros(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(List.of(
+            new java.util.LinkedHashMap<>(Map.of("NOME_EMPRESA", "A", "VALOR_TOTAL", 10)),
+            new java.util.LinkedHashMap<>(Map.of("NOME_EMPRESA", "B", "VALOR_TOTAL", 90))));
+
+    RelatorioPersonalizadoRequest request = new RelatorioPersonalizadoRequest(
+        List.of("NOME_EMPRESA", "VALOR_TOTAL"),
+        Map.of(
+            "competencia_inicio", "202601",
+            "competencia_fim", "202601"),
+        false,
+        null,
+        null,
+        false,
+        List.of(),
+        "MAIORES",
+        1,
+        "NOME_EMPRESA",
+        "VALOR_TOTAL",
+        1,
+        50,
+        "ranking");
+
+    Map<String, Object> resposta = service.executar(request);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> linhas = (List<Map<String, Object>>) resposta.get("content");
+    assertThat(linhas).singleElement().satisfies(linha ->
+        assertThat(linha).containsEntry("NOME_EMPRESA", "B"));
   }
 
   private RelatorioPersonalizadoRequest requisicao(Map<String, Object> filtros) {

@@ -101,11 +101,6 @@ export class HospitalComponent implements OnInit {
 
           this.total = Number.isFinite(parsed) ? parsed : null;
 
-          console.log('REGISTRO SGU:', response.content?.[0]);
-          console.log(
-            'COLUNAS SGU:',
-            response.content?.[0] ? Object.keys(response.content[0]) : [],
-          );
         },
         error: (error: any) =>
           (this.error = error?.error?.message || 'Não foi possível consultar as autorizações.'),

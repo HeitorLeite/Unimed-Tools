@@ -1,7 +1,7 @@
 /**
  * Camada de acesso ao backend de relatórios e ao catálogo mantido no localStorage.
  */
-import { HttpClient, HttpEvent, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpEvent, HttpResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, catchError, concatMap, map, throwError } from 'rxjs';
 
@@ -241,7 +241,20 @@ export class RelatorioService {
       `${this.baseUrl}/sgu/exportar/${encodeURIComponent(nome)}?formato=${formato}`,
       { filtros, nomeArquivo },
       { observe: 'events', reportProgress: true, responseType: 'blob' },
-    );
+    ).pipe(catchError((erro: unknown) => {
+      // Downloads recebem erros como Blob. Todas as telas precisam conseguir
+      // ler a mensagem temporária sem exibir HTML de proxies intermediários.
+      if (erro instanceof HttpErrorResponse && [502, 503, 504].includes(erro.status)) {
+        const message = erro.status === 504
+          ? 'O serviço de relatórios excedeu o tempo de resposta. Isso pode ser temporário. Aguarde um pouco e tente novamente; se persistir, informe a equipe de TI.'
+          : 'O serviço de relatórios está temporariamente indisponível. Aguarde um pouco e tente novamente.';
+        return throwError(() => new HttpErrorResponse({
+          status: erro.status, statusText: erro.statusText, headers: erro.headers,
+          url: erro.url ?? undefined, error: { message },
+        }));
+      }
+      return throwError(() => erro);
+    }));
   }
 
   exportarLote(request: RelatorioLoteRequest): Observable<HttpResponse<Blob>> {

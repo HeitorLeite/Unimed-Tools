@@ -4,6 +4,7 @@
 package com.unimedlorena.tools.service;
 
 import com.unimedlorena.tools.dto.RelatorioExportacaoRequest;
+import com.unimedlorena.tools.exception.ApiException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -204,7 +205,7 @@ public class ExportacaoRelatorioService {
       parametros.put("page", pagina);
       parametros.put("size", tamanhoLote);
 
-      Map<String, Object> resposta = sgu.executar(apiNome, parametros);
+      Map<String, Object> resposta = consultarPagina(apiNome, parametros, pagina);
       List<LinkedHashMap<String, Object>> lote = extrairRegistros(
         resposta.get("content")
       );
@@ -224,7 +225,10 @@ public class ExportacaoRelatorioService {
       }
 
       assinaturaAnterior = assinatura;
+      long inicioEscrita = System.nanoTime();
       consumidor.aceitar(lote);
+      log.info("Página processada. pagina={}, registros={}, escritaMs={}",
+        pagina, lote.size(), (System.nanoTime() - inicioEscrita) / 1_000_000);
       quantidade += lote.size();
 
       if (pagina == 1 || pagina % 10 == 0) {
@@ -251,6 +255,41 @@ public class ExportacaoRelatorioService {
     }
 
     return quantidade;
+  }
+
+  private Map<String, Object> consultarPagina(
+    String apiNome, Map<String, Object> parametros, int pagina
+  ) throws IOException {
+    for (int tentativa = 1; tentativa <= 2; tentativa++) {
+      long inicio = System.nanoTime();
+      try {
+        Map<String, Object> resposta = sgu.executar(apiNome, parametros);
+        log.info("Página consultada no SGU. pagina={}, tentativa={}, consultaMs={}",
+          pagina, tentativa, (System.nanoTime() - inicio) / 1_000_000);
+        return resposta;
+      } catch (ApiException ex) {
+        boolean temporaria =
+          (ex.status().value() == 504 && "SGU_TIMEOUT".equals(ex.codigo())) ||
+          ((ex.status().value() == 502 || ex.status().value() == 503) &&
+            "SGU_INDISPONIVEL".equals(ex.codigo()));
+        log.warn("Falha ao consultar página. pagina={}, tentativa={}, status={}, consultaMs={}",
+          pagina, tentativa, ex.status().value(), (System.nanoTime() - inicio) / 1_000_000);
+        if (!temporaria || tentativa == 2) throw ex;
+        // Só consultas de exportação são repetidas, antes de entregar a página
+        // ao escritor. Páginas anteriores não são consultadas nem gravadas de novo.
+        aguardarNovaTentativa();
+      }
+    }
+    throw new IllegalStateException("Consulta de página não concluída.");
+  }
+
+  void aguardarNovaTentativa() throws IOException {
+    try {
+      Thread.sleep(1000);
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+      throw new java.io.InterruptedIOException("Exportação interrompida antes da nova tentativa.");
+    }
   }
 
   /**
@@ -433,7 +472,7 @@ public class ExportacaoRelatorioService {
               estilos.get(tipo),
               texto
             );
-            estado.larguras[i] = Math.max(
+            if (estado.larguras[i] < 60) estado.larguras[i] = Math.max(
               estado.larguras[i],
               Math.min(60, formatarTextoSeguro(valor, tipo).length() + 2)
             );
@@ -460,8 +499,11 @@ public class ExportacaoRelatorioService {
         );
       }
 
+      long inicioEmpacotamento = System.nanoTime();
       workbook.write(destino);
       destino.flush();
+      log.info("XLSX empacotado. registros={}, empacotamentoMs={}",
+        quantidade, (System.nanoTime() - inicioEmpacotamento) / 1_000_000);
       workbook.dispose();
       return quantidade;
     }

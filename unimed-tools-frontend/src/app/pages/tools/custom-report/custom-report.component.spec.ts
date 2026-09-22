@@ -70,7 +70,8 @@ describe('Ferramenta configurável — atualização assíncrona', () => {
       .expectOne('/api/relatorios/sgu/exportar/teste?formato=xlsx')
       .flush(new Blob(), { status: 503, statusText: 'Unavailable' });
     await fixture.whenStable();
-    expect(fixture.nativeElement.textContent).toContain('Não foi possível baixar');
+    expect(fixture.nativeElement.textContent).toContain('temporariamente indisponível');
+    expect(fixture.nativeElement.textContent).toContain('tente novamente');
     expect(fixture.nativeElement.querySelector('.download').disabled).toBe(false);
   });
 });

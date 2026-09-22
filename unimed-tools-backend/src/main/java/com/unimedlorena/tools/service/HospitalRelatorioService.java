@@ -46,6 +46,7 @@ public class HospitalRelatorioService {
       "COD_GUIA",
       "PROCEDIMENTO",
       "DESCRICAO",
+      "PRESTADOR",
       "STATUS");
 
   private static final List<Filtro> FILTROS = List.of(
@@ -56,6 +57,7 @@ public class HospitalRelatorioService {
       new Filtro("codguia", "Código da guia", "text", "Número da guia", List.of()),
       new Filtro("procedimento", "Procedimento", "text", "Código do procedimento", List.of()),
       new Filtro("descricao", "Descrição", "text", "Digite parte da descrição", List.of()),
+      new Filtro("prestador", "Prestador", "text", "Digite parte do nome do prestador", List.of()),
       new Filtro(
           "status",
           "Status",
@@ -74,6 +76,7 @@ public class HospitalRelatorioService {
       "codguia",
       "procedimento",
       "descricao",
+      "prestador",
       "status");
 
   private static final String SQL = """
@@ -98,6 +101,7 @@ public class HospitalRelatorioService {
                 GSOL.GSOL_NRO_GUIA AS COD_GUIA,
                 GSAI.GSOLI_ITEM_SERVICO || IT.ITEM_COD_DIG AS PROCEDIMENTO,
                 IT.ITEM_DES_PRINC AS DESCRICAO,
+                GSOL.GSOL_NOM_PROFIS AS PRESTADOR,
                 CASE
                    WHEN GSOL.GSOL_IND_SITUAC = 1 THEN 'NEGADO'
                    WHEN GSOL.GSOL_IND_SITUAC = 2 THEN 'APROVADO'
@@ -212,6 +216,7 @@ public class HospitalRelatorioService {
         filtro("procedimento", "and TO_CHAR(GSAI.GSOLI_ITEM_SERVICO || IT.ITEM_COD_DIG) LIKE :procedimento",
             "VARCHAR(40)"),
         filtro("descricao", "and UPPER(IT.ITEM_DES_PRINC) LIKE :descricao", "VARCHAR(200)"),
+        filtro("prestador", "and UPPER(GSOL.GSOL_NOM_PROFIS) LIKE :prestador", "VARCHAR(242)"),
         filtro("status", "and GSOL.GSOL_IND_SITUAC = :status", "NUMBER"));
   }
 
@@ -241,7 +246,7 @@ public class HospitalRelatorioService {
       if (valor.length() > 240)
         throw new IllegalArgumentException("Filtro muito longo: " + id + ".");
 
-      if (Set.of("convenio", "nomebenef", "descricao", "procedimento").contains(id)) {
+      if (Set.of("convenio", "nomebenef", "descricao", "procedimento", "prestador").contains(id)) {
         normalizados.put(id, "%" + valor.toUpperCase(Locale.ROOT) + "%");
       } else if ("status".equals(id)) {
         if (!Set.of("1", "2", "3").contains(valor))

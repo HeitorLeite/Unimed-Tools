@@ -84,6 +84,7 @@ A consulta retorna:
 - código da guia;
 - procedimento;
 - descrição;
+- prestador;
 - status.
 
 Filtros disponíveis:
@@ -94,7 +95,13 @@ Filtros disponíveis:
 - código da guia;
 - procedimento;
 - descrição;
+- nome do prestador (busca parcial);
 - status.
+
+**Atual:** o prestador vem de `GSOL.GSOL_NOM_PROFIS`, aparece na prévia e na
+exportação como `PRESTADOR`. O filtro opcional `prestador` usa `LIKE` com bind
+`%texto%` e normalização para maiúsculas; não é necessário digitar os curingas.
+A data de validade e as demais regras do relatório permanecem preservadas.
 
 A definição SQL e os filtros permitidos ficam no backend. O frontend nunca recebe a chave do SGU nem SQL executável.
 
@@ -273,6 +280,25 @@ Após criar a primeira conta, remova a senha de bootstrap do ambiente.
 - `SGU_API_EXECUTION_PATH`
 
 A chave do SGU existe somente no backend.
+
+### Exportações extensas e falhas temporárias (Atual)
+
+- A exportação usa páginas de 1.000 registros por padrão (`SGU_EXPORT_PAGE_SIZE`).
+- Uma página que receber HTTP 502, 503 ou 504 do SGU tem uma única nova tentativa,
+  após um segundo. Apenas a consulta é repetida, antes de gravar suas linhas;
+  páginas já concluídas não são repetidas. Criação, alteração e exclusão de APIs
+  não recebem novas tentativas automáticas.
+- Se a falha persistir, o backend preserva o status 502/503/504 e devolve uma
+  mensagem segura em JSON, sem HTML remoto. Isso não elimina o timeout do gateway.
+- Logs de exportação medem consulta por página, escrita e empacotamento XLSX,
+  sem filtros, SQL ou conteúdo dos registros. Esses tempos permitem identificar
+  o gargalo antes de mudar tamanho de página ou otimizar a consulta no SGU.
+- CSV/TXT já transmitidos não permitem substituir a resposta HTTP por JSON
+  em caso de falha posterior: a transferência pode ser interrompida e a saída
+  parcial não deve ser tratada como relatório completo.
+
+**Pendente:** medir a `0090-bi-despesas` no ambiente corporativo. O número de
+linhas, isoladamente, não permite afirmar que 1.400 segundos sejam necessários.
 
 ## Estrutura
 

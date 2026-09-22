@@ -5,6 +5,7 @@ package com.unimedlorena.tools.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.unimedlorena.tools.exception.ApiException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
@@ -205,6 +207,17 @@ public class SguRelatorioService {
             "SGU_API_KEY no Render.",
           ex
         );
+      }
+
+      // Não repassa HTML, detalhes internos ou a causa remota ao navegador.
+      if (status == 504) {
+        throw new ApiException(HttpStatus.GATEWAY_TIMEOUT, "SGU_TIMEOUT",
+          "O SGU excedeu o tempo de resposta. Isso pode ser temporário. " +
+          "Aguarde um pouco e tente novamente; se persistir, informe a equipe de TI.");
+      }
+      if (status == 502 || status == 503) {
+        throw new ApiException(HttpStatus.valueOf(status), "SGU_INDISPONIVEL",
+          "O SGU está temporariamente indisponível. Aguarde um pouco e tente novamente.");
       }
 
       throw new IllegalArgumentException(extrairMensagem(ex), ex);

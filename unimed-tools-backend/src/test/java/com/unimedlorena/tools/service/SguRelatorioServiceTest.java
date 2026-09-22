@@ -11,6 +11,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.unimedlorena.tools.exception.ApiException;
+import org.springframework.http.HttpStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -18,6 +21,27 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 class SguRelatorioServiceTest {
+
+  @Test
+  void deveSanitizarFalhasTemporariasSemRepetirPublicacao() {
+    for (HttpStatus status : java.util.List.of(HttpStatus.BAD_GATEWAY, HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT)) {
+      RestClient.Builder builder = RestClient.builder();
+      var server = MockRestServiceServer.bindTo(builder).build();
+      var service = new SguRelatorioService(builder, new ObjectMapper(),
+        "https://sgu.example.com", "segredo-teste", "apikey", "/api", "/api");
+      server.expect(requestTo("https://sgu.example.com/api/ins_atu_query_api"))
+        .andRespond(withStatus(status).contentType(MediaType.TEXT_HTML)
+          .body("<html>504 Gateway Time-out detalhe-interno</html>"));
+      assertThatThrownBy(() -> service.criarOuAtualizar(Map.of("nome", "api-teste")))
+        .isInstanceOfSatisfying(ApiException.class, ex -> {
+          assertThat(ex.status()).isEqualTo(status);
+          assertThat(ex.codigo()).isEqualTo(status == HttpStatus.GATEWAY_TIMEOUT ? "SGU_TIMEOUT" : "SGU_INDISPONIVEL");
+          assertThat(ex.getCause()).isNull();
+        })
+        .hasMessageNotContaining("<html>").hasMessageNotContaining("detalhe-interno");
+      server.verify();
+    }
+  }
 
   @Test
   void deveEnviarHeaderConfiguravelParaOsgu() {

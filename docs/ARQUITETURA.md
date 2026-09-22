@@ -75,6 +75,11 @@ Backend:
 
 O SQL e a allowlist de filtros ficam no servidor.
 
+**Atual:** `HospitalRelatorioService` inclui a coluna `PRESTADOR`
+(`GSOL.GSOL_NOM_PROFIS`) e o filtro opcional `prestador`, com busca parcial
+parametrizada e normalização de maiúsculas. O Hospital renderiza o campo pela
+configuração do backend e envia o mesmo filtro na prévia e na exportação.
+
 ### Gestão de Risco
 
 Frontend: `pages/gestao-risco/`
@@ -160,6 +165,15 @@ O frontend nunca chama o SGU diretamente.
 - endpoints de publicação e execução.
 
 Exportações percorrem a paginação no backend.
+
+**Atual:** `SguRelatorioService` converte HTTP 502/503/504 em `ApiException`
+com status preservado e mensagem pública, sem corpo HTML nem causa remota.
+`ExportacaoRelatorioService` repete somente a consulta da página com esses erros,
+uma vez após um segundo, antes de entregá-la ao escritor. Não há repetição de
+publicação ou exclusão de APIs. Logs por página separam tempo de consulta e
+escrita; XLSX registra também o empacotamento final. Não registram parâmetros
+nem registros. Erros antes de iniciar a transmissão são devolvidos em JSON;
+após transmissão parcial de CSV/TXT, o status não pode mais ser substituído.
 
 ## 8. Evolução
 

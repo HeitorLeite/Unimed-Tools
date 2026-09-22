@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -17,7 +18,7 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(ApiException.class)
   public ResponseEntity<Map<String, String>> handleApi(ApiException ex) {
-    return ResponseEntity.status(ex.status()).body(
+    return ResponseEntity.status(ex.status()).contentType(MediaType.APPLICATION_JSON).body(
       Map.of("codigo", ex.codigo(), "message", ex.getMessage())
     );
   }

@@ -1,6 +1,9 @@
 package com.unimedlorena.tools.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.unimedlorena.tools.exception.ApiException;
+import org.springframework.http.HttpStatus;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -21,6 +24,54 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
 class ExportacaoRelatorioServiceTest {
+
+  private ExportacaoRelatorioService semEspera(SguRelatorioService sgu) {
+    return new ExportacaoRelatorioService(sgu, 1, 0) {
+      @Override void aguardarNovaTentativa() {}
+    };
+  }
+
+  @Test
+  void deveRepetirSomentePaginaComFalhaSemDuplicarLinhas() throws Exception {
+    for (HttpStatus status : List.of(HttpStatus.BAD_GATEWAY, HttpStatus.SERVICE_UNAVAILABLE, HttpStatus.GATEWAY_TIMEOUT)) {
+      SguRelatorioService sgu = mock(SguRelatorioService.class);
+      var primeira = Map.<String, Object>of("content", List.of(Map.of("ID", "A")), "last", false);
+      var segunda = Map.<String, Object>of("content", List.of(Map.of("ID", "B")), "last", true);
+      when(sgu.executar(anyString(), anyMap())).thenReturn(primeira)
+        .thenThrow(new ApiException(status, status == HttpStatus.GATEWAY_TIMEOUT ? "SGU_TIMEOUT" : "SGU_INDISPONIVEL", "Falha temporária."))
+        .thenReturn(segunda);
+      var destino = new ByteArrayOutputStream();
+      semEspera(sgu).exportarPara("api-teste", "xlsx", new RelatorioExportacaoRequest(Map.of(), "teste"), destino);
+      try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(destino.toByteArray()))) {
+        var sheet = workbook.getSheetAt(0);
+        assertThat(sheet.getLastRowNum()).isEqualTo(2);
+        assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("A");
+        assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("B");
+      }
+      verify(sgu, times(1)).executar("api-teste", Map.of("page", 1, "size", 1));
+      verify(sgu, times(2)).executar("api-teste", Map.of("page", 2, "size", 1));
+    }
+  }
+
+  @Test
+  void devePararAposUmaNovaTentativaDaPagina() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    var erro = new ApiException(HttpStatus.GATEWAY_TIMEOUT, "SGU_TIMEOUT", "Falha temporária.");
+    when(sgu.executar(anyString(), anyMap())).thenThrow(erro);
+    assertThatThrownBy(() -> semEspera(sgu).carregarRegistros("api-teste", Map.of())).isSameAs(erro);
+    verify(sgu, times(2)).executar(anyString(), anyMap());
+  }
+
+  @Test
+  void naoDeveRepetirErrosDeFiltroOuAutorizacao() {
+    for (RuntimeException erro : List.of(new IllegalArgumentException("Filtro inválido."),
+      new ApiException(HttpStatus.FORBIDDEN, "ACESSO_NEGADO", "Acesso negado."))) {
+      SguRelatorioService sgu = mock(SguRelatorioService.class);
+      when(sgu.executar(anyString(), anyMap())).thenThrow(erro);
+      assertThatThrownBy(() -> semEspera(sgu).carregarRegistros("api-teste", Map.of())).isSameAs(erro);
+      verify(sgu, times(1)).executar(anyString(), anyMap());
+    }
+  }
 
   private final ExportacaoRelatorioService service =
     new ExportacaoRelatorioService(null, 1000, 10);

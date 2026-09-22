@@ -142,6 +142,34 @@ describe('Hospital — atualização assíncrona', () => {
     }
   });
 
+  it('exibe prestador e envia o filtro na prévia e no download', async () => {
+    http.expectOne('/api/relatorios/hospital/configuracao').flush({
+      colunas: ['PRESTADOR'],
+      filtros: [{ id: 'prestador', rotulo: 'Prestador', tipo: 'text', placeholder: 'Digite parte do nome do prestador', opcoes: [] }],
+    });
+    await fixture.whenStable();
+    const input = fixture.nativeElement.querySelector('.fields input') as HTMLInputElement;
+    input.value = 'prestador teste';
+    input.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    (fixture.nativeElement.querySelector('.generate') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    const previa = http.expectOne('/api/relatorios/hospital/executar');
+    expect(previa.request.body.filtros).toEqual({ prestador: 'prestador teste' });
+    previa.flush({ content: [{ prestador: 'Prestador teste sintético' }], last: true });
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('table').textContent).toContain('Prestador teste sintético');
+    (fixture.nativeElement.querySelector('.download') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    const download = http.expectOne('/api/relatorios/hospital/exportar?formato=xlsx');
+    expect(download.request.body.filtros).toEqual({ prestador: 'prestador teste' });
+    download.flush(new Blob(), { status: 503, statusText: 'Unavailable' });
+    await fixture.whenStable();
+    (fixture.nativeElement.querySelector('.clear') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(input.value).toBe('');
+  });
+
   it('exibe configuração, prévia, paginação e erro de exportação sem forçar a renderização', async () => {
     http
       .expectOne('/api/relatorios/hospital/configuracao')

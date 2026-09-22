@@ -6,6 +6,20 @@ import { ApplicationNotification } from '../models/application-notification.mode
  */
 export const APPLICATION_NOTIFICATIONS: readonly ApplicationNotification[] = [
   {
+    id: '8.0.2-hospital-prestador',
+    versao: '8.0.2',
+    titulo: 'Prestador no relatório Hospital',
+    resumo: 'Adiciona a coluna Prestador na prévia e no arquivo e permite pesquisar por parte do nome do prestador.',
+    publicadaEm: '2026-09-22',
+  },
+  {
+    id: '8.0.1-exportacao-falhas-temporarias',
+    versao: '8.0.1',
+    titulo: 'Recuperação de falhas temporárias na exportação',
+    resumo: 'Repete uma vez a página que falhar temporariamente no SGU e apresenta mensagens claras de indisponibilidade ou tempo limite.',
+    publicadaEm: '2026-09-22',
+  },
+  {
     id: '8.0.0-nova-experiencia-ferramentas',
     versao: '8.0.0',
     titulo: 'Nova experiência do Unimed Tools',

@@ -321,6 +321,26 @@ function Start-LocalFrontend {
   Wait-HttpUrl $localFrontendUrl 90 'Frontend local'
 }
 
+function Restart-LocalFrontend([switch]$DependenciesChanged) {
+  Write-Step 'Configuracao do frontend alterada - reiniciando localhost'
+
+  Stop-ProcessTree $script:frontendProcess
+  $script:frontendProcess = $null
+
+  if ($DependenciesChanged) {
+    Write-Host 'Dependencias alteradas; sincronizando node_modules com o lockfile...' -ForegroundColor Yellow
+    Push-Location $frontendDir
+    try {
+      Invoke-Checked 'npm.cmd' @('ci')
+    } finally {
+      Pop-Location
+    }
+  }
+
+  Start-LocalFrontend
+  Write-Watch 'Frontend local reiniciado com a nova configuracao.'
+}
+
 function Publish-Production {
   Write-Step 'Publicando versao atual para a rede'
   Write-Host 'A publicacao de rede e manual e nao altera o GitHub.' -ForegroundColor Yellow
@@ -433,6 +453,46 @@ function Test-BackendWatchPath([string]$fullPath) {
   return $name -eq 'pom.xml' -or $extension -in @('.java', '.xml', '.properties', '.yml', '.yaml')
 }
 
+function Test-FrontendIgnoredPath([string]$fullPath) {
+  if ([string]::IsNullOrWhiteSpace($fullPath)) { return $true }
+
+  foreach ($ignored in @('node_modules', 'dist', '.angular')) {
+    $ignoredPath = Join-Path $frontendDir $ignored
+    if ($fullPath.StartsWith($ignoredPath, [StringComparison]::OrdinalIgnoreCase)) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Test-FrontendConfigPath([string]$fullPath) {
+  if (Test-FrontendIgnoredPath $fullPath) { return $false }
+
+  $name = [IO.Path]::GetFileName($fullPath).ToLowerInvariant()
+  return $name -in @(
+    'package.json',
+    'package-lock.json',
+    'angular.json',
+    'proxy.local.conf.json',
+    'tsconfig.json',
+    'tsconfig.app.json',
+    'tsconfig.spec.json'
+  )
+}
+
+function Test-FrontendDependencyPath([string]$fullPath) {
+  $name = [IO.Path]::GetFileName($fullPath).ToLowerInvariant()
+  return $name -in @('package.json', 'package-lock.json')
+}
+
+function Test-FrontendSourcePath([string]$fullPath) {
+  if (Test-FrontendIgnoredPath $fullPath) { return $false }
+
+  $sourceRoot = (Join-Path $frontendDir 'src') + [IO.Path]::DirectorySeparatorChar
+  return $fullPath.StartsWith($sourceRoot, [StringComparison]::OrdinalIgnoreCase)
+}
+
 function Show-WatcherHelp {
   Write-Host ''
   Write-Host 'Atalhos do watcher:' -ForegroundColor Cyan
@@ -492,7 +552,7 @@ try {
   Write-Host 'Nada e enviado automaticamente para a rede. Pressione P quando quiser publicar.' -ForegroundColor Yellow
 
   $backendWatcher = New-Watcher $backendDir '*.*' $true
-  $frontendWatcher = New-Watcher (Join-Path $frontendDir 'src') '*.*' $true
+  $frontendWatcher = New-Watcher $frontendDir '*.*' $true
   $watchers = @($backendWatcher, $frontendWatcher)
 
   $registrations += Register-WatcherEvents $backendWatcher 'UnimedBackend'
@@ -502,6 +562,8 @@ try {
 
   $backendPendingAt = $null
   $frontendPendingAt = $null
+  $frontendRestartPendingAt = $null
+  $frontendDependenciesChanged = $false
   $running = $true
 
   while ($running) {
@@ -515,7 +577,14 @@ try {
             $backendPendingAt = [DateTime]::UtcNow
           }
         } elseif ($sourceIdentifier.StartsWith('UnimedFrontend')) {
-          $frontendPendingAt = [DateTime]::UtcNow
+          if (Test-FrontendConfigPath $fullPath) {
+            $frontendRestartPendingAt = [DateTime]::UtcNow
+            if (Test-FrontendDependencyPath $fullPath) {
+              $frontendDependenciesChanged = $true
+            }
+          } elseif (Test-FrontendSourcePath $fullPath) {
+            $frontendPendingAt = [DateTime]::UtcNow
+          }
         }
       } finally {
         Remove-Event -EventIdentifier $event.EventIdentifier -ErrorAction SilentlyContinue
@@ -530,6 +599,19 @@ try {
     if ($null -ne $frontendPendingAt -and ([DateTime]::UtcNow - $frontendPendingAt).TotalMilliseconds -ge 900) {
       $frontendPendingAt = $null
       Write-Watch 'Alteracao no frontend detectada; o Angular esta recompilando o localhost.'
+    }
+
+    if ($null -ne $frontendRestartPendingAt -and ([DateTime]::UtcNow - $frontendRestartPendingAt).TotalMilliseconds -ge 1200) {
+      $frontendRestartPendingAt = $null
+      $dependenciesChanged = $frontendDependenciesChanged
+      $frontendDependenciesChanged = $false
+
+      try {
+        Restart-LocalFrontend -DependenciesChanged:$dependenciesChanged
+      } catch {
+        Write-Host "Falha ao reiniciar frontend local: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host 'O watcher continua ativo.' -ForegroundColor DarkYellow
+      }
     }
 
     if ($script:frontendProcess -and $script:frontendProcess.HasExited) {

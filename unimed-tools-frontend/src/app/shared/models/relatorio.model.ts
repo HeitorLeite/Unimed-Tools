@@ -81,6 +81,8 @@ export interface RelatorioPersonalizadoColuna {
   grupo: string;
   selecionadaPorPadrao: boolean;
   sensivel: boolean;
+  numerica: boolean;
+  ranqueavel: boolean;
 }
 
 export interface RelatorioPersonalizadoOpcao {
@@ -116,6 +118,13 @@ export interface RelatorioPersonalizadoRequest {
   distinct: boolean;
   ordenarPor?: string;
   direcaoOrdenacao?: 'ASC' | 'DESC';
+  separarMeses?: boolean;
+  colunasMeses?: string[];
+  rankingDimensao?: string;
+  rankingMetrica?: string;
+  rankingDirecao?: 'MAIORES' | 'MENORES';
+  rankingLimite?: number;
+  ordemResultado?: string[];
   pagina: number;
   tamanhoPagina: number;
   nomeArquivo: string;

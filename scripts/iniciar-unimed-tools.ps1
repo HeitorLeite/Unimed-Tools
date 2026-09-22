@@ -20,6 +20,8 @@ $localBackendJar = Join-Path $localRuntimeDir 'unimed-tools-backend.jar'
 $localBackendLog = Join-Path $localRuntimeDir 'backend.log'
 $localBackendErrorLog = Join-Path $localRuntimeDir 'backend-error.log'
 $localBackendPidFile = Join-Path $localRuntimeDir 'backend.pid'
+$localFrontendLog = Join-Path $localRuntimeDir 'frontend.log'
+$localFrontendErrorLog = Join-Path $localRuntimeDir 'frontend-error.log'
 
 $productionBackendJar = Join-Path $productionRuntimeDir 'unimed-tools-backend.jar'
 $productionBackendLog = Join-Path $productionRuntimeDir 'backend.log'
@@ -317,8 +319,9 @@ function Start-LocalFrontend {
 
   Write-Step 'Iniciando frontend local em watch mode'
 
-  $script:frontendProcess = Start-Process -FilePath 'npm.cmd' -ArgumentList @('run', 'start:local') -WorkingDirectory $frontendDir -NoNewWindow -PassThru
+  $script:frontendProcess = Start-Process -FilePath 'npm.cmd' -ArgumentList @('run', 'start:local') -WorkingDirectory $frontendDir -RedirectStandardOutput $localFrontendLog -RedirectStandardError $localFrontendErrorLog -WindowStyle Hidden -PassThru
   Wait-HttpUrl $localFrontendUrl 90 'Frontend local'
+  Write-Host "Logs do frontend local: $localFrontendLog" -ForegroundColor DarkGray
 }
 
 function Restart-LocalFrontend([switch]$DependenciesChanged) {
@@ -616,6 +619,7 @@ try {
 
     if ($script:frontendProcess -and $script:frontendProcess.HasExited) {
       Write-Host 'O servidor Angular local encerrou inesperadamente.' -ForegroundColor Red
+      Write-Host "Consulte: $localFrontendErrorLog" -ForegroundColor DarkYellow
       Write-Host 'Pressione Q para sair ou corrija o problema e reinicie o atalho.' -ForegroundColor DarkYellow
       $script:frontendProcess = $null
     }

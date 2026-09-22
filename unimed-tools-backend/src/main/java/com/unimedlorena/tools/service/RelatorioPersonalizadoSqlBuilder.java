@@ -261,16 +261,16 @@ public class RelatorioPersonalizadoSqlBuilder {
 
   private static final String REGIAO_BENEFICIARIO = """
       CASE
-        WHEN NVL(PE.CEP_COD, PE_TIT.CEP_COD) LIKE '12%' THEN 'Vale do Paraiba'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.CEP_COD, PE.CEP_COD) LIKE '12%' THEN 'Vale do Paraiba'
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('AC', 'AM', 'AP', 'PA', 'RO', 'RR', 'TO') THEN 'Norte'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE') THEN 'Nordeste'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('DF', 'GO', 'MS', 'MT') THEN 'Centro-Oeste'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('ES', 'MG', 'RJ', 'SP') THEN 'Sudeste'
-        WHEN NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)
+        WHEN NVL(PE_TIT.END_COD_UF, NVL(PE.END_COD_UF, CIDADE.UF_COD))
           IN ('PR', 'RS', 'SC') THEN 'Sul'
       END
       """.strip();
@@ -804,10 +804,11 @@ public class RelatorioPersonalizadoSqlBuilder {
     adicionar(campos, "REGIAO_BENEFICIARIO", "Região do beneficiário", "Beneficiário", false, true,
         REGIAO_BENEFICIARIO);
     adicionar(campos, "UF", "UF", "Beneficiário", false, true,
-        "NVL(NVL(PE.END_COD_UF, PE_TIT.END_COD_UF), CIDADE.UF_COD)");
+        "CASE WHEN PE_TIT.PES_COD IS NOT NULL THEN NVL(PE_TIT.END_COD_UF, CIDADE.UF_COD) ELSE CIDADE.UF_COD END");
     adicionar(campos, "MUNICIPIO", "Município", "Beneficiário", false, true,
-        "NVL(NVL(PE.END_DES_CIDAD, PE_TIT.END_DES_CIDAD), CIDADE.CIDAD_DES)");
-    adicionar(campos, "CEP", "CEP", "Beneficiário", false, true, "NVL(PE.CEP_COD, PE_TIT.CEP_COD)");
+        "CASE WHEN PE_TIT.PES_COD IS NOT NULL THEN NVL(PE_TIT.END_DES_CIDAD, PE.END_DES_CIDAD) ELSE PE.END_DES_CIDAD END");
+    adicionar(campos, "CEP", "CEP", "Beneficiário", false, true,
+        "CASE WHEN PE_TIT.PES_COD IS NOT NULL THEN NVL(PE_TIT.CEP_COD, PE.CEP_COD) ELSE PE.CEP_COD END");
     adicionar(campos, "ATIVO", "Beneficiário ativo", "Beneficiário", false, false,
         "CASE WHEN BF.BNF_DAT_EXCL IS NULL OR BF.BNF_DAT_EXCL = DATE '0001-01-01' THEN 'S' ELSE 'N' END");
     adicionar(campos, "CODIGO_CONTRATO", "Código do contrato", "Contrato e empresa", true, false, CODIGO_CONTRATO);

@@ -4,8 +4,8 @@
       <span>Relatório sob medida</span>
       <h1>Assistencial</h1>
       <p>
-        Monte o relatório na ordem em que você pensa: escolha as colunas, adicione os filtros
-        necessários, confira a prévia e exporte.
+        Escolha as colunas, configure os filtros e análises e gere o relatório com a estrutura
+        exatamente na ordem desejada.
       </p>
     </div>
     <div class="privacy-note"><span>●</span> Dados sensíveis são protegidos na prévia.</div>
@@ -14,13 +14,17 @@
   <div class="loading-panel" *ngIf="carregandoConfiguracao">
     <span class="spinner"></span> Preparando o construtor…
   </div>
+
   <div class="alert error" role="alert" *ngIf="!carregandoConfiguracao && !configuracao && erro">
     {{ erro }}
   </div>
 
   <ng-container *ngIf="configuracao && !carregandoConfiguracao">
     <section class="preset-bar">
-      <div><span>Modelos salvos</span><strong>Reutilize uma estrutura</strong></div>
+      <div>
+        <span>Modelos salvos</span>
+        <strong>Reutilize uma estrutura</strong>
+      </div>
       <select [(ngModel)]="presetSelecionado" (ngModelChange)="aplicarPreset($event)">
         <option value="">Escolha um modelo</option>
         <option *ngFor="let preset of presets" [value]="preset.id">{{ preset.nome }}</option>
@@ -46,12 +50,13 @@
     </section>
 
     <div class="alert error" *ngIf="erro">
-      <span>{{ erro }}</span
-      ><button type="button" (click)="erro = ''">×</button>
+      <span>{{ erro }}</span>
+      <button type="button" (click)="erro = ''">×</button>
     </div>
+
     <div class="alert success" *ngIf="sucesso">
-      <span>{{ sucesso }}</span
-      ><button type="button" (click)="sucesso = ''">×</button>
+      <span>{{ sucesso }}</span>
+      <button type="button" (click)="sucesso = ''">×</button>
     </div>
 
     <section class="builder-flow">
@@ -59,11 +64,12 @@
         <div class="flow-title">
           <span>1</span>
           <div>
-            <strong>Escolha as colunas</strong
-            ><small>Busque, marque e ajuste a ordem de saída.</small>
+            <strong>Escolha as colunas</strong>
+            <small>Busque, marque e arraste para definir a ordem de saída.</small>
           </div>
           <b>{{ ordemColunasSelecionadas.length }} selecionada(s)</b>
         </div>
+
         <app-colunas-relatorio
           [colunas]="configuracao.colunas"
           [ordem]="ordemColunasSelecionadas"
@@ -71,47 +77,22 @@
           [bloqueado]="operacaoRelatorioEmAndamento"
           (alternar)="alternarColuna($event)"
           (alternarGrupo)="alternarGrupo($event)"
-          (mover)="moverColuna($event.id, $event.deslocamento)"
+          (reordenar)="reordenarColunas($event)"
         />
-      </div>
-
-      <div class="flow-panel structure-panel">
-        <div class="flow-title">
-          <span>2</span>
-          <div>
-            <strong>Prévia da estrutura</strong
-            ><small>Esta será a ordem das colunas no arquivo.</small>
-          </div>
-        </div>
-        <div class="column-preview" *ngIf="ordemColunasSelecionadas.length; else noColumns">
-          <span *ngFor="let id of ordemColunasSelecionadas; index as i"
-            ><b>{{ i + 1 }}</b
-            >{{ rotuloColuna(id) }}</span
-          >
-        </div>
-        <ng-template #noColumns
-          ><p class="empty-copy">Selecione pelo menos uma coluna na etapa anterior.</p></ng-template
-        >
-        <label class="distinct-option" [class.active]="somenteDistintos">
-          <input type="checkbox" [checked]="somenteDistintos" (change)="alternarDistinct()" />
-          <span
-            ><strong>Remover linhas duplicadas</strong
-            ><small>Aplica DISTINCT somente às colunas escolhidas.</small></span
-          >
-        </label>
       </div>
 
       <div class="flow-panel filters-panel">
         <div class="flow-title">
-          <span>3</span>
+          <span>2</span>
           <div>
-            <strong>Adicione os filtros</strong
-            ><small
-              >Competência é obrigatória; os demais entram somente quando você precisar.</small
-            >
+            <strong>Adicione os filtros</strong>
+            <small>
+              Defina o período, empresas e recortes. As análises especiais ficam logo abaixo.
+            </small>
           </div>
-          <button type="button" class="text-button" (click)="limparFiltros()">Limpar</button>
+          <button type="button" class="text-button" (click)="limparFiltros()">Limpar filtros</button>
         </div>
+
         <app-filtros-relatorio
           [filtros]="configuracao.filtros"
           [valores]="valoresFiltro"
@@ -121,14 +102,134 @@
           (valoresChange)="atualizarFiltros($event)"
           (ativosChange)="atualizarFiltrosAtivos($event)"
         />
+
+        <section class="analysis-options">
+          <article class="analysis-card">
+            <label class="toggle-row" [class.active]="somenteDistintos">
+              <input
+                type="checkbox"
+                [checked]="somenteDistintos"
+                [disabled]="operacaoRelatorioEmAndamento"
+                (change)="alternarDistinct()"
+              />
+              <span>
+                <strong>Remover linhas duplicadas</strong>
+                <small>Aplica DISTINCT às colunas escolhidas antes da prévia e exportação.</small>
+              </span>
+            </label>
+          </article>
+
+          <article class="analysis-card" [class.disabled]="!colunasNumericasSelecionadas.length">
+            <label class="toggle-row" [class.active]="separarMeses">
+              <input
+                type="checkbox"
+                [checked]="separarMeses"
+                [disabled]="operacaoRelatorioEmAndamento || !colunasNumericasSelecionadas.length"
+                (change)="alternarSepararMeses()"
+              />
+              <span>
+                <strong>Separar meses</strong>
+                <small>
+                  Transforma o intervalo de competências em uma coluna por mês para as métricas
+                  escolhidas.
+                </small>
+              </span>
+            </label>
+
+            <div class="analysis-body" *ngIf="separarMeses">
+              <p>Quais colunas numéricas devem ser divididas por mês?</p>
+              <div class="metric-options">
+                <label *ngFor="let coluna of colunasNumericasSelecionadas">
+                  <input
+                    type="checkbox"
+                    [checked]="metricasMesSelecionadas.has(coluna.id)"
+                    [disabled]="operacaoRelatorioEmAndamento"
+                    (change)="alternarMetricaMes(coluna.id, $any($event.target).checked)"
+                  />
+                  <span>{{ coluna.rotulo }}</span>
+                </label>
+              </div>
+              <small>
+                A coluna Competência deixa de aparecer no resultado; os meses passam a ser os
+                cabeçalhos das métricas.
+              </small>
+            </div>
+          </article>
+
+          <article
+            class="analysis-card"
+            [class.disabled]="!colunasNumericasSelecionadas.length || !dimensoesRanking.length"
+          >
+            <label class="toggle-row" [class.active]="rankingAtivo">
+              <input
+                type="checkbox"
+                [checked]="rankingAtivo"
+                [disabled]="
+                  operacaoRelatorioEmAndamento ||
+                  !colunasNumericasSelecionadas.length ||
+                  !dimensoesRanking.length
+                "
+                (change)="alternarRanking()"
+              />
+              <span>
+                <strong>Maiores / menores gastadores</strong>
+                <small>Escolha a dimensão, a métrica e quantos resultados devem permanecer.</small>
+              </span>
+            </label>
+
+            <div class="analysis-body ranking-grid" *ngIf="rankingAtivo">
+              <label>
+                <span>Ranking</span>
+                <select [(ngModel)]="rankingTipo" [disabled]="operacaoRelatorioEmAndamento">
+                  <option value="MAIORES">Maiores gastadores</option>
+                  <option value="MENORES">Menores gastadores</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Quantidade</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  [(ngModel)]="rankingLimite"
+                  [disabled]="operacaoRelatorioEmAndamento"
+                />
+              </label>
+
+              <label>
+                <span>Dimensão</span>
+                <select [(ngModel)]="rankingDimensao" [disabled]="operacaoRelatorioEmAndamento">
+                  <option value="">Selecione</option>
+                  <option *ngFor="let coluna of dimensoesRanking" [value]="coluna.id">
+                    {{ coluna.rotulo }}
+                  </option>
+                </select>
+              </label>
+
+              <label>
+                <span>Métrica</span>
+                <select [(ngModel)]="rankingMetrica" [disabled]="operacaoRelatorioEmAndamento">
+                  <option value="">Selecione</option>
+                  <option *ngFor="let coluna of colunasNumericasSelecionadas" [value]="coluna.id">
+                    {{ coluna.rotulo }}
+                  </option>
+                </select>
+              </label>
+            </div>
+          </article>
+        </section>
       </div>
 
       <div class="generate-panel">
         <div>
-          <span>4</span>
+          <span>3</span>
           <div>
-            <strong>Gerar e conferir</strong
-            ><small>A consulta usa somente os campos autorizados pelo servidor.</small>
+            <strong>Gerar e conferir</strong>
+            <small>
+              Gere a prévia completa, reordene as colunas e escolha a ordenação de cada campo.
+            </small>
           </div>
         </div>
         <button
@@ -155,16 +256,20 @@
             }}
           </p>
         </div>
+
         <div class="export-controls">
-          <label><span>Nome do arquivo</span><input type="text" [(ngModel)]="nomeArquivo" /></label>
-          <label
-            ><span>Formato</span
-            ><select [(ngModel)]="formatoSelecionado">
+          <label>
+            <span>Nome do arquivo</span>
+            <input type="text" [(ngModel)]="nomeArquivo" />
+          </label>
+          <label>
+            <span>Formato</span>
+            <select [(ngModel)]="formatoSelecionado">
               <option value="xlsx">XLSX</option>
               <option value="csv">CSV</option>
               <option value="txt">TXT</option>
-            </select></label
-          >
+            </select>
+          </label>
           <button
             type="button"
             class="secondary-button"
@@ -188,17 +293,19 @@
         <div class="operation-progress-copy">
           <span class="spinner"></span>
           <div>
-            <strong>{{ mensagemOperacao }}</strong
-            ><small>{{ segundosOperacao }}s decorridos</small>
+            <strong>{{ mensagemOperacao }}</strong>
+            <small>{{ segundosOperacao }}s decorridos</small>
           </div>
         </div>
         <div class="progress-line"><span [style.width.%]="progressoOperacao"></span></div>
       </div>
 
       <div class="empty-result" *ngIf="!registros.length && !gerando">
-        <strong>{{
-          totalRegistros === 0 ? 'Nenhum registro encontrado.' : 'Nenhuma prévia gerada ainda.'
-        }}</strong>
+        <strong>
+          {{
+            totalRegistros === 0 ? 'Nenhum registro encontrado.' : 'Nenhuma prévia gerada ainda.'
+          }}
+        </strong>
         <p>
           {{
             totalRegistros === 0
@@ -213,14 +320,35 @@
           <thead>
             <tr>
               <th class="row-number">#</th>
-              <th *ngFor="let coluna of colunasResultado" [attr.aria-sort]="ariaOrdenacao(coluna)">
-                <button class="sort-button" type="button" (click)="ordenarPor(coluna)">
-                  <span>{{ rotuloColuna(coluna) }}</span
-                  ><b [class.active]="colunaOrdenacao === coluna">{{ simboloOrdenacao(coluna) }}</b>
-                </button>
+              <th
+                *ngFor="let coluna of colunasResultado"
+                [attr.aria-sort]="ariaOrdenacao(coluna)"
+                [class.dragging]="arrastandoResultado === coluna"
+                [attr.draggable]="!operacaoRelatorioEmAndamento"
+                (dragstart)="iniciarArrasteResultado($event, coluna)"
+                (dragover)="permitirSoltarResultado($event)"
+                (drop)="soltarResultado($event, coluna)"
+                (dragend)="finalizarArrasteResultado()"
+              >
+                <div class="result-column-header">
+                  <span class="drag-handle" title="Arraste para mudar a posição">⋮⋮</span>
+                  <strong>{{ rotuloColuna(coluna) }}</strong>
+                  <select
+                    class="sort-select"
+                    [ngModel]="opcaoOrdenacao(coluna)"
+                    (ngModelChange)="aplicarOrdenacao(coluna, $event)"
+                    [disabled]="operacaoRelatorioEmAndamento"
+                    [attr.aria-label]="'Ordenar ' + rotuloColuna(coluna)"
+                  >
+                    <option value="">Sem ordenação</option>
+                    <option value="ASC">{{ rotuloOrdenacaoAsc(coluna) }}</option>
+                    <option value="DESC">{{ rotuloOrdenacaoDesc(coluna) }}</option>
+                  </select>
+                </div>
               </th>
             </tr>
           </thead>
+
           <tbody>
             <tr *ngFor="let registro of registros; index as indice">
               <td class="row-number">{{ indiceLinha(indice) }}</td>
@@ -236,21 +364,24 @@
       </div>
 
       <div class="pagination" *ngIf="registros.length">
-        <label class="page-size-control"
-          ><span>Linhas por página</span
-          ><select [ngModel]="tamanhoPagina" (ngModelChange)="alterarTamanhoPagina($event)">
+        <label class="page-size-control">
+          <span>Linhas por página</span>
+          <select [ngModel]="tamanhoPagina" (ngModelChange)="alterarTamanhoPagina($event)">
             <option [ngValue]="25">25</option>
             <option [ngValue]="50">50</option>
             <option [ngValue]="100">100</option>
-          </select></label
-        >
+          </select>
+        </label>
+
         <div class="pagination-actions">
           <button type="button" [disabled]="pagina <= 1 || gerando" (click)="gerar(pagina - 1)">
-            ← Anterior</button
-          ><span
-            >Página <strong>{{ pagina }}</strong
-            ><ng-container *ngIf="totalPaginas !== null"> de {{ totalPaginas }}</ng-container></span
-          ><button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
+            ← Anterior
+          </button>
+          <span>
+            Página <strong>{{ pagina }}</strong>
+            <ng-container *ngIf="totalPaginas !== null"> de {{ totalPaginas }}</ng-container>
+          </span>
+          <button type="button" [disabled]="ultimaPagina || gerando" (click)="gerar(pagina + 1)">
             Próxima →
           </button>
         </div>

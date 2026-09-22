@@ -237,7 +237,7 @@ Para promover deliberadamente a versão que está na pasta local, execute:
 
 A publicação manual:
 
-1. instala as dependências do frontend a partir do lockfile;
+1. garante que as dependências do frontend estejam instaladas;
 2. executa os testes do frontend;
 3. gera o build `build:lan`;
 4. executa `mvn clean package` com os testes do backend;

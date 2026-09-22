@@ -1036,6 +1036,16 @@ public class RelatorioPersonalizadoService {
 
   private void validarDefinicaoSgu(
       RelatorioPersonalizadoSqlBuilder.ApiGerada gerada) {
+    /*
+     * VARCHAR2 em PL/SQL tem limite de 32.767 bytes em variáveis locais. A
+     * procedure do SGU não expõe seus tamanhos internos, então recusamos uma
+     * definição próxima desse teto antes que ela vire um ORA-06502 remoto.
+     */
+    if (gerada.consultaSql().length() > 32_000) {
+      throw new IllegalArgumentException(
+          "A consulta gerada ficou grande demais para a rotina do SGU. " +
+              "Reduza a quantidade de colunas ou filtros desta configuração.");
+    }
     if (gerada.ordenacao().length() > 200) {
       throw new IllegalArgumentException(
           "A ordenação gerada ficou grande demais para a rotina do SGU. " +
@@ -1140,4 +1150,5 @@ public class RelatorioPersonalizadoService {
     boolean requerTransformacao() {
       return separarMeses || rankingDimensao != null;
     }
-  }}
+  }
+}

@@ -332,7 +332,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.rankingAtivo = !this.rankingAtivo;
     if (this.rankingAtivo) {
       this.rankingDimensao ||= this.dimensoesRanking[0]?.id ?? '';
-      this.rankingMetrica ||= this.colunasNumericasSelecionadas[0]?.id ?? '';
+      this.rankingMetrica ||= this.metricasRanking[0]?.id ?? '';
     } else {
       this.rankingDimensao = '';
       this.rankingMetrica = '';
@@ -349,6 +349,10 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
         (coluna): coluna is RelatorioPersonalizadoColuna =>
           !!coluna && coluna.tipo === 'number',
       );
+  }
+
+  get metricasRanking(): RelatorioPersonalizadoColuna[] {
+    return this.colunasNumericasSelecionadas.filter((coluna) => coluna.grupo === 'Valores');
   }
 
   get dimensoesRanking(): RelatorioPersonalizadoColuna[] {
@@ -798,9 +802,9 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     }
     if (
       this.rankingMetrica &&
-      !this.colunasNumericasSelecionadas.some((coluna) => coluna.id === this.rankingMetrica)
+      !this.metricasRanking.some((coluna) => coluna.id === this.rankingMetrica)
     ) {
-      this.rankingMetrica = this.colunasNumericasSelecionadas[0]?.id ?? '';
+      this.rankingMetrica = this.metricasRanking[0]?.id ?? '';
     }
     if (this.rankingAtivo && (!this.rankingDimensao || !this.rankingMetrica)) {
       this.rankingAtivo = false;

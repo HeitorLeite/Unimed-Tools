@@ -301,25 +301,26 @@ class RelatorioPersonalizadoServiceTest {
 
     RelatorioPersonalizadoService.Configuracao configuracao = service.configuracao();
 
+    RelatorioPersonalizadoService.Filtro empresa = configuracao.filtros().stream()
+        .filter(filtro -> "codigo_empresa".equals(filtro.id()))
+        .findFirst()
+        .orElseThrow();
+    assertThat(empresa.rotulo()).isEqualTo("Nome da empresa");
+    assertThat(empresa.tipo()).isEqualTo("empresa");
     assertThat(configuracao.filtros())
-        .anySatisfy(filtro -> {
-          if ("codigo_empresa".equals(filtro.id())) {
-            assertThat(filtro.rotulo()).isEqualTo("Nome da empresa");
-            assertThat(filtro.tipo()).isEqualTo("empresa");
-          }
-        })
-        .noneSatisfy(filtro -> assertThat(filtro.id()).isNotEqualTo("nome_empresa"));
+        .extracting(RelatorioPersonalizadoService.Filtro::id)
+        .doesNotContain("nome_empresa");
+
     assertThat(configuracao.colunas())
-        .anySatisfy(coluna -> {
-          if ("REGIAO_BENEFICIARIO".equals(coluna.id())) {
-            assertThat(coluna.rotulo()).isEqualTo("Região do beneficiário");
-          }
-        })
-        .anySatisfy(coluna -> {
-          if ("ATIVO".equals(coluna.id())) {
-            assertThat(coluna.rotulo()).isEqualTo("Beneficiário ativo");
-          }
-        });
+        .filteredOn(coluna -> "REGIAO_BENEFICIARIO".equals(coluna.id()))
+        .singleElement()
+        .extracting(RelatorioPersonalizadoService.Coluna::rotulo)
+        .isEqualTo("Região do beneficiário");
+    assertThat(configuracao.colunas())
+        .filteredOn(coluna -> "ATIVO".equals(coluna.id()))
+        .singleElement()
+        .extracting(RelatorioPersonalizadoService.Coluna::rotulo)
+        .isEqualTo("Beneficiário ativo");
   }
 
   @Test

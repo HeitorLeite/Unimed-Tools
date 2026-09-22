@@ -158,7 +158,7 @@
 
           <article
             class="analysis-card"
-            [class.disabled]="!colunasNumericasSelecionadas.length || !dimensoesRanking.length"
+            [class.disabled]="!metricasRanking.length || !dimensoesRanking.length"
           >
             <label class="toggle-row" [class.active]="rankingAtivo">
               <input
@@ -166,7 +166,7 @@
                 [checked]="rankingAtivo"
                 [disabled]="
                   operacaoRelatorioEmAndamento ||
-                  !colunasNumericasSelecionadas.length ||
+                  !metricasRanking.length ||
                   !dimensoesRanking.length
                 "
                 (change)="alternarRanking()"
@@ -212,7 +212,7 @@
                 <span>Métrica</span>
                 <select [(ngModel)]="rankingMetrica" [disabled]="operacaoRelatorioEmAndamento">
                   <option value="">Selecione</option>
-                  <option *ngFor="let coluna of colunasNumericasSelecionadas" [value]="coluna.id">
+                  <option *ngFor="let coluna of metricasRanking" [value]="coluna.id">
                     {{ coluna.rotulo }}
                   </option>
                 </select>

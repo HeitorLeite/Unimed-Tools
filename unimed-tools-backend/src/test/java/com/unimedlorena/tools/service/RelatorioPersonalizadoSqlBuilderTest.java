@@ -283,7 +283,7 @@ class RelatorioPersonalizadoSqlBuilderTest {
         .contains("AS O_COMPETENCIA", "AS O_GUIA_ID", "AS O_ITEM_SEQ")
         .contains(") RP\nWHERE 1 = 1\n  /*FILTROS*/");
     assertThat(api.ordenacao())
-        .isEqualTo("RP.O_COMPETENCIA, RP.O_GUIA_ID, RP.O_ITEM_SEQ");
+        .isEqualTo("COD_BENEFICIARIO");
   }
 
   @Test

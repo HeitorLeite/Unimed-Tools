@@ -35,68 +35,53 @@ Os testes comprovam redução de reconstruções/publicações e liberação do 
 antes da escrita, mas não medem a execução do Oracle/SGU. Análises avançadas
 ainda carregam todas as páginas a cada solicitação; não há cache de dados sensíveis.
 
-## Valorizar guias Fusex-SPA — Parcial, execução bloqueada
+## Valorizar guias Fusex-SPA — Atual, execução de teste controlada
 
 Rota: `/valorizar-guias-fusex-spa`.
 Permissão própria: `FUSEX_SPA_VALORIZAR`, exigida na rota e no backend.
-Card, menu, configurações nativas da TI e gestão de permissões usam os registros
-existentes. A permissão é concedida ao perfil Administrador; usuários operacionais
-precisam de concessão explícita. Não se herda acesso de Relatórios/Assistencial.
+A execução continua protegida por sessão, CSRF e permissão específica.
 
-### Inspeção do contrato SGU
+### Fluxo SGU usado no teste
 
-`SguRelatorioService` publica JSON em `ins_atu_query_api`, consulta definições em
-`lista_query_api`, exclui em `apaga_query_api` e executa relatórios por nome sob
-`/api/procedure/p_prcssa_dados`. O nome “procedure” na URL não comprova aceitação
-de SQL DML arbitrário, execução de múltiplos comandos ou commit.
+A ferramenta reaproveita o contrato existente em `SguRelatorioService`:
+1. publica/atualiza uma API reservada por `ins_atu_query_api`;
+2. chama essa API em `/api/procedure/p_prcssa_dados/{nome}`.
 
-Não há neste repositório contrato de operação para atualizar GUIA_ITEM, retorno
-de linhas afetadas, confirmação de commit, rollback, idempotência ou recuperação
-de timeout. As transações Spring/JDBC existentes são do MariaDB DBUNIMED
-(identidade, permissões, auditoria e catálogos); não controlam transações Oracle
-executadas por HTTP no SGU/Kong. Não há datasource Oracle ou execução JDBC de
-procedures Oracle. Nenhuma chamada DML foi testada em produção.
-
-Portanto, a ausência de suporte comprovado gera bloqueio obrigatório no servidor.
-Não se publica UPDATE como relatório, não se envia COMMIT separado, não se cria
-procedure fictícia nem se usa a conexão de identidade como conexão do SGU.
-
-### Interface e endpoints
-
-- `POST /api/fusex-spa/validar`: recebe `{ "guias": "101,102\n103" }`, valida
-  inteiros não negativos de 64 bits, remove duplicados e retorna IDs como strings,
-  quantidade informada, `execucaoDisponivel: false` e a explicação do bloqueio.
-  Não consulta existência, convênio ou itens das guias.
-- Limites: 20.000 caracteres e 1.000 IDs distintos por solicitação. O lote limita
-  custo de validação e prepara um limite conservador para eventual IN Oracle.
-  IDs ficam em strings no navegador para não perder precisão acima de 2^53.
-- A revisão mostra a operação e exige confirmação explícita. Editar IDs invalida
-  a revisão e a confirmação. O botão de execução fica desabilitado nesta versão.
-- `POST /api/fusex-spa/executar`: exige a mesma lista e `confirmado: true`.
-  Sem confirmação retorna 400; com confirmação retorna **501** e código
-  `SGU_DML_NAO_SUPORTADO`. Validação inválida retorna 400, ausência de sessão 401,
-  falta de permissão ou CSRF 403. Não há retry automático.
-- A tentativa confirmada bloqueada gera auditoria com executor, quantidade e
-  motivo, sem registrar IDs ou dados financeiros. Não retorna contagens de
-  afetados fictícias nem representa bloqueio como sucesso.
-
-### Operação pretendida e condição de liberação — Pendente
+O watch mode usa `0090-valorizar-guias-fusex-spa-dev`; fora dele, o padrão é
+`0090-valorizar-guias-fusex-spa`. A variável `FUSEX_SPA_API_NOME` pode
+sobrescrever o nome.
 
 ```sql
-UPDATE DBAUNIMED.GUIA_ITEM
-SET GUITE_VAL_FAT_HONOR = GUITE_VAL_INFORM_HONOR
-WHERE GUIA_COD_ID IN (:id1, :id2 /* demais binds validados */)
-  AND GUITE_VAL_INFORM_HONOR <> GUITE_VAL_FAT_HONOR;
+UPDATE dbaunimed.guia_item i
+SET
+    i.guite_val_fat_honor = i.guite_val_inform_honor
+WHERE
+    i.guia_cod_id IN (<ids validados>)
+    AND i.guite_val_inform_honor <> i.guite_val_fat_honor;
+
 COMMIT;
 ```
 
-O predicado solicitado exclui comparações envolvendo NULL; não foi substituído
-por NVL. O nome da ferramenta não acrescenta filtro de convênio não solicitado.
-Para liberar, a TI deve fornecer e homologar um endpoint/procedure suportado,
-com autorização mínima, parâmetros tipados, atomicidade, rollback, confirmação
-do commit, sem repetição cega após timeout e contagens de itens/guias quando
-disponíveis. Uma nova implementação deverá adaptar a resposta da UI e os testes
-ao contrato real; não existe flag para habilitar execução sem implementação.
+Os IDs são validados no frontend e novamente no backend, aceitando somente dígitos
+de até 64 bits, removendo duplicados e limitando o lote a 1.000 guias. Antes de
+entrar no `IN`, cada valor passa por `Long.parseLong` e é reserializado na
+forma canônica, impedindo a entrada de fragmentos SQL arbitrários.
+
+Como a API do SGU é mutável, publicação e execução ficam sob um lock único na JVM.
+Não existe retry automático: em erro ou timeout, o estado das guias deve ser
+conferido antes de uma nova tentativa. A auditoria registra executor, quantidade,
+nome da API, etapa e resultado, sem registrar os IDs ou valores financeiros.
+
+**Atual:** o bloqueio HTTP 501 foi removido e o backend tenta publicar e executar o
+UPDATE + COMMIT pelo mesmo caminho SGU/Kong usado pelos relatórios.
+
+**Pendente:** confirmar no ambiente autorizado se `ins_atu_query_api` aceita DML,
+se `p_prcssa_dados` executa múltiplos comandos e se o `COMMIT` é efetivamente
+aplicado. Uma resposta HTTP de sucesso comprova somente que o endpoint aceitou a
+chamada; o resultado deve ser conferido no SGU antes de repetir.
+
+A alteração não adiciona datasource Oracle, não contorna ACL/WAF/Kong, não expõe a
+chave do SGU e não libera SQL arbitrário vindo do navegador.
 
 ## Verificação e instalação
 

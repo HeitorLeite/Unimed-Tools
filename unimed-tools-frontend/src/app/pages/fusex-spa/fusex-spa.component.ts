@@ -34,6 +34,7 @@ export class FusexSpaComponent {
   confirmado = false;
   processando = false;
   erro = '';
+  sucesso = '';
   validacao: FusexSpaValidacao | null = null;
 
   alterarTexto(texto: string): void {
@@ -41,6 +42,7 @@ export class FusexSpaComponent {
     this.validacao = null;
     this.confirmado = false;
     this.erro = '';
+    this.sucesso = '';
   }
 
   validar(): void {
@@ -48,9 +50,11 @@ export class FusexSpaComponent {
     this.validacao = null;
     this.confirmado = false;
     this.erro = '';
+    this.sucesso = '';
     let ids: string[];
     try { ids = normalizarGuias(this.texto); }
     catch (error) { this.erro = (error as Error).message; return; }
+
     this.processando = true;
     this.service.validar(ids.join(','))
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
@@ -67,6 +71,9 @@ export class FusexSpaComponent {
     if (this.processando || !this.confirmado || !this.validacao?.execucaoDisponivel) return;
     this.processando = true;
     this.erro = '';
+    this.sucesso = '';
+    const quantidade = this.validacao.quantidadeGuias;
+
     this.service.executar(this.validacao.guias.join(','))
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => {
         this.processando = false;
@@ -74,9 +81,14 @@ export class FusexSpaComponent {
         this.cdr.markForCheck();
       }))
       .subscribe({
-        // O contrato atual sempre bloqueia. Uma resposta inesperada não comprova commit.
-        next: () => { this.erro = 'O servidor não retornou confirmação transacional. Verifique com a TI antes de tentar novamente.'; },
-        error: error => { this.erro = error?.error?.message ?? 'Não foi possível confirmar a operação. Consulte a TI antes de tentar novamente.'; },
+        next: () => {
+          this.sucesso = `O endpoint do SGU respondeu com sucesso para ${quantidade} guia(s). Confira o resultado antes de repetir a operação.`;
+          this.validacao = null;
+        },
+        error: error => {
+          const detalhe = error?.error?.message ?? 'Não foi possível confirmar a operação no SGU.';
+          this.erro = `${detalhe} Não repita automaticamente: confirme o estado das guias antes de uma nova tentativa.`;
+        },
       });
   }
 }

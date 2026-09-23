@@ -5,7 +5,7 @@
     <p>Copiar o honorário informado para o honorário faturado dos itens das guias selecionadas quando os valores forem diferentes.</p>
   </header>
   <div class="aviso" role="status">
-    A execução está indisponível até a TI homologar a atualização no SGU. Você pode validar e conferir os IDs; nenhuma guia será alterada nesta versão.
+    Execução de teste habilitada. Ao confirmar, a ferramenta publicará uma API reservada no SGU com UPDATE + COMMIT e executará a alteração. Confira os IDs antes de continuar e não repita automaticamente uma tentativa com erro ou timeout.
   </div>
   <div class="painel">
     <label for="guias">IDs das guias (GUIA_COD_ID)</label>
@@ -17,6 +17,7 @@
       {{ processando ? 'Aguarde…' : 'Validar e revisar guias' }}
     </button>
     @if (erro) { <p class="erro" role="alert">{{ erro }}</p> }
+    @if (sucesso) { <p class="sucesso" role="status">{{ sucesso }}</p> }
   </div>
   @if (validacao; as revisao) {
     <div class="painel" aria-label="Revisão da operação">

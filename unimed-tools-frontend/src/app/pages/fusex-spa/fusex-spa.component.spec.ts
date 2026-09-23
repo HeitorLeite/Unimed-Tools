@@ -11,9 +11,9 @@ describe('Valorizar guias Fusex-SPA', () => {
     }
   });
 
-  it('mostra revisão, bloqueia execução indisponível e invalida confirmação ao editar IDs', async () => {
+  it('mostra revisão disponível e invalida confirmação ao editar IDs', async () => {
     const service = {
-      validar: vi.fn(() => of({ guias: ['1', '2'], quantidadeGuias: 2, execucaoDisponivel: false, mensagem: 'Nenhuma guia foi alterada.' })),
+      validar: vi.fn(() => of({ guias: ['1', '2'], quantidadeGuias: 2, execucaoDisponivel: true, mensagem: 'Execução de teste habilitada.' })),
       executar: vi.fn(() => of(undefined)),
     };
     await TestBed.configureTestingModule({ imports: [FusexSpaComponent], providers: [{ provide: FusexSpaService, useValue: service }] }).compileComponents();
@@ -21,16 +21,32 @@ describe('Valorizar guias Fusex-SPA', () => {
     const component = fixture.componentInstance;
     component.alterarTexto('1,1,2');
     component.validar();
-    component.confirmado = true;
-    component.executar();
     fixture.detectChanges();
     expect(service.validar).toHaveBeenCalledWith('1,2');
-    expect(service.executar).not.toHaveBeenCalled();
     const buttons = fixture.nativeElement.querySelectorAll('button');
     expect(buttons[1].disabled).toBe(true);
     expect(fixture.nativeElement.textContent).toContain('2 guia(s) informada(s)');
+    component.confirmado = true;
     component.alterarTexto('3');
     expect(component.validacao).toBeNull();
     expect(component.confirmado).toBe(false);
+  });
+
+  it('executa após confirmação e mostra retorno de sucesso', async () => {
+    const service = {
+      validar: vi.fn(() => of({ guias: ['1', '2'], quantidadeGuias: 2, execucaoDisponivel: true, mensagem: 'Execução de teste habilitada.' })),
+      executar: vi.fn(() => of(undefined)),
+    };
+    await TestBed.configureTestingModule({ imports: [FusexSpaComponent], providers: [{ provide: FusexSpaService, useValue: service }] }).compileComponents();
+    const fixture = TestBed.createComponent(FusexSpaComponent);
+    const component = fixture.componentInstance;
+    component.alterarTexto('1,2');
+    component.validar();
+    component.confirmado = true;
+    component.executar();
+    fixture.detectChanges();
+    expect(service.executar).toHaveBeenCalledWith('1,2');
+    expect(component.validacao).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('O endpoint do SGU respondeu com sucesso');
   });
 });

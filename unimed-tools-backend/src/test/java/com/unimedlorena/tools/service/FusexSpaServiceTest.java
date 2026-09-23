@@ -60,7 +60,12 @@ class FusexSpaServiceTest {
     assertThat(String.valueOf(definicao.get("consultaSQL")))
         .contains("i.guia_cod_id IN (1, 2)")
         .contains("COMMIT;");
-    assertThat(definicao.get("filtros")).isEqualTo(List.of());
+    assertThat(definicao.get("filtros")).isEqualTo(List.of(Map.of(
+        "nomeFiltro", "controle",
+        "conteudoFiltro", "AND 1 = :controle",
+        "tipoDadoFiltro", "NUMBER",
+        "mascaraFiltro", "",
+        "obrigatorioFiltro", "N")));
 
     verify(sgu).executar(FusexSpaService.API_NOME, Map.of());
     verify(auditoria).registrar(

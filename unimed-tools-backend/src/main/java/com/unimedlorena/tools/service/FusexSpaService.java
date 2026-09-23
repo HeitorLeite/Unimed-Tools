@@ -61,7 +61,7 @@ public class FusexSpaService {
     definicao.put("nome", apiNome);
     definicao.put("consultaSQL", montarSql(validacao.guias()));
     definicao.put("ordenacao", "");
-    definicao.put("filtros", List.of());
+    definicao.put("filtros", List.of(filtroTecnico()));
 
     API_LOCK.lock();
     String etapa = "PUBLICACAO";
@@ -94,6 +94,21 @@ public class FusexSpaService {
     } finally {
       API_LOCK.unlock();
     }
+  }
+
+  private static Map<String, Object> filtroTecnico() {
+    /*
+     * O ins_atu_query_api rejeita uma lista vazia de filtros. Este filtro é
+     * opcional e nunca é enviado na execução; ele existe somente para cumprir
+     * o contrato estrutural do cadastro sem alterar o UPDATE solicitado.
+     */
+    Map<String, Object> filtro = new LinkedHashMap<>();
+    filtro.put("nomeFiltro", "controle");
+    filtro.put("conteudoFiltro", "AND 1 = :controle");
+    filtro.put("tipoDadoFiltro", "NUMBER");
+    filtro.put("mascaraFiltro", "");
+    filtro.put("obrigatorioFiltro", "N");
+    return filtro;
   }
 
   static String montarSql(List<String> guias) {

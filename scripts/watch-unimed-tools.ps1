@@ -180,6 +180,7 @@ function Start-TestBackend {
 
   $env:RELATORIO_PERSONALIZADO_API_NOME = '0090-relatorio-personalizado-dev'
   $env:RELATORIO_HOSPITAL_API_NOME = '0090-hospital-autorizacoes-dev'
+  $env:FUSEX_SPA_API_NOME = '0090-valorizar-guias-fusex-spa-dev'
   $env:SERVER_ADDRESS = '127.0.0.1'
   $env:SGU_API_KEY = Get-ConfiguredValue 'SGU_API_KEY'
   $env:SGU_API_KEY_HEADERS = Get-ConfiguredValue 'SGU_API_KEY_HEADERS'

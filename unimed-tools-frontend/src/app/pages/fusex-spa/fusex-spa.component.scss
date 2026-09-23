@@ -11,5 +11,6 @@ button { background: #007f59; color: white; border: 0; border-radius: 6px; paddi
 button:disabled { opacity: .55; cursor: not-allowed; }
 button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid #2c9e80; outline-offset: 3px; }
 .erro { color: #9f2020; }
+.sucesso { color: #176b4a; font-weight: 600; }
 .ids { overflow-wrap: anywhere; background: #f1f6f3; padding: 12px; max-height: 180px; overflow: auto; }
 .confirmacao { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; line-height: 1.5; }

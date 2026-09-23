@@ -1,3 +1,4 @@
+import { formatAssistencialDecimal } from '../../../shared/utils/assistencial-decimal.utils';
 /**
  * Construtor guiado de relatórios: coleta filtros autorizados, escolhe colunas
  * e apresenta somente a projeção devolvida pelo backend.
@@ -624,6 +625,11 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   }
 
   valorCelula(coluna: string, valor: unknown): string {
+    const base = coluna.split('__')[0];
+    const metadados = this.configuracao?.colunas.find(campo => campo.id === base);
+    if (metadados?.casasDecimais === 2 && !isProtectedBeneficiaryColumn(coluna)) {
+      return formatAssistencialDecimal(valor) ?? formatReportPreviewValue(coluna, valor);
+    }
     return formatReportPreviewValue(coluna, valor);
   }
 

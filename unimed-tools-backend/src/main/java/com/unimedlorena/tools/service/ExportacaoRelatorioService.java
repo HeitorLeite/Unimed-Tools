@@ -53,6 +53,7 @@ public class ExportacaoRelatorioService {
     TEXTO,
     INTEIRO,
     DECIMAL,
+    DECIMAL_FIXO,
     DATA,
     BOOLEANO,
   }
@@ -299,6 +300,12 @@ public class ExportacaoRelatorioService {
     String formato,
     List<LinkedHashMap<String, Object>> registros
   ) throws IOException {
+    return gerarArquivo(formato, registros, java.util.Set.of());
+  }
+
+  /** Metadados do Assistencial prevalecem sobre inferência por amostra. */
+  public Arquivo gerarArquivo(String formato, List<LinkedHashMap<String, Object>> registros,
+      java.util.Set<String> decimais) throws IOException {
     String tipo = formato == null ? "xlsx" : formato.toLowerCase(Locale.ROOT);
 
     List<LinkedHashMap<String, Object>> dados =
@@ -306,19 +313,19 @@ public class ExportacaoRelatorioService {
 
     return switch (tipo) {
       case "csv" -> new Arquivo(
-        gerarCsv(dados, ';'),
+        gerarCsv(dados, ';', decimais),
         "text/csv; charset=UTF-8",
         "csv",
         dados.size()
       );
       case "txt" -> new Arquivo(
-        gerarTxt(dados),
+        gerarCsv(dados, ';', decimais),
         "text/plain; charset=UTF-8",
         "txt",
         dados.size()
       );
       case "xlsx" -> new Arquivo(
-        gerarXlsx(dados),
+        gerarXlsx(dados, decimais),
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "xlsx",
         dados.size()
@@ -421,6 +428,8 @@ public class ExportacaoRelatorioService {
       inteiro.setDataFormat(formato.getFormat("#,##0"));
       CellStyle decimal = workbook.createCellStyle();
       decimal.setDataFormat(formato.getFormat("#,##0.00########"));
+      CellStyle decimalFixo = workbook.createCellStyle();
+      decimalFixo.setDataFormat(formato.getFormat("#,##0.00"));
       CellStyle data = workbook.createCellStyle();
       data.setDataFormat(formato.getFormat("dd/mm/yyyy"));
       Map<TipoColuna, CellStyle> estilos = Map.of(
@@ -430,6 +439,8 @@ public class ExportacaoRelatorioService {
         inteiro,
         TipoColuna.DECIMAL,
         decimal,
+        TipoColuna.DECIMAL_FIXO,
+        decimalFixo,
         TipoColuna.DATA,
         data,
         TipoColuna.BOOLEANO,
@@ -545,7 +556,8 @@ public class ExportacaoRelatorioService {
 
   private byte[] gerarCsv(
     List<LinkedHashMap<String, Object>> registros,
-    char delimitador
+    char delimitador,
+    java.util.Set<String> decimais
   ) throws IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     // O BOM melhora a abertura de conteúdo UTF-8 no Excel usado no escritório.
@@ -562,7 +574,7 @@ public class ExportacaoRelatorioService {
       )
     ) {
       List<String> colunas = colunas(registros);
-      Map<String, TipoColuna> tipos = inferirTipos(registros, colunas);
+      Map<String, TipoColuna> tipos = inferirTipos(registros, colunas, decimais);
       if (!colunas.isEmpty()) {
         for (String coluna : colunas) printer.print(neutralizarFormula(coluna));
         printer.println();
@@ -583,10 +595,10 @@ public class ExportacaoRelatorioService {
     throws IOException {
     // TXT e CSV compartilham o contrato delimitado por ponto e vírgula. O
     // CSVPrinter também protege campos que já contêm o próprio delimitador.
-    return gerarCsv(registros, ';');
+    return gerarCsv(registros, ';', java.util.Set.of());
   }
 
-  private byte[] gerarXlsx(List<LinkedHashMap<String, Object>> registros)
+  private byte[] gerarXlsx(List<LinkedHashMap<String, Object>> registros, java.util.Set<String> decimais)
     throws IOException {
     // A janela de 100 linhas reduz memória durante relatórios extensos.
     try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) {
@@ -595,7 +607,7 @@ public class ExportacaoRelatorioService {
       sheet.createFreezePane(0, 1);
 
       List<String> colunas = colunas(registros);
-      Map<String, TipoColuna> tipos = inferirTipos(registros, colunas);
+      Map<String, TipoColuna> tipos = inferirTipos(registros, colunas, decimais);
       CellStyle cabecalho = workbook.createCellStyle();
       Font fonte = workbook.createFont();
       fonte.setBold(true);
@@ -612,6 +624,8 @@ public class ExportacaoRelatorioService {
       inteiro.setDataFormat(formato.getFormat("#,##0"));
       CellStyle decimal = workbook.createCellStyle();
       decimal.setDataFormat(formato.getFormat("#,##0.00########"));
+      CellStyle decimalFixo = workbook.createCellStyle();
+      decimalFixo.setDataFormat(formato.getFormat("#,##0.00"));
       CellStyle data = workbook.createCellStyle();
       data.setDataFormat(formato.getFormat("dd/mm/yyyy"));
       Map<TipoColuna, CellStyle> estilos = Map.of(
@@ -621,6 +635,8 @@ public class ExportacaoRelatorioService {
         inteiro,
         TipoColuna.DECIMAL,
         decimal,
+        TipoColuna.DECIMAL_FIXO,
+        decimalFixo,
         TipoColuna.DATA,
         data,
         TipoColuna.BOOLEANO,
@@ -689,6 +705,9 @@ public class ExportacaoRelatorioService {
       case INTEIRO, DECIMAL -> cell.setCellValue(
         converterNumero(valor).doubleValue()
       );
+      case DECIMAL_FIXO -> cell.setCellValue(
+        converterDecimalFixo(valor).setScale(2, java.math.RoundingMode.HALF_UP).doubleValue()
+      );
       case BOOLEANO -> {
         cell.setCellType(CellType.BOOLEAN);
         cell.setCellValue((Boolean) valor);
@@ -701,9 +720,14 @@ public class ExportacaoRelatorioService {
     List<LinkedHashMap<String, Object>> registros,
     List<String> colunas
   ) {
+    return inferirTipos(registros, colunas, java.util.Set.of());
+  }
+
+  private Map<String, TipoColuna> inferirTipos(List<LinkedHashMap<String, Object>> registros,
+      List<String> colunas, java.util.Set<String> decimais) {
     Map<String, TipoColuna> tipos = new LinkedHashMap<>();
     for (String coluna : colunas) {
-      tipos.put(coluna, inferirTipo(registros, coluna));
+      tipos.put(coluna, decimais.contains(coluna) ? TipoColuna.DECIMAL_FIXO : inferirTipo(registros, coluna));
     }
     return tipos;
   }
@@ -777,6 +801,8 @@ public class ExportacaoRelatorioService {
       case DATA -> DATA_BRASILEIRA.format(converterData(valor));
       case INTEIRO -> converterNumero(valor).setScale(0).toPlainString();
       case DECIMAL -> formatarDecimal(converterNumero(valor));
+      case DECIMAL_FIXO -> converterDecimalFixo(valor).setScale(2, java.math.RoundingMode.HALF_UP)
+        .toPlainString().replace('.', ',');
       case BOOLEANO -> texto(valor);
       case TEXTO -> neutralizarFormula(texto(valor));
     };
@@ -847,6 +873,20 @@ public class ExportacaoRelatorioService {
         return null;
       }
     }
+  }
+
+  private BigDecimal converterDecimalFixo(Object valor) {
+    if (valor instanceof CharSequence) {
+      String texto = valor.toString().trim();
+      if (texto.matches("[-+]?\\d+(?:,\\d+)?")
+          || texto.matches("[-+]?\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?")) {
+        if (texto.contains(",")) return new BigDecimal(texto.replace(".", "").replace(',', '.'));
+      }
+      if (texto.matches("[-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?")) {
+        return new BigDecimal(texto);
+      }
+    }
+    return converterNumero(valor);
   }
 
   private BigDecimal converterNumero(Object valor) {

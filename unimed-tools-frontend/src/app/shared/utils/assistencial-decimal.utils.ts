@@ -5,7 +5,9 @@ export function formatAssistencialDecimal(value: unknown): string | null {
   let text = String(value).trim();
   if (/^[+-]?\d{1,3}(?:\.\d{3})+(?:,\d+)$/.test(text)) {
     text = text.replace(/\./g, '').replace(',', '.');
-  } else if (/^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(text)) {
+  } else if (/^[+-]?\d{1,3}(?:,\d{3})+\.\d+$/.test(text)) {
+    // Só considera vírgula como milhar quando há ponto decimal explícito.
+    // Ex.: 1,234.56. Um valor como -2,345 continua sendo -2,345.
     text = text.replace(/,/g, '');
   } else if (text.includes(',')) {
     text = text.replace(',', '.');

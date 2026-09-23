@@ -62,6 +62,11 @@ WHERE
 COMMIT;
 ```
 
+O `ins_atu_query_api` exige que `filtros` contenha ao menos uma definição.
+Por isso a publicação inclui um filtro técnico opcional chamado `controle`, com
+`AND 1 = :controle`. Esse parâmetro não é enviado durante a execução, então o
+filtro não é aplicado e não altera o conjunto de guias do UPDATE.
+
 Os IDs são validados no frontend e novamente no backend, aceitando somente dígitos
 de até 64 bits, removendo duplicados e limitando o lote a 1.000 guias. Antes de
 entrar no `IN`, cada valor passa por `Long.parseLong` e é reserializado na

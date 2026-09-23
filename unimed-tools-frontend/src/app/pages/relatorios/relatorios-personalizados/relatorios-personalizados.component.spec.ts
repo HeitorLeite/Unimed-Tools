@@ -7,6 +7,24 @@ import { RelatorioService } from '../../../shared/services/relatorio.service';
 import { RelatoriosPersonalizadosComponent } from './relatorios-personalizados.component';
 
 describe('RelatoriosPersonalizadosComponent', () => {
+  it('usa metadados para formatar valores e meses, preservando códigos e idade', () => {
+    const component = new RelatoriosPersonalizadosComponent(
+      {} as RelatorioService, { detectChanges: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.configuracao = {
+      apiNome: 'teste', fonte: 'teste', filtros: [],
+      limites: { maximoColunas: 10, maximoMeses: 12, maximoLinhasPagina: 100 },
+      colunas: [{ id: 'VALOR_TOTAL', rotulo: 'Valor', grupo: 'Valores',
+        selecionadaPorPadrao: true, sensivel: false, casasDecimais: 2 }],
+    };
+    expect(component.valorCelula('VALOR_TOTAL', 10)).toBe('10,00');
+    expect(component.valorCelula('VALOR_TOTAL__202601', '1.005')).toBe('1,01');
+    expect(component.valorCelula('ID_GUIA', '000123')).toBe('000123');
+    expect(component.valorCelula('IDADE', 42)).toBe('42');
+    expect(component.valorCelula('CPF', '12345678900')).toBe('••••••••');
+    expect(component.valorCelula('VALOR_TOTAL', null)).toBe('—');
+  });
+
   it('bloqueia as ações enquanto consulta ou exporta', () => {
     const component = new RelatoriosPersonalizadosComponent(
       {} as RelatorioService,

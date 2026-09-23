@@ -27,7 +27,6 @@ public class FerramentaConfiguravelService {
     "unica",
     "hospital",
     "gestao-risco",
-    "valorizar-guias-fusex-spa",
     "ti"
   );
 

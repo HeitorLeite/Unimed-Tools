@@ -52,13 +52,6 @@ Usa uma API reservada gerenciada pelo servidor. Colunas, filtros, ordenação e 
 
 Modelos salvos no frontend não persistem os valores digitados nos filtros.
 
-### Valorizar guias Fusex-SPA
-
-**Parcial:** `pages/fusex-spa/`, `FusexSpaController` e `FusexSpaService`.
-Rota `/valorizar-guias-fusex-spa`, permissão `FUSEX_SPA_VALORIZAR` no cliente
-e servidor. Os endpoints validam IDs e confirmação, mas bloqueiam execução
-com 501 por ausência de contrato DML/commit suportado. Não acessam SGU/Oracle.
-Veja [inspeção e limitação transacional](ASSISTENCIAL_E_FUSEX_SPA.md).
 
 ### Revisão de Contas
 
@@ -209,7 +202,6 @@ Banco existente, em ordem:
 - 004 — remoção do MFA legado;
 - 005 — configuração visual das ferramentas nativas.
 - 006 — permissões das ferramentas atuais;
-- 007 — permissão própria da valorização Fusex-SPA, sem concessão operacional automática.
 
 ## 10. Validação
 

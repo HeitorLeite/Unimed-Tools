@@ -20,7 +20,6 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
   private record Permissao(String codigo, String modulo, String descricao) {}
 
   private static final List<Permissao> PERMISSOES = List.of(
-    new Permissao("FUSEX_SPA_VALORIZAR", "FUSEX_SPA", "Valorizar guias Fusex-SPA — honorários faturados."),
     new Permissao(
       "COMERCIAL_ACESSAR",
       "COMERCIAL",
@@ -62,6 +61,8 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
   @Override
   @Transactional
   public void run(ApplicationArguments args) {
+    removerFusexSpaLegado();
+
     for (Permissao permissao : PERMISSOES) {
       jdbc.update(
         """
@@ -93,8 +94,7 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
         'REVISAO_CONTAS_ACESSAR',
         'UNICA_ACESSAR',
         'HOSPITAL_ACESSAR',
-        'GESTAO_RISCO_ACESSAR',
-        'FUSEX_SPA_VALORIZAR'
+        'GESTAO_RISCO_ACESSAR'
       )
       WHERE p.codigo = 'ADMINISTRADOR'
       """
@@ -108,6 +108,14 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
     ));
     migrarPermissao("XML_ACESSAR", List.of("REVISAO_CONTAS_ACESSAR"));
     migrarPermissao("ANS_ACESSAR", List.of("UNICA_ACESSAR"));
+  }
+
+  private void removerFusexSpaLegado() {
+    jdbc.update(
+      "DELETE FROM ferramenta_nativa_configuracao WHERE ferramenta_id = ?",
+      "valorizar-guias-fusex-spa"
+    );
+    jdbc.update("DELETE FROM permissao WHERE codigo = ?", "FUSEX_SPA_VALORIZAR");
   }
 
   private void migrarPermissao(String antiga, List<String> novas) {

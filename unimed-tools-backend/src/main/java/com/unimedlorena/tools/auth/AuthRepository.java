@@ -134,7 +134,7 @@ public class AuthRepository {
           'REVISAO_CONTAS_ACESSAR',
           'UNICA_ACESSAR',
           'HOSPITAL_ACESSAR',
-          'GESTAO_RISCO_ACESSAR','FUSEX_SPA_VALORIZAR'
+          'GESTAO_RISCO_ACESSAR'
         )
       ORDER BY FIELD(
         codigo,
@@ -143,7 +143,7 @@ public class AuthRepository {
         'REVISAO_CONTAS_ACESSAR',
         'UNICA_ACESSAR',
         'HOSPITAL_ACESSAR',
-        'GESTAO_RISCO_ACESSAR','FUSEX_SPA_VALORIZAR'
+        'GESTAO_RISCO_ACESSAR'
       )
       """,
       (rs, rowNum) -> new PermissaoRow(
@@ -161,7 +161,7 @@ public class AuthRepository {
       "SELECT codigo FROM permissao WHERE ativo = TRUE AND codigo IN (" + marcadores + ") " +
         "AND codigo IN (" +
         "'COMERCIAL_ACESSAR','ASSISTENCIAL_ACESSAR','REVISAO_CONTAS_ACESSAR'," +
-        "'UNICA_ACESSAR','HOSPITAL_ACESSAR','GESTAO_RISCO_ACESSAR','FUSEX_SPA_VALORIZAR')",
+        "'UNICA_ACESSAR','HOSPITAL_ACESSAR','GESTAO_RISCO_ACESSAR')",
       String.class,
       codigos.toArray()
     ));

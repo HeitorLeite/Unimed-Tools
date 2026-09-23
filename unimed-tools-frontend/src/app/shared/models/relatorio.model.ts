@@ -81,6 +81,9 @@ export interface RelatorioPersonalizadoColuna {
   grupo: string;
   selecionadaPorPadrao: boolean;
   sensivel: boolean;
+  tipo?: 'texto' | 'numero' | 'data' | 'competencia';
+  separavelPorMes?: boolean;
+  disponivelParaRanking?: boolean;
 }
 
 export interface RelatorioPersonalizadoOpcao {
@@ -92,7 +95,7 @@ export interface RelatorioPersonalizadoFiltro {
   id: string;
   rotulo: string;
   grupo: string;
-  tipo: 'text' | 'number' | 'decimal' | 'date' | 'competencia' | 'select';
+  tipo: 'text' | 'number' | 'decimal' | 'date' | 'competencia' | 'select' | 'empresa';
   placeholder: string;
   obrigatorio: boolean;
   opcoes: RelatorioPersonalizadoOpcao[];
@@ -110,12 +113,23 @@ export interface RelatorioPersonalizadoConfiguracao {
   };
 }
 
+export interface RelatorioPersonalizadoRanking {
+  modo: 'MAIORES' | 'MENORES';
+  quantidade: number;
+  dimensao: string;
+  metrica: string;
+}
+
 export interface RelatorioPersonalizadoRequest {
   colunas: string[];
   filtros: Record<string, unknown>;
   distinct: boolean;
   ordenarPor?: string;
   direcaoOrdenacao?: 'ASC' | 'DESC';
+  separarMeses?: boolean;
+  metricasPorMes?: string[];
+  ranking?: RelatorioPersonalizadoRanking | null;
+  ordemResultado?: string[];
   pagina: number;
   tamanhoPagina: number;
   nomeArquivo: string;

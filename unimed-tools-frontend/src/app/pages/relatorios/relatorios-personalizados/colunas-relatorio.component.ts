@@ -16,8 +16,9 @@ export class ColunasRelatorioComponent {
   @Input() bloqueado = false;
   @Output() alternar = new EventEmitter<RelatorioPersonalizadoColuna>();
   @Output() alternarGrupo = new EventEmitter<{ nome: string; itens: RelatorioPersonalizadoColuna[] }>();
-  @Output() mover = new EventEmitter<{ id: string; deslocamento: -1 | 1 }>();
+  @Output() reordenar = new EventEmitter<string[]>();
   busca = '';
+  arrastadaId: string | null = null;
   grupo = '';
   trackGrupo(_: number, grupo: { nome: string }): string { return grupo.nome; }
   trackCampo(_: number, campo: { id: string }): string { return campo.id; }
@@ -28,6 +29,48 @@ export class ColunasRelatorioComponent {
     return this.ordem.map((id) => mapa.get(id)).filter((coluna): coluna is RelatorioPersonalizadoColuna => !!coluna);
   }
   selecionado(id: string): boolean { return this.ordem.includes(id); }
+
+  iniciarArraste(event: DragEvent, id: string): void {
+    if (this.bloqueado) {
+      event.preventDefault();
+      return;
+    }
+    this.arrastadaId = id;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', id);
+    }
+  }
+
+  permitirSoltar(event: DragEvent): void {
+    if (this.bloqueado) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  soltar(event: DragEvent, destinoId: string): void {
+    if (this.bloqueado) return;
+    event.preventDefault();
+    const origemId = this.arrastadaId ?? event.dataTransfer?.getData('text/plain') ?? '';
+    if (!origemId || origemId === destinoId) {
+      this.arrastadaId = null;
+      return;
+    }
+
+    const ordem = [...this.ordem];
+    const origem = ordem.indexOf(origemId);
+    const destino = ordem.indexOf(destinoId);
+    if (origem < 0 || destino < 0) return;
+
+    ordem.splice(origem, 1);
+    ordem.splice(destino, 0, origemId);
+    this.reordenar.emit(ordem);
+    this.arrastadaId = null;
+  }
+
+  encerrarArraste(): void {
+    this.arrastadaId = null;
+  }
   grupoSelecionado(itens: RelatorioPersonalizadoColuna[]): boolean { return itens.every((coluna) => this.selecionado(coluna.id)); }
   podeAdicionar(coluna: RelatorioPersonalizadoColuna): boolean { return this.selecionado(coluna.id) || this.ordem.length < this.maximo; }
 }

@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.unimedlorena.tools.dto.HospitalRelatorioRequest;
@@ -20,6 +21,9 @@ import com.unimedlorena.tools.dto.HospitalRelatorioRequest;
 public class HospitalRelatorioService {
 
   public static final String API_NOME = "0090-hospital-autorizacoes";
+
+  @Value("${relatorios.hospital.api-nome:0090-hospital-autorizacoes}")
+  private String apiNome = API_NOME;
 
   public record Opcao(String valor, String rotulo) {
   }
@@ -166,11 +170,17 @@ public class HospitalRelatorioService {
   }
 
   public Configuracao configuracao() {
-    return new Configuracao(API_NOME, COLUNAS, FILTROS);
+    return new Configuracao(apiNome, COLUNAS, FILTROS);
   }
 
   public boolean ehApiReservada(String nome) {
-    return nome != null && API_NOME.equalsIgnoreCase(nome.trim());
+    if (nome == null) return false;
+    String valor = nome.trim();
+    return API_NOME.equalsIgnoreCase(valor) || apiNome.equalsIgnoreCase(valor);
+  }
+
+  public String apiNome() {
+    return apiNome;
   }
 
   public Map<String, Object> executar(HospitalRelatorioRequest request) {
@@ -178,7 +188,7 @@ public class HospitalRelatorioService {
     Map<String, Object> parametros = normalizarFiltros(request == null ? null : request.filtros());
     parametros.put("page", limitar(request == null ? null : request.pagina(), 1, 10_000, 1));
     parametros.put("size", limitar(request == null ? null : request.tamanhoPagina(), 1, 100, 25));
-    return sgu.executar(API_NOME, parametros);
+    return sgu.executar(apiNome, parametros);
   }
 
   public ExportacaoRelatorioService.Arquivo exportar(
@@ -193,7 +203,7 @@ public class HospitalRelatorioService {
 
   private void publicar() {
     Map<String, Object> definicao = new LinkedHashMap<>();
-    definicao.put("nome", API_NOME);
+    definicao.put("nome", apiNome);
     definicao.put("consultaSQL", SQL);
     definicao.put("ordenacao", "DATA_AUTORIZACAO DESC");
     definicao.put("filtros", definicoesFiltros());

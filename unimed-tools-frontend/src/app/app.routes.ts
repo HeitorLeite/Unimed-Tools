@@ -82,6 +82,12 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'valorizar-guias-fusex-spa',
+        canActivate: [permissionGuard],
+        data: { permission: 'FUSEX_SPA_VALORIZAR' },
+        loadComponent: () => import('./pages/fusex-spa/fusex-spa.component').then(m => m.FusexSpaComponent),
+      },
+      {
         path: 'ti',
         canActivate: [adminGuard],
         loadComponent: () =>

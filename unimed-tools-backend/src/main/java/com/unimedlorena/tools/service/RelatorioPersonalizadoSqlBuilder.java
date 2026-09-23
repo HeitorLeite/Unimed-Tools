@@ -365,6 +365,13 @@ public class RelatorioPersonalizadoSqlBuilder {
     return CAMPOS_NUMERICOS.contains(id) ? "numero" : "texto";
   }
 
+  // Metadados explícitos: códigos, idade e contagens não são valores decimais.
+  public boolean campoDecimal(String id) {
+    return Set.of("VALOR_FATOR", "VALOR_PG_PROCEDIMENTO", "VALOR_PG_FILME",
+        "VALOR_PG_CO", "VALOR_TOTAL", "VALOR_TOTAL_21", CAMPO_RECEITA,
+        CAMPO_SINISTRALIDADE, "VALOR_RECEBER").contains(id);
+  }
+
   public boolean campoSeparavelPorMes(String id) {
     return CAMPOS_SEPARAVEIS_POR_MES.contains(id);
   }

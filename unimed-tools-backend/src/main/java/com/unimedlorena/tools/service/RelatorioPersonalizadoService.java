@@ -39,6 +39,7 @@ public class RelatorioPersonalizadoService {
       boolean selecionadaPorPadrao,
       boolean sensivel,
       String tipo,
+      Integer casasDecimais,
       boolean separavelPorMes,
       boolean disponivelParaRanking) {
   }
@@ -83,6 +84,10 @@ public class RelatorioPersonalizadoService {
   private final ExportacaoRelatorioService exportacao;
   private final RelatorioPersonalizadoSqlBuilder sqlBuilder;
   private RelatorioPersonalizadoSqlBuilder.ApiGerada ultimaApiPublicada;
+  private EstruturaApi ultimaEstruturaPublicada;
+
+  private record EstruturaApi(List<String> colunas, Set<String> filtros,
+      boolean distinct, String ordenarPor, String direcao) {}
 
   public RelatorioPersonalizadoService(
       SguRelatorioService sgu,
@@ -104,6 +109,7 @@ public class RelatorioPersonalizadoService {
             campo.selecionadaPorPadrao(),
             campo.sensivel(),
             sqlBuilder.tipoCampo(campo.id()),
+            sqlBuilder.campoDecimal(campo.id()) ? 2 : null,
             sqlBuilder.campoSeparavelPorMes(campo.id()),
             sqlBuilder.campoRanking(campo.id())))
         .toList();
@@ -143,63 +149,62 @@ public class RelatorioPersonalizadoService {
 
   public Map<String, Object> executar(RelatorioPersonalizadoRequest request) {
     RequisicaoNormalizada normalizada = normalizar(request, true);
+    if (normalizada.analiseAvancada()) {
+      return paginarAnalise(transformar(carregar(normalizada), normalizada), normalizada);
+    }
 
+    Map<String, Object> parametros = parametrosSgu(normalizada.filtros());
+    parametros.put("page", normalizada.pagina());
+    parametros.put("size", normalizada.tamanhoPagina());
+    Map<String, Object> resposta;
     API_LOCK.lock();
     try {
       publicarApi(normalizada);
-
-      if (normalizada.analiseAvancada()) {
-        List<LinkedHashMap<String, Object>> registros = carregarETransformar(normalizada);
-        return paginarAnalise(registros, normalizada);
-      }
-
-      Map<String, Object> parametros = parametrosSgu(normalizada.filtros());
-      parametros.put("page", normalizada.pagina());
-      parametros.put("size", normalizada.tamanhoPagina());
-
-      Map<String, Object> resposta = sgu.executar(apiNome, parametros);
-      Map<String, Object> projetada = new LinkedHashMap<>(resposta);
-      projetada.put(
-          "content",
-          projetarRegistros(resposta.get("content"), normalizada.colunas()));
-      projetada.put("colunas", normalizada.colunas());
-      return projetada;
+      resposta = sgu.executar(apiNome, parametros);
     } finally {
       API_LOCK.unlock();
     }
+    Map<String, Object> projetada = new LinkedHashMap<>(resposta);
+    projetada.put("content", projetarRegistros(resposta.get("content"), normalizada.colunas()));
+    projetada.put("colunas", normalizada.colunas());
+    return projetada;
   }
 
   public ExportacaoRelatorioService.Arquivo exportar(
-      String formato,
-      RelatorioPersonalizadoRequest request) throws IOException {
+      String formato, RelatorioPersonalizadoRequest request) throws IOException {
+    exportacao.descreverArquivo(formato);
     RequisicaoNormalizada normalizada = normalizar(request, false);
+    List<LinkedHashMap<String, Object>> registros = carregar(normalizada);
+    if (normalizada.analiseAvancada()) registros = transformar(registros, normalizada);
+    Set<String> decimais = colunasResultado(normalizada).stream()
+        .filter(coluna -> sqlBuilder.campoDecimal(coluna.split("__", 2)[0]))
+        .collect(java.util.stream.Collectors.toSet());
+    // O arquivo não depende mais da definição mutável do SGU.
+    return exportacao.gerarArquivo(formato, registros, decimais);
+  }
 
+  private List<LinkedHashMap<String, Object>> carregar(RequisicaoNormalizada normalizada) {
+    List<LinkedHashMap<String, Object>> registros;
     API_LOCK.lock();
     try {
       publicarApi(normalizada);
-
-      List<LinkedHashMap<String, Object>> registros;
-      if (normalizada.analiseAvancada()) {
-        registros = carregarETransformar(normalizada);
-      } else {
-        /*
-         * O lock permanece durante todas as páginas. Sem isso, outra consulta
-         * poderia substituir a definição no meio da exportação.
-         */
-        registros = projetarRegistros(
-            exportacao.carregarRegistros(
-                API_NOME,
-                parametrosSgu(normalizada.filtros())),
-            normalizada.colunas());
-      }
-      return exportacao.gerarArquivo(formato, registros);
+      // Todas as páginas usam a mesma definição e o nome do ambiente atual.
+      registros = exportacao.carregarRegistros(apiNome, parametrosSgu(normalizada.filtros()));
     } finally {
       API_LOCK.unlock();
     }
+    return projetarRegistros(registros, colunasConsulta(normalizada));
   }
 
   private void publicarApi(RequisicaoNormalizada normalizada) {
     boolean transformarNoBackend = normalizada.analiseAvancada();
+    EstruturaApi estrutura = new EstruturaApi(
+        colunasConsulta(normalizada), Set.copyOf(normalizada.filtros().keySet()),
+        transformarNoBackend ? false : normalizada.distinct(),
+        transformarNoBackend ? null : normalizada.ordenarPor(),
+        transformarNoBackend ? null : normalizada.direcaoOrdenacao());
+    // Evita reconstruir SQL extenso ao paginar ou trocar apenas valores de filtros.
+    if (estrutura.equals(ultimaEstruturaPublicada)) return;
     RelatorioPersonalizadoSqlBuilder.ApiGerada gerada = sqlBuilder.gerar(
         colunasConsulta(normalizada),
         normalizada.filtros().keySet(),
@@ -213,6 +218,7 @@ public class RelatorioPersonalizadoService {
      * ativos mudarem, ApiGerada também muda e a publicação é refeita.
      */
     if (gerada.equals(ultimaApiPublicada)) {
+      ultimaEstruturaPublicada = estrutura;
       return;
     }
 
@@ -228,8 +234,12 @@ public class RelatorioPersonalizadoService {
     definicao.put("filtros", gerada.filtros());
 
     // ins_atu_query_api atualiza a definição existente com o mesmo nome.
+    // Timeout pode ocorrer depois da publicação remota: invalida antes da escrita.
+    ultimaEstruturaPublicada = null;
+    ultimaApiPublicada = null;
     sgu.criarOuAtualizar(definicao);
     ultimaApiPublicada = gerada;
+    ultimaEstruturaPublicada = estrutura;
   }
 
   private RequisicaoNormalizada normalizar(
@@ -707,28 +717,23 @@ public class RelatorioPersonalizadoService {
     return List.copyOf(colunas);
   }
 
-  private List<LinkedHashMap<String, Object>> carregarETransformar(
+  private List<LinkedHashMap<String, Object>> transformar(
+      List<LinkedHashMap<String, Object>> registros,
       RequisicaoNormalizada normalizada) {
-    List<LinkedHashMap<String, Object>> registros = projetarRegistros(
-        exportacao.carregarRegistros(
-            apiNome,
-            parametrosSgu(normalizada.filtros())),
-        colunasConsulta(normalizada));
 
     if (normalizada.ranking() != null) {
       registros = aplicarRanking(registros, normalizada.ranking());
     }
     if (normalizada.separarMeses()) {
       registros = pivotarMeses(registros, normalizada);
-    } else {
-      registros = projetarRegistros(registros, normalizada.colunas());
     }
     if (normalizada.distinct()) {
       registros = new ArrayList<>(new LinkedHashSet<>(registros));
     }
 
     ordenarAnalise(registros, normalizada);
-    return reordenarMapas(registros, colunasResultado(normalizada));
+    return normalizada.separarMeses() || !normalizada.ordemResultado().isEmpty()
+        ? reordenarMapas(registros, colunasResultado(normalizada)) : registros;
   }
 
   private List<LinkedHashMap<String, Object>> reordenarMapas(

@@ -82,6 +82,7 @@ export interface RelatorioPersonalizadoColuna {
   selecionadaPorPadrao: boolean;
   sensivel: boolean;
   tipo?: 'texto' | 'numero' | 'data' | 'competencia';
+  casasDecimais?: number | null;
   separavelPorMes?: boolean;
   disponivelParaRanking?: boolean;
 }

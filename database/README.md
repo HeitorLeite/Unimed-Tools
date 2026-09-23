@@ -73,6 +73,7 @@ O gerenciamento operacional trabalha com:
 - `REVISAO_CONTAS_ACESSAR`;
 - `UNICA_ACESSAR`;
 - `HOSPITAL_ACESSAR`;
-- `GESTAO_RISCO_ACESSAR`.
+- `GESTAO_RISCO_ACESSAR`;
+- `FUSEX_SPA_VALORIZAR` (migração 007; concessão explícita para operadores).
 
 O backend mantém automaticamente as permissões técnicas necessárias para os endpoints existentes.

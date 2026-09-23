@@ -38,6 +38,7 @@ export class ProfileComponent {
       UNICA_ACESSAR: 'Única',
       HOSPITAL_ACESSAR: 'Hospital',
       GESTAO_RISCO_ACESSAR: 'Gestão de Risco',
+      FUSEX_SPA_VALORIZAR: 'Valorizar guias Fusex-SPA',
       XML_ACESSAR: 'Revisão de Contas (compatibilidade)',
       ANS_ACESSAR: 'Única (compatibilidade)',
       BI_ACESSAR: 'Business Intelligence',

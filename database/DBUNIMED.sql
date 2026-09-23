@@ -212,7 +212,8 @@ INSERT INTO permissao (codigo, modulo, descricao, ativo) VALUES
 ('REVISAO_CONTAS_ACESSAR', 'REVISAO_CONTAS', 'Revisão de Contas — correção e conferência de XML TISS.', TRUE),
 ('UNICA_ACESSAR', 'UNICA', 'Única — correção de rede e arquivos ANS.', TRUE),
 ('HOSPITAL_ACESSAR', 'HOSPITAL', 'Hospital — consulta de autorizações ainda não convertidas em guia.', TRUE),
-('GESTAO_RISCO_ACESSAR', 'GESTAO_RISCO', 'Gestão de Risco — relatórios de rastreio e acompanhamento.', TRUE);
+('GESTAO_RISCO_ACESSAR', 'GESTAO_RISCO', 'Gestão de Risco — relatórios de rastreio e acompanhamento.', TRUE),
+('FUSEX_SPA_VALORIZAR', 'FUSEX_SPA', 'Valorizar guias Fusex-SPA — honorários faturados.', TRUE);
 
 INSERT INTO perfil_permissao (perfil_id, permissao_id)
 SELECT p.id, pe.id

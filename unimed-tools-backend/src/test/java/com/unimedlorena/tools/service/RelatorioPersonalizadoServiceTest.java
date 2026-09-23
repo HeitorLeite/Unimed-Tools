@@ -389,6 +389,73 @@ class RelatorioPersonalizadoServiceTest {
     });
   }
 
+  @Test
+  void deveRankearPeloTotalDoPeriodoAntesDeSepararMesesETratarPontoComoDecimalDoSgu() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = mock(ExportacaoRelatorioService.class);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu,
+        exportacao,
+        new RelatorioPersonalizadoSqlBuilder());
+
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(exportacao.carregarRegistros(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+        .thenReturn(List.of(
+            new LinkedHashMap<>(Map.of(
+                "COD_BENEFICIARIO", "001",
+                "NOME_BENEFICIARIO", "BENEF A",
+                "VALOR_TOTAL", "1.005",
+                "PERIODO", 202601)),
+            new LinkedHashMap<>(Map.of(
+                "COD_BENEFICIARIO", "001",
+                "NOME_BENEFICIARIO", "BENEF A",
+                "VALOR_TOTAL", "1.005",
+                "PERIODO", 202602)),
+            new LinkedHashMap<>(Map.of(
+                "COD_BENEFICIARIO", "002",
+                "NOME_BENEFICIARIO", "BENEF B",
+                "VALOR_TOTAL", "2.50",
+                "PERIODO", 202601)),
+            new LinkedHashMap<>(Map.of(
+                "COD_BENEFICIARIO", "002",
+                "NOME_BENEFICIARIO", "BENEF B",
+                "VALOR_TOTAL", "0",
+                "PERIODO", 202602))));
+
+    RelatorioPersonalizadoRequest request = new RelatorioPersonalizadoRequest(
+        List.of("COD_BENEFICIARIO", "NOME_BENEFICIARIO", "VALOR_TOTAL"),
+        Map.of(
+            "competencia_inicio", "202601",
+            "competencia_fim", "202602",
+            "codigo_empresa", "90"),
+        false,
+        null,
+        null,
+        true,
+        List.of("VALOR_TOTAL"),
+        new RelatorioPersonalizadoRequest.Ranking(
+            "MAIORES",
+            1,
+            "COD_BENEFICIARIO",
+            "VALOR_TOTAL"),
+        List.of(),
+        1,
+        50,
+        "top_beneficiarios");
+
+    Map<String, Object> resposta = service.executar(request);
+
+    assertThat((List<?>) resposta.get("content")).singleElement().satisfies(item -> {
+      @SuppressWarnings("unchecked")
+      Map<String, Object> linha = (Map<String, Object>) item;
+      assertThat(linha)
+          .containsEntry("COD_BENEFICIARIO", "002")
+          .containsEntry("NOME_BENEFICIARIO", "BENEF B")
+          .containsEntry("VALOR_TOTAL__202601", new java.math.BigDecimal("2.50"))
+          .containsEntry("VALOR_TOTAL__202602", java.math.BigDecimal.ZERO);
+    });
+  }
+
   private RelatorioPersonalizadoRequest requisicao(Map<String, Object> filtros) {
     return new RelatorioPersonalizadoRequest(
         List.of("COD_BENEFICIARIO"),

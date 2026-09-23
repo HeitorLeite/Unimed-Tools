@@ -18,7 +18,9 @@ describe('RelatoriosPersonalizadosComponent', () => {
         selecionadaPorPadrao: true, sensivel: false, casasDecimais: 2 }],
     };
     expect(component.valorCelula('VALOR_TOTAL', 10)).toBe('10,00');
+    expect(component.valorCelula('VALOR_TOTAL', 1234567.8)).toBe('1.234.567,80');
     expect(component.valorCelula('VALOR_TOTAL__202601', '1.005')).toBe('1,01');
+    expect(component.valorCelula('VALOR_TOTAL__202602', '1234,5')).toBe('1.234,50');
     expect(component.valorCelula('ID_GUIA', '000123')).toBe('000123');
     expect(component.valorCelula('IDADE', 42)).toBe('42');
     expect(component.valorCelula('CPF', '12345678900')).toBe('••••••••');

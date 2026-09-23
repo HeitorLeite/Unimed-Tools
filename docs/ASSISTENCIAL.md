@@ -14,9 +14,16 @@
 - Prévia, análise e exportação usam `relatorios.personalizado.api-nome`; o
   desenvolvimento mantém o sufixo `-dev`. A exportação simples não usa mais
   o nome fixo de produção.
-- O SQL, os filtros, a paginação e as regras de agregação/ranking permanecem.
-  O lock/cache é local à JVM: continua necessário um único backend publicador
-  por nome de API. Múltiplas réplicas exigiriam coordenação externa.
+- No modo de ranking com separação mensal, a consulta consolida cada beneficiário
+  por competência antes de retornar ao backend. O backend soma todas as competências
+  para determinar o Top N do período completo e somente depois abre esses mesmos
+  beneficiários nas colunas mensais.
+- Valores numéricos recebidos do SGU usam ponto como separador decimal. Assim,
+  `1.005` é tratado como 1,005 durante soma, ranking e pivot, evitando inflação
+  acidental para 1005.
+- O SQL, os filtros e a paginação permanecem protegidos por allowlist. O lock/cache
+  é local à JVM: continua necessário um único backend publicador por nome de API.
+  Múltiplas réplicas exigiriam coordenação externa.
 
 ### Decimais
 
@@ -24,8 +31,9 @@ O catálogo informa `casasDecimais: 2` para VALOR_FATOR, VALOR_PG_PROCEDIMENTO,
 VALOR_PG_FILME, VALOR_PG_CO, VALOR_TOTAL, VALOR_TOTAL_21, RECEITA,
 SINISTRALIDADE e VALOR_RECEBER. As colunas mensais herdam os metadados da base.
 
-A prévia, CSV e TXT usam duas casas e vírgula decimal; XLSX mantém células
-numéricas e máscara `#,##0.00`. O arredondamento é HALF_UP na apresentação e
+A prévia usa duas casas, vírgula decimal e agrupamento de milhares em pt-BR
+(ex.: `1.234.567,80`). CSV e TXT mantêm duas casas e vírgula decimal para
+facilitar importação; XLSX mantém células numéricas e máscara `#,##0.00`. O arredondamento é HALF_UP na apresentação e
 exportação, após ranking, soma, distinct e ordenação. Nulos permanecem vazios
 nos arquivos e como travessão na prévia. IDs, códigos, idade e contagens não
 recebem essa máscara. Outros relatórios mantêm sua inferência de tipos atual.

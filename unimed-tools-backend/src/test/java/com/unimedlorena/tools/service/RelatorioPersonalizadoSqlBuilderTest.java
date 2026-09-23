@@ -269,6 +269,30 @@ class RelatorioPersonalizadoSqlBuilderTest {
   }
 
   @Test
+  void deveConsolidarBeneficiarioPorMesAntesDoRankingEPivot() {
+    RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
+        List.of(
+            "COD_BENEFICIARIO",
+            "NOME_BENEFICIARIO",
+            "VALOR_TOTAL",
+            "PERIODO"),
+        Set.of("competencia_inicio", "competencia_fim", "codigo_empresa"));
+
+    assertThat(api.consultaSql())
+        .contains(
+            "SUM(RP.VALOR_TOTAL) AS VALOR_TOTAL",
+            "RP.PERIODO",
+            "GROUP BY",
+            "RP.O_BNF_UNIMED",
+            "RP.O_BNF_CONTRATO",
+            "RP.O_BNF_CODIGO",
+            "RP.O_BNF_DEPENDENTE",
+            "RP.COD_BENEFICIARIO",
+            "RP.NOME_BENEFICIARIO",
+            "RP.PERIODO");
+  }
+
+  @Test
   void deveManterDetalhamentoQuandoUmaColunaDeGuiaForSelecionada() {
     RelatorioPersonalizadoSqlBuilder.ApiGerada api = builder.gerar(
         List.of("COD_BENEFICIARIO", "NUMERO_GUIA", "VALOR_TOTAL"),

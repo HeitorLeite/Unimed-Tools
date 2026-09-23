@@ -784,6 +784,10 @@ public class RelatorioPersonalizadoSqlBuilder {
         possuiBeneficiario = true;
       } else if (GRUPO_CAMPOS_VALORES.equals(campo.grupo())) {
         possuiValor = true;
+      } else if ("PERIODO".equals(campo.id())) {
+        // O modo mensal adiciona a competência como dimensão técnica.
+        // Isso não deve devolver o relatório ao nível de item da guia.
+        continue;
       } else {
         return false;
       }
@@ -799,7 +803,8 @@ public class RelatorioPersonalizadoSqlBuilder {
         .map(alias -> "RP." + alias)
         .forEach(agrupamentos::add);
     camposSelecionados.stream()
-        .filter(campo -> GRUPO_CAMPOS_BENEFICIARIO.equals(campo.grupo()))
+        .filter(campo -> GRUPO_CAMPOS_BENEFICIARIO.equals(campo.grupo())
+            || "PERIODO".equals(campo.id()))
         .map(campo -> "RP." + campo.id())
         .forEach(agrupamentos::add);
     return List.copyOf(agrupamentos);

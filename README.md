@@ -15,6 +15,7 @@ A interface foi reorganizada por **área de trabalho** em vez de por tecnologia.
 | Única | `/unica` | Correção de rede ANS / arquivo RPS | `UNICA_ACESSAR` |
 | Hospital | `/hospital` | Autorizações ainda não convertidas em guia | `HOSPITAL_ACESSAR` |
 | Gestão de Risco | `/gestao-risco` | Relatórios de rastreio e acompanhamento | `GESTAO_RISCO_ACESSAR` |
+| Valorizar guias Fusex-SPA | `/valorizar-guias-fusex-spa` | Validação e revisão de guias; execução bloqueada até homologação SGU | `FUSEX_SPA_VALORIZAR` |
 | TI | `/ti` | APIs, grupos e criação de ferramentas | administrador |
 | Meu perfil | `/perfil` | Dados da conta e permissões | usuário autenticado |
 | Usuários | `/usuarios` | Contas, permissões e reset de senha | administrador |
@@ -69,6 +70,16 @@ Fluxo:
 Modelos de estrutura podem ser salvos no navegador para reutilização. Eles guardam colunas, filtros escolhidos e opções de estrutura, mas **não guardam os valores digitados nos filtros**.
 
 O SQL do relatório personalizado continua montado exclusivamente no backend por allowlist. SQL arbitrário não é aceito do navegador.
+
+**Atual:** estruturas repetidas evitam reconstruir o SQL; o lock do SGU é liberado
+antes da transformação e geração dos arquivos. Valores financeiros/decimais usam
+duas casas na prévia e em CSV/TXT/XLSX, inclusive por mês, preservando códigos,
+IDs e inteiros. Detalhes, testes e limitações em
+[Assistencial e Fusex-SPA](docs/ASSISTENCIAL_E_FUSEX_SPA.md).
+
+**Parcial:** “Valorizar guias Fusex-SPA” aceita IDs, remove duplicados e apresenta
+revisão e confirmação, mas não executa UPDATE/COMMIT. Não foi encontrado contrato
+transacional suportado no SGU; o servidor bloqueia a execução com HTTP 501.
 
 ## Hospital
 
@@ -174,6 +185,7 @@ Para instalações existentes, aplique somente as migrações ainda não executa
 3. `004_remove_mfa.sql`;
 4. `005_configuracao_ferramentas_nativas.sql`;
 5. `006_permissoes_ferramentas_atuais.sql`.
+6. `007_permissao_fusex_spa.sql`.
 
 O backend também sincroniza de forma idempotente as permissões das ferramentas atuais ao iniciar, para que instalações existentes passem a exibir Comercial, Assistencial, Revisão de Contas, Única, Hospital e Gestão de Risco no gerenciamento de acessos.
 

@@ -68,6 +68,17 @@ export const CORE_TOOLS: readonly ToolDefinition[] = [
     kind: 'native',
   },
   {
+    id: 'valorizar-guias-fusex-spa',
+    nome: 'Valorizar guias Fusex-SPA',
+    categoria: 'Guias e faturamento',
+    descricao: 'Valide guias para valorização de honorários. Execução aguardando homologação da integração SGU.',
+    route: '/valorizar-guias-fusex-spa',
+    icon: 'hospital',
+    permission: 'FUSEX_SPA_VALORIZAR',
+    keywords: ['fusex', 'spa', 'guias', 'honorarios', 'valorizar'],
+    kind: 'native',
+  },
+  {
     id: 'ti',
     nome: 'TI',
     categoria: 'Administração da plataforma',

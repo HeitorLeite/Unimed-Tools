@@ -20,6 +20,7 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
   private record Permissao(String codigo, String modulo, String descricao) {}
 
   private static final List<Permissao> PERMISSOES = List.of(
+    new Permissao("FUSEX_SPA_VALORIZAR", "FUSEX_SPA", "Valorizar guias Fusex-SPA — honorários faturados."),
     new Permissao(
       "COMERCIAL_ACESSAR",
       "COMERCIAL",
@@ -92,7 +93,8 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
         'REVISAO_CONTAS_ACESSAR',
         'UNICA_ACESSAR',
         'HOSPITAL_ACESSAR',
-        'GESTAO_RISCO_ACESSAR'
+        'GESTAO_RISCO_ACESSAR',
+        'FUSEX_SPA_VALORIZAR'
       )
       WHERE p.codigo = 'ADMINISTRADOR'
       """

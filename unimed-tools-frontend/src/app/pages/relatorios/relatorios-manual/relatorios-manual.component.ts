@@ -1,7 +1,7 @@
 import { extrairPrimeiraInstrucaoSql, normalizarVariaveisBindSql } from '../sql/sql-lexico';
 import { filtroDetectadoDoSql, detectarFiltrosFixosSimples, converterParametrosFixosSql, converterFiltrosFixosCteSql } from '../sql/sql-filtros';
 import { ajustarEstruturaSqlImportado } from '../sql/sql-estrutura';
-import { normalizarFiltros, filtrosDeNegocio, removerFiltroTecnicoDaDefinicao, prepararDefinicaoParaSgu, clonarDefinicaoApi, validarDefinicaoApi, validarCorrespondenciaBind, filtroVazio } from '../sql/sgu-definicao';
+import { normalizarFiltros, filtrosDeNegocio, removerFiltroTecnicoDaDefinicao, prepararDefinicaoParaSgu, clonarDefinicaoApi, validarDefinicaoApi, validarCorrespondenciaBind, filtroVazio, inferirOrdenacaoDeterministicaSql } from '../sql/sgu-definicao';
 import { ArquivoSqlImportado } from '../sql/sql-importacao.model';
 /**
  * Coordena catálogo, APIs SGU, SQL importado, execução manual, templates e exportações.
@@ -560,6 +560,13 @@ export class RelatoriosManualComponent implements OnInit, OnDestroy {
     const resultado = ajustarEstruturaSqlImportado(filtrosSimples.sql, true);
 
     arquivo.consultaSQL = resultado.sql;
+    const ordenacaoInferida = arquivo.ordenacao.trim()
+      ? ''
+      : inferirOrdenacaoDeterministicaSql(arquivo.consultaSQL);
+    if (ordenacaoInferida) {
+      arquivo.ordenacao = ordenacaoInferida;
+    }
+
     arquivo.ajustesAplicados = Array.from(
       new Set([
         ...arquivo.ajustesAplicados,
@@ -567,6 +574,9 @@ export class RelatoriosManualComponent implements OnInit, OnDestroy {
         ...filtrosCteConvertidos.ajustes,
         ...filtrosSimples.ajustes,
         ...resultado.ajustes,
+        ...(ordenacaoInferida
+          ? ['Foi definida uma ordenação determinística pelas colunas de saída para tornar a paginação estável.']
+          : []),
       ]),
     );
     arquivo.status = 'pendente';
@@ -783,7 +793,9 @@ export class RelatoriosManualComponent implements OnInit, OnDestroy {
           this.apiOriginalEdicao = clonarDefinicaoApi(api);
           this.editarApiNome = api.nome;
           this.editarConsultaSql = api.consultaSQL ?? '';
-          this.editarOrdenacao = api.ordenacao ?? '';
+          this.editarOrdenacao =
+            api.ordenacao?.trim() ||
+            inferirOrdenacaoDeterministicaSql(this.editarConsultaSql);
           this.filtrosEdicao = filtrosDeNegocio(api.filtros);
         },
         error: (err) => {

@@ -226,6 +226,14 @@ public class ExportacaoRelatorioService {
       }
 
       assinaturaAnterior = assinatura;
+
+      boolean possuiProximaPagina =
+        !Boolean.TRUE.equals(resposta.get("last")) &&
+        lote.size() >= tamanhoLote;
+      if (pagina == 1 && possuiProximaPagina) {
+        validarOrdenacaoPaginada(apiNome);
+      }
+
       long inicioEscrita = System.nanoTime();
       consumidor.aceitar(lote);
       log.info("Página processada. pagina={}, registros={}, escritaMs={}",
@@ -282,6 +290,45 @@ public class ExportacaoRelatorioService {
       }
     }
     throw new IllegalStateException("Consulta de página não concluída.");
+  }
+
+  private void validarOrdenacaoPaginada(String apiNome) {
+    Map<String, Object> resposta = sgu.listar(apiNome);
+    if (resposta == null || !(resposta.get("content") instanceof List<?> itens)) {
+      throw new IllegalStateException(
+        "Não foi possível confirmar a ordenação da API " + apiNome +
+          ". A exportação paginada foi interrompida para evitar linhas repetidas ou omitidas."
+      );
+    }
+
+    Map<?, ?> definicao = itens.stream()
+      .filter(Map.class::isInstance)
+      .map(Map.class::cast)
+      .filter(item -> apiNome.equalsIgnoreCase(texto(valorIgnorandoCaixa(item, "nome")).trim()))
+      .findFirst()
+      .orElse(null);
+
+    String ordenacao = definicao == null
+      ? ""
+      : texto(valorIgnorandoCaixa(definicao, "ordenacao")).trim();
+
+    if (ordenacao.isBlank()) {
+      throw new IllegalStateException(
+        "A API " + apiNome + " não possui ordenação estável. " +
+          "Relatórios com várias páginas não podem ser exportados sem ordenação, " +
+          "pois o SGU pode repetir linhas de uma página em outra e omitir registros. " +
+          "Abra a API na Central de Relatórios, salve uma ordenação determinística e gere novamente."
+      );
+    }
+  }
+
+  private Object valorIgnorandoCaixa(Map<?, ?> mapa, String chave) {
+    for (Map.Entry<?, ?> entrada : mapa.entrySet()) {
+      if (chave.equalsIgnoreCase(String.valueOf(entrada.getKey()))) {
+        return entrada.getValue();
+      }
+    }
+    return null;
   }
 
   void aguardarNovaTentativa() throws IOException {

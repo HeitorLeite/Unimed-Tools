@@ -167,6 +167,14 @@ O frontend nunca chama o SGU diretamente.
 
 Exportações percorrem a paginação no backend.
 
+A paginação do SGU exige ordenação determinística. SQL importado pela Central de
+Relatórios passa a receber automaticamente uma ordenação pelos aliases da
+projeção principal quando isso pode ser inferido com segurança. APIs legadas
+sem `ordenacao` continuam editáveis, mas uma exportação com mais de uma página
+é interrompida antes de consumir a primeira página para evitar corrupção
+silenciosa por repetição/omissão de registros. O backend não remove duplicidades:
+linhas iguais podem ser legítimas no relatório de origem.
+
 **Atual:** `SguRelatorioService` converte HTTP 502/503/504 em `ApiException`
 com status preservado e mensagem pública, sem corpo HTML nem causa remota.
 `ExportacaoRelatorioService` repete somente a consulta da página com esses erros,

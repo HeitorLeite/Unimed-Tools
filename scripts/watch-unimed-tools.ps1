@@ -44,8 +44,8 @@ function Get-Jdk21 {
 
   $compiler = Get-Command 'javac.exe' -ErrorAction SilentlyContinue
   if ($compiler) {
-    $home = Split-Path -Parent (Split-Path -Parent $compiler.Source)
-    if (Test-Jdk21 $home) { return $home }
+    $compilerHome = Split-Path -Parent (Split-Path -Parent $compiler.Source)
+    if (Test-Jdk21 $compilerHome) { return $compilerHome }
   }
 
   foreach ($vendor in @('Java', 'Eclipse Adoptium', 'Microsoft', 'Amazon Corretto', 'Zulu')) {

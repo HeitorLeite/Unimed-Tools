@@ -15,7 +15,6 @@ A interface foi reorganizada por **área de trabalho** em vez de por tecnologia.
 | Única | `/unica` | Correção de rede ANS / arquivo RPS | `UNICA_ACESSAR` |
 | Hospital | `/hospital` | Autorizações ainda não convertidas em guia | `HOSPITAL_ACESSAR` |
 | Gestão de Risco | `/gestao-risco` | Relatórios de rastreio e acompanhamento | `GESTAO_RISCO_ACESSAR` |
-| Valorizar guias Fusex-SPA | `/valorizar-guias-fusex-spa` | Validação, revisão e execução controlada de UPDATE + COMMIT no SGU | `FUSEX_SPA_VALORIZAR` |
 | TI | `/ti` | APIs, grupos e criação de ferramentas | administrador |
 | Meu perfil | `/perfil` | Dados da conta e permissões | usuário autenticado |
 | Usuários | `/usuarios` | Contas, permissões e reset de senha | administrador |
@@ -75,13 +74,8 @@ O SQL do relatório personalizado continua montado exclusivamente no backend por
 antes da transformação e geração dos arquivos. Valores financeiros/decimais usam
 duas casas na prévia e em CSV/TXT/XLSX, inclusive por mês, preservando códigos,
 IDs e inteiros. Detalhes, testes e limitações em
-[Assistencial e Fusex-SPA](docs/ASSISTENCIAL_E_FUSEX_SPA.md).
+[Assistencial](docs/ASSISTENCIAL.md).
 
-**Atual (teste controlado):** “Valorizar guias Fusex-SPA” aceita IDs, remove duplicados,
-apresenta revisão e confirmação e publica uma API reservada no SGU com o UPDATE +
-COMMIT solicitado. O backend serializa publicação e execução, não faz retry automático
-e audita somente quantidade, API e resultado, sem registrar os IDs. O comportamento
-transacional real do SGU ainda precisa ser confirmado no teste autorizado.
 
 ## Hospital
 
@@ -187,7 +181,6 @@ Para instalações existentes, aplique somente as migrações ainda não executa
 3. `004_remove_mfa.sql`;
 4. `005_configuracao_ferramentas_nativas.sql`;
 5. `006_permissoes_ferramentas_atuais.sql`.
-6. `007_permissao_fusex_spa.sql`.
 
 O backend também sincroniza de forma idempotente as permissões das ferramentas atuais ao iniciar, para que instalações existentes passem a exibir Comercial, Assistencial, Revisão de Contas, Única, Hospital e Gestão de Risco no gerenciamento de acessos.
 
@@ -210,7 +203,7 @@ O atalho `Iniciar Unimed Tools.cmd` chama
 - o watcher não executa `git pull`, `git fetch` nem qualquer atualização do
   GitHub;
 - o watcher não publica arquivos no XAMPP nem reinicia o Apache de produção;
-- as APIs mutáveis do Assistencial, Hospital e Fusex-SPA usam nomes `-dev` no SGU para
+- as APIs mutáveis do Assistencial e Hospital usam nomes `-dev` no SGU para
   não sobrescrever as definições usadas pela produção.
 
 ### Publicação manual de produção
@@ -308,7 +301,6 @@ Após criar a primeira conta, remova a senha de bootstrap do ambiente.
 - `SGU_API_KEY_HEADERS`
 - `SGU_API_PROCEDURE_PATH`
 - `SGU_API_EXECUTION_PATH`
-- `FUSEX_SPA_API_NOME` (opcional; o watch mode define automaticamente a variante `-dev`)
 
 A chave do SGU existe somente no backend.
 

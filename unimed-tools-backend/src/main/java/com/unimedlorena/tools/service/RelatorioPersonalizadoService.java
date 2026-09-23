@@ -766,15 +766,26 @@ public class RelatorioPersonalizadoService {
       comparador = comparador.reversed();
     }
 
-    Set<String> selecionados = totais.entrySet().stream()
+    List<String> selecionados = totais.entrySet().stream()
         .sorted(comparador.thenComparing(Map.Entry::getKey))
         .limit(ranking.quantidade())
         .map(Map.Entry::getKey)
-        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        .toList();
+    Map<String, Integer> posicaoRanking = new LinkedHashMap<>();
+    for (int i = 0; i < selecionados.size(); i++) {
+      posicaoRanking.put(selecionados.get(i), i);
+    }
 
+    /*
+     * O Top N é calculado sobre o total do período inteiro. Só depois as linhas
+     * dos selecionados seguem para o pivot mensal. Ordenar aqui também preserva
+     * a classificação do ranking quando o usuário não escolheu outra ordenação.
+     */
     return registros.stream()
-        .filter(registro -> selecionados.contains(
+        .filter(registro -> posicaoRanking.containsKey(
             Objects.toString(registro.get(ranking.dimensao()), "")))
+        .sorted(Comparator.comparingInt(registro -> posicaoRanking.get(
+            Objects.toString(registro.get(ranking.dimensao()), ""))))
         .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
   }
 
@@ -896,36 +907,8 @@ public class RelatorioPersonalizadoService {
   }
 
   private BigDecimal numero(Object valor) {
-    if (valor == null) {
-      return BigDecimal.ZERO;
-    }
-    if (valor instanceof BigDecimal decimal) {
-      return decimal;
-    }
-    if (valor instanceof Number numero) {
-      try {
-        return new BigDecimal(numero.toString());
-      } catch (NumberFormatException ex) {
-        return BigDecimal.ZERO;
-      }
-    }
-
-    String texto = String.valueOf(valor).trim();
-    if (texto.isBlank()) {
-      return BigDecimal.ZERO;
-    }
-    if (texto.matches("[-+]?\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?")) {
-      texto = texto.replace(".", "").replace(',', '.');
-    } else if (texto.matches("[-+]?\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?")) {
-      texto = texto.replace(",", "");
-    } else {
-      texto = texto.replace(',', '.');
-    }
-    try {
-      return new BigDecimal(texto);
-    } catch (NumberFormatException ex) {
-      return BigDecimal.ZERO;
-    }
+    BigDecimal numero = numeroOuNull(valor);
+    return numero == null ? BigDecimal.ZERO : numero;
   }
 
   private void ordenarAnalise(
@@ -965,13 +948,44 @@ public class RelatorioPersonalizadoService {
 
   private BigDecimal numeroOuNull(Object valor) {
     if (valor == null) return null;
-    if (valor instanceof Number) return numero(valor);
-    String texto = String.valueOf(valor).trim();
-    if (!texto.matches("[-+]?\\d+(?:[.,]\\d+)?")
-        && !texto.matches("[-+]?\\d{1,3}(?:[.,]\\d{3})+(?:[.,]\\d+)?")) {
+    if (valor instanceof BigDecimal decimal) return decimal;
+    if (valor instanceof Number numero) {
+      try {
+        return new BigDecimal(numero.toString());
+      } catch (NumberFormatException ex) {
+        return null;
+      }
+    }
+    if (!(valor instanceof CharSequence)) return null;
+
+    String texto = valor.toString().trim();
+    if (texto.isBlank()) return null;
+
+    String normalizado;
+    /*
+     * O SGU serializa números Oracle com ponto decimal. Portanto "1.005"
+     * significa 1,005, e não 1.005 (mil e cinco). Separadores de milhar só são
+     * tratados como tais quando o formato deixa isso inequívoco.
+     */
+    if (texto.matches("[-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?")) {
+      normalizado = texto;
+    } else if (texto.matches("[-+]?\\d+(?:,\\d+)?")) {
+      normalizado = texto.replace(',', '.');
+    } else if (texto.matches("[-+]?\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)+")) {
+      normalizado = texto.replace(".", "").replace(',', '.');
+    } else if (texto.matches("[-+]?\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?")) {
+      normalizado = texto.replace(",", "");
+    } else if (texto.matches("[-+]?\\d{1,3}(?:\\.\\d{3})+")) {
+      normalizado = texto.replace(".", "");
+    } else {
       return null;
     }
-    return numero(valor);
+
+    try {
+      return new BigDecimal(normalizado);
+    } catch (NumberFormatException ex) {
+      return null;
+    }
   }
 
   private Map<String, Object> paginarAnalise(

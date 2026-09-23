@@ -43,6 +43,14 @@ interface AssistencialPreset {
   colunas: string[];
   filtros: string[];
   distinct: boolean;
+  separarMeses?: boolean;
+  metricasPorMes?: string[];
+  ranking?: {
+    modo: 'MAIORES' | 'MENORES';
+    quantidade: number;
+    dimensao: string;
+    metrica: string;
+  } | null;
 }
 
 type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
@@ -80,6 +88,14 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   previaExpandida = false;
   colunaOrdenacao: string | null = null;
   direcaoOrdenacao: 'ASC' | 'DESC' = 'ASC';
+  separarMeses = false;
+  metricasPorMes: string[] = [];
+  rankingAtivo = false;
+  rankingModo: 'MAIORES' | 'MENORES' = 'MAIORES';
+  rankingQuantidade = 10;
+  rankingDimensao = '';
+  rankingMetrica = '';
+  colunaResultadoArrastada: string | null = null;
 
   formatoSelecionado: FormatoExportacao = 'xlsx';
   nomeArquivo = 'relatorio_personalizado';
@@ -96,6 +112,27 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
 
   get operacaoRelatorioEmAndamento(): boolean {
     return this.gerando || this.exportando;
+  }
+
+  get metricasMensaisDisponiveis(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) => this.colunasSelecionadas.has(coluna.id) && coluna.separavelPorMes,
+    );
+  }
+
+  get metricasRankingDisponiveis(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) => this.colunasSelecionadas.has(coluna.id) && coluna.disponivelParaRanking,
+    );
+  }
+
+  get dimensoesRankingDisponiveis(): RelatorioPersonalizadoColuna[] {
+    return (this.configuracao?.colunas ?? []).filter(
+      (coluna) =>
+        this.colunasSelecionadas.has(coluna.id) &&
+        !coluna.disponivelParaRanking &&
+        coluna.id !== 'PERIODO',
+    );
   }
 
   constructor(
@@ -230,16 +267,20 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => id !== coluna.id,
       );
+      this.metricasPorMes = this.metricasPorMes.filter((id) => id !== coluna.id);
       if (this.colunaOrdenacao === coluna.id) {
         this.colunaOrdenacao = null;
         this.direcaoOrdenacao = 'ASC';
       }
+      if (this.rankingDimensao === coluna.id) this.rankingDimensao = '';
+      if (this.rankingMetrica === coluna.id) this.rankingMetrica = '';
     } else if (this.colunasSelecionadas.size < (this.configuracao?.limites.maximoColunas ?? 0)) {
       this.colunasSelecionadas.add(coluna.id);
       this.ordemColunasSelecionadas.push(coluna.id);
     }
     this.colunasResultado = [...this.ordemColunasSelecionadas];
     this.limparPrevia();
+    this.ajustarRankingDisponivel();
   }
 
   alternarGrupo(grupo: Grupo<RelatorioPersonalizadoColuna>): void {
@@ -250,10 +291,13 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.ordemColunasSelecionadas = this.ordemColunasSelecionadas.filter(
         (id) => !idsGrupo.has(id),
       );
+      this.metricasPorMes = this.metricasPorMes.filter((id) => !idsGrupo.has(id));
       if (this.colunaOrdenacao && idsGrupo.has(this.colunaOrdenacao)) {
         this.colunaOrdenacao = null;
         this.direcaoOrdenacao = 'ASC';
       }
+      if (idsGrupo.has(this.rankingDimensao)) this.rankingDimensao = '';
+      if (idsGrupo.has(this.rankingMetrica)) this.rankingMetrica = '';
     } else {
       grupo.itens.forEach((item) => {
         if (
@@ -267,25 +311,105 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     }
     this.colunasResultado = [...this.ordemColunasSelecionadas];
     this.limparPrevia();
+    this.ajustarRankingDisponivel();
   }
 
   moverColuna(id: string, deslocamento: -1 | 1): void {
     this.sincronizarOrdemColunas();
     const indiceAtual = this.ordemColunasSelecionadas.indexOf(id);
     const novoIndice = indiceAtual + deslocamento;
-    if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length) {
-      return;
-    }
+    if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length) return;
 
     const ordem = [...this.ordemColunasSelecionadas];
     [ordem[indiceAtual], ordem[novoIndice]] = [ordem[novoIndice], ordem[indiceAtual]];
-    this.ordemColunasSelecionadas = ordem;
-    this.colunasResultado = [...ordem];
-    this.limparPrevia();
+    this.reordenarColunas(ordem);
+  }
+
+  reordenarColunas(ordem: string[]): void {
+    const selecionadas = new Set(this.colunasSelecionadas);
+    const novaOrdem = ordem.filter((id) => selecionadas.has(id));
+    this.ordemColunasSelecionadas.forEach((id) => {
+      if (selecionadas.has(id) && !novaOrdem.includes(id)) novaOrdem.push(id);
+    });
+    this.ordemColunasSelecionadas = novaOrdem;
+
+    if (this.colunasResultado.length) {
+      const visiveis = novaOrdem.filter((id) => this.colunasResultado.includes(id));
+      const especiais = this.colunasResultado.filter((id) => !selecionadas.has(id));
+      this.colunasResultado = [...visiveis, ...especiais];
+    } else {
+      this.colunasResultado = [...novaOrdem];
+    }
+  }
+
+  iniciarArrasteResultado(event: DragEvent, coluna: string): void {
+    if (this.gerando || this.exportando) {
+      event.preventDefault();
+      return;
+    }
+    this.colunaResultadoArrastada = coluna;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', coluna);
+    }
+  }
+
+  permitirSoltarResultado(event: DragEvent): void {
+    if (this.gerando || this.exportando) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  soltarColunaResultado(event: DragEvent, destino: string): void {
+    if (this.gerando || this.exportando) return;
+    event.preventDefault();
+    const origem = this.colunaResultadoArrastada ?? event.dataTransfer?.getData('text/plain') ?? '';
+    if (!origem || origem === destino) return;
+
+    const ordem = [...this.colunasResultado];
+    const origemIndex = ordem.indexOf(origem);
+    const destinoIndex = ordem.indexOf(destino);
+    if (origemIndex < 0 || destinoIndex < 0) return;
+
+    ordem.splice(origemIndex, 1);
+    ordem.splice(destinoIndex, 0, origem);
+    this.colunasResultado = ordem;
+    this.colunaResultadoArrastada = null;
+
+    const baseVisivel = ordem.filter((id) => this.colunasSelecionadas.has(id));
+    const restantes = this.ordemColunasSelecionadas.filter((id) => !baseVisivel.includes(id));
+    this.ordemColunasSelecionadas = [...baseVisivel, ...restantes];
+  }
+
+  encerrarArrasteResultado(): void {
+    this.colunaResultadoArrastada = null;
   }
 
   alternarDistinct(): void {
     this.somenteDistintos = !this.somenteDistintos;
+    this.limparPrevia();
+  }
+
+  alternarSepararMeses(): void {
+    this.separarMeses = !this.separarMeses;
+    if (!this.separarMeses) {
+      this.metricasPorMes = [];
+    } else if (!this.metricasPorMes.length && this.metricasMensaisDisponiveis.length) {
+      this.metricasPorMes = [this.metricasMensaisDisponiveis[0].id];
+    }
+    this.limparPrevia();
+  }
+
+  alternarMetricaMes(id: string): void {
+    this.metricasPorMes = this.metricasPorMes.includes(id)
+      ? this.metricasPorMes.filter((atual) => atual !== id)
+      : [...this.metricasPorMes, id];
+    this.limparPrevia();
+  }
+
+  alternarRanking(): void {
+    this.rankingAtivo = !this.rankingAtivo;
+    this.ajustarRankingDisponivel();
     this.limparPrevia();
   }
 
@@ -312,6 +436,17 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   simboloOrdenacao(coluna: string): string {
     if (this.colunaOrdenacao !== coluna) return '↕';
     return this.direcaoOrdenacao === 'ASC' ? '↑' : '↓';
+  }
+
+  textoOrdenacao(coluna: string): string {
+    const numerica = this.tipoColunaResultado(coluna) === 'numero';
+    if (this.colunaOrdenacao !== coluna) {
+      return numerica ? 'Ordenar por valor' : 'Ordenar A–Z';
+    }
+    if (numerica) {
+      return this.direcaoOrdenacao === 'ASC' ? 'Menor → maior' : 'Maior → menor';
+    }
+    return this.direcaoOrdenacao === 'ASC' ? 'A → Z' : 'Z → A';
   }
 
   alternarPreviaExpandida(): void {
@@ -363,7 +498,47 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   }
 
   rotuloColuna(id: string): string {
+    const mensal = id.match(/^(.+)__(\d{4})(\d{2})$/);
+    if (mensal) {
+      const [, base, ano, mes] = mensal;
+      const rotulo = this.configuracao?.colunas.find((coluna) => coluna.id === base)?.rotulo ?? base;
+      const meses = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+      const indice = Number(mes) - 1;
+      const mesRotulo = meses[indice] ?? mes;
+      return `${rotulo} ${mesRotulo}/${ano}`;
+    }
     return this.configuracao?.colunas.find((coluna) => coluna.id === id)?.rotulo ?? id;
+  }
+
+  private tipoColunaResultado(id: string): 'texto' | 'numero' | 'data' | 'competencia' {
+    const mensal = id.match(/^(.+)__(\d{6})$/);
+    const base = mensal?.[1] ?? id;
+    if (mensal) return 'numero';
+    return this.configuracao?.colunas.find((coluna) => coluna.id === base)?.tipo ?? 'texto';
+  }
+
+  private ajustarRankingDisponivel(): void {
+    const metricas = this.metricasRankingDisponiveis;
+    const dimensoes = this.dimensoesRankingDisponiveis;
+
+    if (!metricas.length || !dimensoes.length) {
+      this.rankingAtivo = false;
+      this.rankingMetrica = '';
+      this.rankingDimensao = '';
+      return;
+    }
+
+    if (!metricas.some((coluna) => coluna.id === this.rankingMetrica)) {
+      this.rankingMetrica = metricas[0].id;
+    }
+    if (!dimensoes.some((coluna) => coluna.id === this.rankingDimensao)) {
+      this.rankingDimensao = dimensoes[0].id;
+    }
+
+    const quantidade = Number(this.rankingQuantidade);
+    this.rankingQuantidade = Number.isFinite(quantidade)
+      ? Math.min(1000, Math.max(1, Math.trunc(quantidade)))
+      : 10;
   }
 
   atualizarFiltros(valores: Record<string, string>): void {
@@ -388,6 +563,16 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       colunas: [...this.ordemColunasSelecionadas],
       filtros: [...new Set(this.filtrosAtivos)],
       distinct: this.somenteDistintos,
+      separarMeses: this.separarMeses,
+      metricasPorMes: [...this.metricasPorMes],
+      ranking: this.rankingAtivo
+        ? {
+            modo: this.rankingModo,
+            quantidade: this.rankingQuantidade,
+            dimensao: this.rankingDimensao,
+            metrica: this.rankingMetrica,
+          }
+        : null,
     };
     this.presets = [...this.presets, preset];
     this.salvarPresets();
@@ -405,6 +590,23 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     const obrigatorios = this.configuracao.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id);
     this.filtrosAtivos = [...new Set([...obrigatorios, ...preset.filtros])];
     this.somenteDistintos = preset.distinct;
+    this.separarMeses = Boolean(preset.separarMeses);
+    this.metricasPorMes = (preset.metricasPorMes ?? []).filter((idColuna) =>
+      this.ordemColunasSelecionadas.includes(idColuna),
+    );
+    this.rankingAtivo = Boolean(preset.ranking);
+    if (preset.ranking) {
+      this.rankingModo = preset.ranking.modo;
+      this.rankingQuantidade = preset.ranking.quantidade;
+      this.rankingDimensao = preset.ranking.dimensao;
+      this.rankingMetrica = preset.ranking.metrica;
+    } else {
+      this.rankingModo = 'MAIORES';
+      this.rankingQuantidade = 10;
+      this.rankingDimensao = '';
+      this.rankingMetrica = '';
+    }
+    this.ajustarRankingDisponivel();
     Object.keys(this.valoresFiltro).forEach((key) => this.valoresFiltro[key] = '');
     const competencia = this.competenciaAtual();
     this.valoresFiltro['competencia_inicio'] = competencia;
@@ -465,6 +667,13 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.ordemColunasSelecionadas = [];
     this.colunaOrdenacao = null;
     this.direcaoOrdenacao = 'ASC';
+    this.separarMeses = false;
+    this.metricasPorMes = [];
+    this.rankingAtivo = false;
+    this.rankingModo = 'MAIORES';
+    this.rankingQuantidade = 10;
+    this.rankingDimensao = '';
+    this.rankingMetrica = '';
     this.gruposFiltros = this.agrupar(configuracao.filtros);
     this.gruposColunas = this.agrupar(configuracao.colunas);
     this.valoresFiltro = Object.fromEntries(configuracao.filtros.map((filtro) => [filtro.id, '']));
@@ -504,11 +713,40 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
         .map(([id, valor]) => [id, id.startsWith('competencia_') ? valor.replace('-', '') : valor]),
     );
 
+    if (this.separarMeses && !this.metricasPorMes.length) {
+      this.erro = 'Selecione pelo menos uma coluna numérica para separar por mês.';
+      return null;
+    }
+
+    if (this.rankingAtivo) {
+      if (!this.rankingDimensao || !this.rankingMetrica) {
+        this.erro = 'Escolha a dimensão e a métrica do ranking.';
+        return null;
+      }
+      if (this.rankingQuantidade < 1 || this.rankingQuantidade > 1000) {
+        this.erro = 'A quantidade do ranking deve ficar entre 1 e 1000.';
+        return null;
+      }
+    }
+
     this.sincronizarOrdemColunas();
     return {
       colunas: [...this.ordemColunasSelecionadas],
       filtros,
       distinct: this.somenteDistintos,
+      separarMeses: this.separarMeses,
+      metricasPorMes: this.separarMeses ? [...this.metricasPorMes] : [],
+      ranking: this.rankingAtivo
+        ? {
+            modo: this.rankingModo,
+            quantidade: Number(this.rankingQuantidade),
+            dimensao: this.rankingDimensao,
+            metrica: this.rankingMetrica,
+          }
+        : null,
+      ordemResultado: this.registros.length
+        ? [...this.colunasResultado]
+        : [...this.ordemColunasSelecionadas],
       ...(this.colunaOrdenacao
         ? {
             ordenarPor: this.colunaOrdenacao,

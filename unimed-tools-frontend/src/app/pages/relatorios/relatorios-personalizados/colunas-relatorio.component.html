@@ -1,12 +1,29 @@
 <section class="ordem-colunas" *ngIf="selecionadas.length">
   <h3>Ordem de saída</h3>
   <ol>
-    <li *ngFor="let coluna of selecionadas; index as indice; trackBy: trackCampo">
-      <span>{{ indice + 1 }}. {{ coluna.rotulo }}</span>
+    <li
+      *ngFor="let coluna of selecionadas; index as indice; trackBy: trackCampo"
+      [class.dragging]="arrastadaId === coluna.id"
+      (dragover)="permitirSoltar($event)"
+      (drop)="soltar($event, coluna.id)"
+    >
+      <span
+        class="drag-handle"
+        [attr.draggable]="!bloqueado"
+        (dragstart)="iniciarArraste($event, coluna.id)"
+        (dragend)="encerrarArraste()"
+        [attr.aria-label]="'Arraste para alterar a posição de ' + coluna.rotulo"
+        title="Arraste para reordenar"
+      >⋮⋮</span>
+      <span class="ordem-label">{{ indice + 1 }}. {{ coluna.rotulo }}</span>
       <div class="acoes-coluna">
-        <button type="button" [disabled]="bloqueado || indice === 0" [attr.aria-label]="'Mover ' + coluna.rotulo + ' para cima'" (click)="mover.emit({id: coluna.id, deslocamento: -1})">↑</button>
-        <button type="button" [disabled]="bloqueado || indice === ordem.length - 1" [attr.aria-label]="'Mover ' + coluna.rotulo + ' para baixo'" (click)="mover.emit({id: coluna.id, deslocamento: 1})">↓</button>
-        <button type="button" [disabled]="bloqueado" [attr.aria-label]="'Remover coluna ' + coluna.rotulo" (click)="alternar.emit(coluna)">×</button>
+        <button
+          type="button"
+          class="remover-coluna"
+          [disabled]="bloqueado"
+          [attr.aria-label]="'Remover coluna ' + coluna.rotulo"
+          (click)="alternar.emit(coluna)"
+        >×</button>
       </div>
     </li>
   </ol>

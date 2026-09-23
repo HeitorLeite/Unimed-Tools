@@ -179,28 +179,44 @@ O backend também sincroniza de forma idempotente as permissões das ferramentas
 
 Faça backup antes de qualquer migração.
 
-## Inicializador local
+## Ambientes local e de produção
 
-O atalho `Iniciar Unimed Tools.cmd` chama `scripts/iniciar-unimed-tools.ps1`.
+Os dois ambientes são separados de propósito.
 
-Em toda execução ele:
+### Teste local em watch mode
 
-1. valida Java/Maven/npm e as variáveis necessárias;
-2. garante que o MariaDB esteja ativo;
-3. testa e gera um novo build do frontend;
-4. testa e empacota novamente o backend;
-5. remove arquivos MFA/TOTP legados que possam ter sobrado fisicamente de versões antigas;
-6. encerra o backend anterior;
-7. encerra e reinicia o Apache que serve o frontend;
-8. remove a publicação antiga em `C:\xampp\htdocs\unimed-tools`;
-9. publica o novo frontend do zero;
-10. inicia o novo backend;
-11. valida os dois endereços:
-   - `http://localhost/unimed-tools/`
-   - `http://192.168.3.242/unimed-tools/`
+O atalho `Iniciar Unimed Tools.cmd` chama
+`scripts/watch-unimed-tools.ps1` e mantém a janela aberta.
 
-Assim, localhost e o endereço da rede usam exatamente o mesmo build publicado e
-não permanecem com arquivos antigos depois de clicar novamente no atalho.
+- frontend de teste: `http://localhost:4200/`;
+- backend de teste: `http://127.0.0.1:8081`;
+- alterações em Angular são recompiladas automaticamente pelo `ng serve`;
+- alterações em `unimed-tools-backend/src` ou `pom.xml` recompilam e
+  reiniciam somente o backend de teste;
+- o watcher não executa `git pull`, `git fetch` nem qualquer atualização do
+  GitHub;
+- o watcher não publica arquivos no XAMPP nem reinicia o Apache de produção;
+- as APIs mutáveis do Assistencial e Hospital usam nomes `-dev` no SGU para
+  não sobrescrever as definições usadas pela produção.
+
+### Publicação manual de produção
+
+O atalho `Publicar Unimed Tools - Producao.cmd` chama
+`scripts/iniciar-unimed-tools.ps1`.
+
+Ele testa e recompila frontend/backend, publica o frontend em
+`C:\xampp\htdocs\unimed-tools`, reinicia Apache e backend de produção e
+valida o endereço de produção:
+
+- `http://192.168.3.242/unimed-tools/`.
+
+O endereço de teste usado no desenvolvimento é exclusivamente
+`http://localhost:4200/`. O Apache pode continuar respondendo localmente por
+característica do XAMPP, mas esse endereço não é tratado como ambiente de teste.
+
+A atualização da pasta do repositório continua sendo manual. Assim, editar ou
+atualizar arquivos localmente afeta primeiro o ambiente de teste; a rede só muda
+quando o atalho de publicação de produção é executado explicitamente.
 
 ## Desenvolvimento
 
@@ -343,6 +359,27 @@ Uma alteração só deve ser considerada pronta para merge depois que frontend e
 - A página de BI e o Fechamento permanecem no código por compatibilidade, mas não fazem parte dos cards principais da nova Home.
 - Dados reais de beneficiários não devem ser incluídos em testes, documentação ou repositório.
 
+
+## Assistencial personalizado
+
+O construtor Assistencial trabalha em três etapas:
+
+1. seleção e ordenação das colunas por drag-and-drop;
+2. filtros e opções analíticas;
+3. geração, prévia completa e exportação.
+
+A etapa de filtros permite remover duplicados, selecionar empresas pelo mesmo
+catálogo do Comercial, separar métricas numéricas em colunas mensais e limitar
+o resultado aos maiores/menores valores de uma dimensão escolhida. O ranking
+aceita de 1 a 1.000 posições.
+
+A prévia permite reordenar colunas por drag-and-drop sem executar a consulta
+novamente. Essa ordem é reaproveitada no próximo download. A ordenação dos
+dados continua sendo uma coluna por vez e é executada no backend.
+
+O backend compacta o SQL publicado e mantém o campo de ordenação enviado ao
+`ins_atu_query_api` curto para reduzir o risco de estouro dos buffers internos
+da rotina do SGU.
 
 ## Gerenciamento de usuários
 

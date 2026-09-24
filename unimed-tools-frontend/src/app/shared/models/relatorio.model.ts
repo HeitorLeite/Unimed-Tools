@@ -1,0 +1,139 @@
+/**
+ * Contratos compartilhados entre a interface de relatórios, o armazenamento local e a API.
+ */
+export interface SguFiltro {
+  nomeFiltro: string;
+  conteudoFiltro: string;
+  tipoDadoFiltro: string;
+  mascaraFiltro: string;
+  obrigatorioFiltro: 'S' | 'N';
+}
+
+export interface SguApiDefinicao {
+  nome: string;
+  consultaSQL: string;
+  ordenacao: string;
+  filtros: SguFiltro[];
+}
+
+export interface SguListaResponse {
+  content: SguApiDefinicao[];
+  numberOfElements?: number | string;
+}
+
+export interface RelatorioCatalogo {
+  id: string;
+  nomeExibicao: string;
+  descricao: string;
+  apiNome: string;
+  filtros: SguFiltro[];
+  criadoEm: string;
+}
+
+export interface RelatorioTemplate {
+  id: string;
+  nome: string;
+  descricao: string;
+  relatorioIds: string[];
+  criadoEm: string;
+}
+
+export interface RelatorioGrupoItem {
+  relatorioId: string;
+  nomeArquivo: string;
+}
+
+export interface RelatorioGrupoAutomatico {
+  id: string;
+  nome: string;
+  descricao: string;
+  formato: FormatoExportacao;
+  itens: RelatorioGrupoItem[];
+  criadoEm: string;
+  atualizadoEm?: string;
+}
+
+export interface RelatorioLoteItemRequest {
+  apiNome: string;
+  nomeArquivo: string;
+  combinacoesFiltros: Record<string, unknown>[];
+}
+
+export interface RelatorioLoteRequest {
+  nomeArquivo: string;
+  formato: FormatoExportacao;
+  itens: RelatorioLoteItemRequest[];
+}
+
+export interface SguResultado {
+  content: Record<string, unknown>[];
+  totalElements?: number | string;
+  numberOfElements?: number | string;
+  totalPages?: number;
+  number?: number;
+  last?: boolean;
+  [key: string]: unknown;
+}
+
+export interface RelatorioPersonalizadoColuna {
+  id: string;
+  rotulo: string;
+  grupo: string;
+  selecionadaPorPadrao: boolean;
+  sensivel: boolean;
+  tipo?: 'texto' | 'numero' | 'data' | 'competencia';
+  casasDecimais?: number | null;
+  separavelPorMes?: boolean;
+  disponivelParaRanking?: boolean;
+}
+
+export interface RelatorioPersonalizadoOpcao {
+  valor: string;
+  rotulo: string;
+}
+
+export interface RelatorioPersonalizadoFiltro {
+  id: string;
+  rotulo: string;
+  grupo: string;
+  tipo: 'text' | 'number' | 'decimal' | 'date' | 'competencia' | 'select' | 'empresa';
+  placeholder: string;
+  obrigatorio: boolean;
+  opcoes: RelatorioPersonalizadoOpcao[];
+}
+
+export interface RelatorioPersonalizadoConfiguracao {
+  apiNome: string;
+  fonte: string;
+  colunas: RelatorioPersonalizadoColuna[];
+  filtros: RelatorioPersonalizadoFiltro[];
+  limites: {
+    maximoColunas: number;
+    maximoMeses: number;
+    maximoLinhasPagina: number;
+  };
+}
+
+export interface RelatorioPersonalizadoRanking {
+  modo: 'MAIORES' | 'MENORES';
+  quantidade: number;
+  dimensao: string;
+  metrica: string;
+}
+
+export interface RelatorioPersonalizadoRequest {
+  colunas: string[];
+  filtros: Record<string, unknown>;
+  distinct: boolean;
+  ordenarPor?: string;
+  direcaoOrdenacao?: 'ASC' | 'DESC';
+  separarMeses?: boolean;
+  metricasPorMes?: string[];
+  ranking?: RelatorioPersonalizadoRanking | null;
+  ordemResultado?: string[];
+  pagina: number;
+  tamanhoPagina: number;
+  nomeArquivo: string;
+}
+
+export type FormatoExportacao = 'csv' | 'txt' | 'xlsx';

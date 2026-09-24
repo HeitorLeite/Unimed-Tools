@@ -1,0 +1,91 @@
+<div class="campo-grupo" *ngFor="let grupo of gruposAtivos; trackBy: trackGrupo">
+  <h3>{{ grupo.nome }}</h3>
+  <div class="campos-grid">
+    <div class="campo" *ngFor="let filtro of grupo.itens; trackBy: trackCampo">
+      <div class="campo-titulo">
+        <label [for]="'filtro-' + filtro.id">{{ filtro.rotulo }} <small *ngIf="filtro.obrigatorio">obrigatório</small></label>
+        <button *ngIf="!filtro.obrigatorio" type="button" [disabled]="bloqueado"
+          [attr.aria-label]="'Remover filtro ' + filtro.rotulo" (click)="remover(filtro)">Remover</button>
+      </div>
+      <ng-container [ngSwitch]="filtro.tipo">
+        <div *ngSwitchCase="'empresa'" class="empresa-picker">
+          <div class="empresa-search-row">
+            <input
+              [id]="'filtro-' + filtro.id"
+              type="search"
+              placeholder="Buscar empresa pelo nome"
+              [(ngModel)]="buscaEmpresa"
+              [disabled]="bloqueado"
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              class="empresa-clear"
+              [disabled]="bloqueado || !valores['codigo_empresa']"
+              (click)="limparEmpresas()"
+            >
+              Limpar
+            </button>
+          </div>
+          <div class="empresa-options">
+            <label
+              *ngFor="let empresa of empresasFiltradas"
+              [class.selected]="empresaSelecionada(empresa.id)"
+            >
+              <input
+                type="checkbox"
+                [checked]="empresaSelecionada(empresa.id)"
+                [disabled]="bloqueado"
+                (change)="alternarEmpresa(empresa.id)"
+              />
+              <span>
+                <strong>{{ empresa.nome }}</strong>
+                <small>{{ empresa.codigos.length }} código(s)</small>
+              </span>
+            </label>
+          </div>
+          <small *ngIf="!empresasFiltradas.length" role="status">
+            Nenhuma empresa encontrada.
+          </small>
+        </div>
+
+        <select
+          *ngSwitchCase="'select'"
+          [id]="'filtro-' + filtro.id"
+          [ngModel]="valores[filtro.id]"
+          (ngModelChange)="alterar(filtro.id, $event)"
+          [disabled]="bloqueado"
+        >
+          <option value="">Todos</option>
+          <option *ngFor="let opcao of filtro.opcoes" [value]="opcao.valor">
+            {{ opcao.rotulo }}
+          </option>
+        </select>
+
+        <input
+          *ngSwitchDefault
+          [id]="'filtro-' + filtro.id"
+          [type]="filtro.tipo === 'date' ? 'date' : filtro.tipo === 'competencia' ? 'month' : 'text'"
+          [inputMode]="filtro.tipo === 'number' || filtro.tipo === 'decimal' ? 'numeric' : 'text'"
+          [placeholder]="filtro.placeholder"
+          [required]="filtro.obrigatorio"
+          [disabled]="bloqueado"
+          [ngModel]="valores[filtro.id]"
+          (ngModelChange)="alterar(filtro.id, $event)"
+          autocomplete="off"
+        />
+      </ng-container>
+    </div>
+  </div>
+</div>
+<div class="busca-campos">
+  <label for="buscar-filtro">Adicionar filtro</label>
+  <input id="buscar-filtro" type="search" placeholder="Busque por nome ou categoria" [(ngModel)]="busca" [disabled]="bloqueado" />
+  <p>Escolha os filtros de que precisa. Remover um filtro também limpa seu valor.</p>
+  <div class="opcoes-campos" aria-label="Filtros disponíveis">
+    <button type="button" *ngFor="let filtro of disponiveis; trackBy: trackCampo" [disabled]="bloqueado" (click)="adicionar(filtro)">
+      <span>+ {{ filtro.rotulo }}</span><small>{{ filtro.grupo }}</small>
+    </button>
+  </div>
+  <p *ngIf="!disponiveis.length" role="status">Nenhum filtro disponível para esta busca.</p>
+</div>

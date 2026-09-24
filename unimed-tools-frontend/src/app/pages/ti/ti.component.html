@@ -1,0 +1,77 @@
+<section class="ti-page">
+  <header class="admin-hero">
+    <div>
+      <span class="eyebrow">Administração da plataforma</span>
+      <h1>TI</h1>
+      <p>
+        Mantenha o catálogo de APIs, execute consultas, organize grupos de relatórios e publique
+        novas ferramentas sem sair desta área.
+      </p>
+    </div>
+    <div class="admin-pill"><i></i><span>Área administrativa</span></div>
+  </header>
+
+  <section class="admin-overview">
+    <button type="button" [class.active]="tab === 'apis'" (click)="select('apis')">
+      <span class="overview-number">01</span>
+      <div>
+        <small>Catálogo</small>
+        <strong>Relatórios e APIs</strong>
+        <p>Importe SQL, conecte APIs do SGU, consulte, visualize e exporte resultados.</p>
+      </div>
+      <b>→</b>
+    </button>
+
+    <button type="button" [class.active]="tab === 'grupos'" (click)="select('grupos')">
+      <span class="overview-number">02</span>
+      <div>
+        <small>Lotes</small>
+        <strong>Grupos de relatórios</strong>
+        <p>Monte conjuntos de relatórios, reutilize filtros e gere arquivos em ZIP.</p>
+      </div>
+      <b>→</b>
+    </button>
+
+    <button type="button" [class.active]="tab === 'ferramentas'" (click)="select('ferramentas')">
+      <span class="overview-number">03</span>
+      <div>
+        <small>Experiência</small>
+        <strong>Ferramentas e cards</strong>
+        <p>Gerencie páginas existentes e crie novos cards conectados às APIs.</p>
+      </div>
+      <b>→</b>
+    </button>
+  </section>
+
+  <section class="admin-workspace">
+    <header class="workspace-heading">
+      <ng-container [ngSwitch]="tab">
+        <div *ngSwitchCase="'apis'">
+          <span>Catálogo técnico</span>
+          <h2>Importação, consultas e geração de relatórios</h2>
+          <p>Cadastre ou importe APIs, preencha os filtros, confira a prévia e faça o download.</p>
+        </div>
+        <div *ngSwitchCase="'grupos'">
+          <span>Execução em lote</span>
+          <h2>Criação e geração de grupos</h2>
+          <p>Agrupe relatórios existentes para executar várias rotinas em uma única geração.</p>
+        </div>
+        <div *ngSwitchCase="'ferramentas'">
+          <span>Configuração da aplicação</span>
+          <h2>Páginas, ferramentas e novos cards</h2>
+          <p>Altere a apresentação das áreas atuais ou publique uma nova ferramenta baseada em API.</p>
+        </div>
+      </ng-container>
+    </header>
+
+    <div class="workspace-content">
+      <app-relatorios-manual *ngIf="tab === 'apis'" [embedded]="true" />
+      <app-relatorios-automaticos
+        *ngIf="tab === 'grupos'"
+        [embedded]="true"
+        [relatorios]="relatorios"
+      />
+      <app-tool-manager *ngIf="tab === 'ferramentas'" />
+    </div>
+  </section>
+</section>

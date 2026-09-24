@@ -1,0 +1,226 @@
+package com.unimedlorena.tools.auth;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.unimedlorena.tools.auth.AuthRepository.UsuarioRow;
+import com.unimedlorena.tools.dto.UsuarioDtos;
+import com.unimedlorena.tools.exception.ApiException;
+import java.util.Optional;
+import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+class UsuarioServiceTest {
+
+  private final AuthRepository repository = mock(AuthRepository.class);
+  private final PasswordEncoder encoder = mock(PasswordEncoder.class);
+  private final PoliticaSenhaService politicaSenha = mock(PoliticaSenhaService.class);
+  private final AuditoriaService auditoria = mock(AuditoriaService.class);
+  private final UsuarioService service = new UsuarioService(
+    repository,
+    encoder,
+    politicaSenha,
+    auditoria
+  );
+  private final UsuarioPrincipal principalAdmin = new UsuarioPrincipal(
+    1,
+    "Admin",
+    "admin",
+    null,
+    "ADMINISTRADOR",
+    false,
+    Set.of("USUARIOS_EDITAR")
+  );
+  private final AuthService.RequestInfo info = new AuthService.RequestInfo("127.0.0.1", "teste");
+
+  @BeforeEach
+  void configurarAdministrador() {
+    when(repository.buscarUsuarioPorId(1)).thenReturn(Optional.of(usuario(1, "ADMINISTRADOR")));
+  }
+
+  @Test
+  void deveNegarGerenciamentoParaUsuarioOperacional() {
+    UsuarioPrincipal operacional = new UsuarioPrincipal(
+      2,
+      "Operacional",
+      "operacional",
+      null,
+      "USUARIO",
+      false,
+      Set.of()
+    );
+
+    assertThrows(ApiException.class, () -> service.listar(operacional));
+    verify(repository, never()).listarUsuarios();
+  }
+
+  @Test
+  void deveConcederSomentePermissoesOperacionaisEAdicionarAcessoBase() {
+    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
+    when(repository.buscarPermissoesOperacionaisAtivas(Set.of("REVISAO_CONTAS_ACESSAR")))
+      .thenReturn(Set.of("REVISAO_CONTAS_ACESSAR"));
+
+    service.atualizarPermissoes(
+      principalAdmin,
+      2,
+      new UsuarioDtos.AtualizacaoPermissoesRequest(Set.of("REVISAO_CONTAS_ACESSAR")),
+      info
+    );
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Set<String>> permissoes = ArgumentCaptor.forClass(Set.class);
+    verify(repository).substituirPermissoesUsuario(eq(2L), permissoes.capture(), eq(1L));
+    assertThat(permissoes.getValue()).containsExactlyInAnyOrder(
+      "APLICACAO_ACESSAR",
+      "REVISAO_CONTAS_ACESSAR",
+      "XML_ACESSAR"
+    );
+  }
+
+  @Test
+  void deveCadastrarUsuarioComFerramentasAtuaisEPermissoesTecnicasNecessarias() {
+    when(repository.existeLoginOuEmail("novo.usuario", null)).thenReturn(false);
+    when(repository.buscarPermissoesOperacionaisAtivas(
+      Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR")
+    )).thenReturn(Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR"));
+    when(encoder.encode("Caju#8042")).thenReturn("hash-novo");
+    when(repository.criarUsuario(
+      eq("Novo Usuário"),
+      eq("novo.usuario"),
+      eq(null),
+      eq("hash-novo"),
+      eq("USUARIO"),
+      eq(1L),
+      any()
+    )).thenReturn(9L);
+
+    service.criar(
+      principalAdmin,
+      new UsuarioDtos.CriacaoRequest(
+        "Novo Usuário",
+        "novo.usuario",
+        null,
+        "Caju#8042",
+        "USUARIO",
+        Set.of("COMERCIAL_ACESSAR", "REVISAO_CONTAS_ACESSAR")
+      ),
+      info
+    );
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Set<String>> permissoes = ArgumentCaptor.forClass(Set.class);
+    verify(repository).substituirPermissoesUsuario(eq(9L), permissoes.capture(), eq(1L));
+
+    assertThat(permissoes.getValue()).containsExactlyInAnyOrder(
+      "APLICACAO_ACESSAR",
+      "COMERCIAL_ACESSAR",
+      "RELATORIOS_ACESSAR",
+      "REVISAO_CONTAS_ACESSAR",
+      "XML_ACESSAR"
+    );
+  }
+
+  @Test
+  void deveRevogarSessoesAoRedefinirSenha() {
+    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
+    when(encoder.encode("Caju#804")).thenReturn("hash");
+
+    service.redefinirSenha(
+      principalAdmin,
+      2,
+      new UsuarioDtos.RedefinicaoSenhaRequest("Caju#804"),
+      info
+    );
+
+    verify(repository).redefinirSenha(eq(2L), eq("hash"), eq(1L), any());
+    verify(repository).revogarSessoesDoUsuario(2, "SENHA_REDEFINIDA_ADMIN");
+  }
+
+  @Test
+  void deveRemoverPermissoesERevogarSessoesAoAlterarPerfil() {
+    UsuarioRow operacional = usuario(2, "USUARIO");
+    UsuarioRow administrador = usuario(2, "ADMINISTRADOR");
+    when(repository.buscarUsuarioPorId(2))
+      .thenReturn(Optional.of(operacional), Optional.of(administrador));
+    when(repository.buscarPermissoes(2)).thenReturn(Set.of("APLICACAO_ACESSAR"));
+
+    UsuarioDtos.ResumoResponse atualizado = service.atualizar(
+      principalAdmin,
+      2,
+      new UsuarioDtos.AtualizacaoDadosRequest(
+        "Usuário Atualizado",
+        "USUARIO@EXEMPLO.COM",
+        "ADMINISTRADOR"
+      ),
+      info
+    );
+
+    verify(repository).atualizarDadosUsuario(
+      2,
+      "Usuário Atualizado",
+      "usuario@exemplo.com",
+      "ADMINISTRADOR",
+      1
+    );
+    verify(repository).removerPermissoesUsuario(2);
+    verify(repository).revogarSessoesDoUsuario(2, "PERFIL_ALTERADO_ADMIN");
+    assertThat(atualizado.perfil()).isEqualTo("ADMINISTRADOR");
+  }
+
+  @Test
+  void deveDesativarUsuarioERevogarSessoesAoExcluir() {
+    when(repository.buscarUsuarioPorId(2)).thenReturn(Optional.of(usuario(2, "USUARIO")));
+
+    service.excluir(
+      principalAdmin,
+      2,
+      info
+    );
+
+    verify(repository).removerPermissoesUsuario(2);
+    verify(repository).desativarUsuario(2, 1);
+    verify(repository).revogarSessoesDoUsuario(2, "USUARIO_EXCLUIDO_ADMIN");
+  }
+
+  @Test
+  void deveImpedirExclusaoDaPropriaConta() {
+    ApiException erro = assertThrows(
+      ApiException.class,
+      () -> service.excluir(
+        principalAdmin,
+        1,
+        info
+      )
+    );
+
+    assertThat(erro.codigo()).isEqualTo("EXCLUSAO_PROPRIA");
+    verify(repository, never()).desativarUsuario(anyLong(), anyLong());
+  }
+
+  private UsuarioRow usuario(long id, String perfil) {
+    return new UsuarioRow(
+      id,
+      perfil.equals("ADMINISTRADOR") ? "Admin" : "Operacional",
+      perfil.equals("ADMINISTRADOR") ? "admin" : "operacional",
+      null,
+      "hash",
+      perfil,
+      true,
+      "ATIVO",
+      false,
+      null,
+      0,
+      null
+    );
+  }
+}

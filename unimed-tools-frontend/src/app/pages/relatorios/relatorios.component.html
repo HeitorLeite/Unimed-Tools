@@ -1,0 +1,24 @@
+<app-relatorios-inicio
+  *ngIf="modoPagina === 'selecao'"
+  [quantidadeRelatorios]="relatorios.length"
+  [quantidadeGrupos]="quantidadeGruposAutomaticos"
+  (escolherManual)="selecionarModoPagina('manual')"
+  (escolherAutomatico)="selecionarModoPagina('automatico')"
+  (escolherPersonalizado)="selecionarModoPagina('personalizado')"
+/>
+
+<app-relatorios-manual
+  *ngIf="modoPagina === 'manual'"
+  (voltar)="voltarSelecaoModo()"
+/>
+
+<app-relatorios-automaticos
+  *ngIf="modoPagina === 'automatico'"
+  [relatorios]="relatorios"
+  (voltar)="voltarSelecaoModo()"
+/>
+
+<app-relatorios-personalizados
+  *ngIf="modoPagina === 'personalizado'"
+  (voltar)="voltarSelecaoModo()"
+/>

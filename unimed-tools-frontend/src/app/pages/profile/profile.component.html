@@ -1,0 +1,43 @@
+<section class="profile-page" *ngIf="user() as currentUser">
+  <header>
+    <span>Conta</span>
+    <h1>Meu perfil</h1>
+    <p>Consulte seus dados de acesso e as ferramentas liberadas para a sua rotina.</p>
+  </header>
+
+  <div class="profile-grid">
+    <section class="identity-card">
+      <div class="avatar">{{ currentUser.nome.charAt(0).toUpperCase() }}</div>
+      <div>
+        <small>{{ currentUser.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Usuário' }}</small>
+        <h2>{{ currentUser.nome }}</h2>
+        <span>{{ currentUser.login }}</span>
+      </div>
+    </section>
+
+    <section class="details-card">
+      <header><span>Informações da conta</span></header>
+      <dl>
+        <div><dt>Nome</dt><dd>{{ currentUser.nome }}</dd></div>
+        <div><dt>Login</dt><dd>{{ currentUser.login }}</dd></div>
+        <div><dt>E-mail</dt><dd>{{ currentUser.email || 'Não informado' }}</dd></div>
+        <div><dt>Perfil</dt><dd>{{ currentUser.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Usuário operacional' }}</dd></div>
+      </dl>
+      <a routerLink="/alterar-senha">Alterar minha senha →</a>
+    </section>
+
+    <section class="permissions-card">
+      <header><span>Acessos liberados</span><strong>{{ currentUser.permissoes.length }}</strong></header>
+      <div class="permissions" *ngIf="currentUser.permissoes.length; else noPermissions">
+        <span *ngFor="let permission of currentUser.permissoes">{{ permissionLabel(permission) }}</span>
+      </div>
+      <ng-template #noPermissions>
+        <p>Nenhum módulo operacional foi liberado para esta conta.</p>
+      </ng-template>
+    </section>
+  </div>
+
+  <footer>
+    <button type="button" (click)="logout()">Sair da conta</button>
+  </footer>
+</section>

@@ -1,0 +1,209 @@
+<section class="user-workspace registration-page">
+  <header class="user-page-header">
+    <div>
+      <span class="eyebrow">Administração de acesso</span>
+      <h1>Cadastrar usuário</h1>
+      <p>Crie a conta e já defina as ferramentas que a pessoa poderá usar.</p>
+    </div>
+    <a class="btn btn-secondary" routerLink="/usuarios">Voltar ao gerenciamento</a>
+  </header>
+
+  <div class="registration-layout">
+    <form class="registration-card" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <section class="form-step">
+        <header>
+          <span>1</span>
+          <div>
+            <h2>Identificação</h2>
+            <p>Dados básicos da conta.</p>
+          </div>
+        </header>
+
+        <div class="form-grid">
+          <label class="field field-wide">
+            <span>Nome completo</span>
+            <input
+              type="text"
+              formControlName="nome"
+              maxlength="150"
+              placeholder="Nome da pessoa"
+            />
+          </label>
+
+          <label class="field">
+            <span>Login</span>
+            <input
+              type="text"
+              formControlName="login"
+              maxlength="80"
+              placeholder="nome.sobrenome"
+            />
+            <small>Use minúsculas, números, ponto, hífen ou underscore.</small>
+          </label>
+
+          <label class="field">
+            <span>E-mail</span>
+            <input type="email" formControlName="email" maxlength="254" placeholder="Opcional" />
+            <small>Será usado para recuperação de senha e notificações.</small>
+          </label>
+        </div>
+      </section>
+
+      <section class="form-step">
+        <header>
+          <span>2</span>
+          <div>
+            <h2>Tipo e acessos</h2>
+            <p>
+              Administradores recebem acesso completo. Usuários operacionais recebem somente as
+              ferramentas marcadas.
+            </p>
+          </div>
+        </header>
+
+        <div class="profile-choice">
+          <label [class.active]="form.controls.perfilCodigo.value === 'USUARIO'">
+            <input type="radio" formControlName="perfilCodigo" value="USUARIO" />
+            <span
+              ><strong>Usuário operacional</strong
+              ><small>Escolha as ferramentas abaixo.</small></span
+            >
+          </label>
+          <label [class.active]="form.controls.perfilCodigo.value === 'ADMINISTRADOR'">
+            <input type="radio" formControlName="perfilCodigo" value="ADMINISTRADOR" />
+            <span
+              ><strong>Administrador</strong
+              ><small>Acesso completo e gerenciamento da plataforma.</small></span
+            >
+          </label>
+        </div>
+
+        <ng-container *ngIf="form.controls.perfilCodigo.value === 'USUARIO'">
+          <div class="permission-heading">
+            <div>
+              <strong>Ferramentas liberadas</strong>
+              <small
+                >{{ selectedPermissions().size }} de
+                {{ permissions().length }} selecionada(s)</small
+              >
+            </div>
+            <div>
+              <button type="button" (click)="selectAllPermissions()">Selecionar todas</button>
+              <button type="button" (click)="clearPermissions()">Limpar</button>
+            </div>
+          </div>
+
+          <div class="permissions-grid" *ngIf="!loadingPermissions(); else permissionsLoading">
+            <label
+              class="permission-card"
+              *ngFor="let permission of permissions()"
+              [class.selected]="isPermissionSelected(permission.codigo)"
+            >
+              <input
+                type="checkbox"
+                [checked]="isPermissionSelected(permission.codigo)"
+                (change)="togglePermission(permission.codigo)"
+              />
+              <span>
+                <small>{{ permission.modulo.replace('_', ' ') }}</small>
+                <strong>{{ permission.descricao }}</strong>
+              </span>
+            </label>
+          </div>
+
+          <ng-template #permissionsLoading>
+            <div class="loading-permissions">Carregando ferramentas disponíveis…</div>
+          </ng-template>
+        </ng-container>
+      </section>
+
+      <section class="form-step">
+        <header>
+          <span>3</span>
+          <div>
+            <h2>Senha temporária</h2>
+            <p>A senha expira em 24 horas e deverá ser trocada no primeiro acesso.</p>
+          </div>
+          <button class="generate-password" type="button" (click)="generateTemporaryPassword()">
+            Gerar senha segura
+          </button>
+        </header>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Senha temporária</span>
+            <input
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="senhaTemporaria"
+              autocomplete="new-password"
+            />
+          </label>
+
+          <label class="field">
+            <span>Confirmar senha</span>
+            <input
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="confirmacao"
+              autocomplete="new-password"
+            />
+          </label>
+        </div>
+
+        <div class="password-actions">
+          <label>
+            <input
+              type="checkbox"
+              [checked]="showPassword()"
+              (change)="showPassword.set(!showPassword())"
+            />
+            Mostrar senha
+          </label>
+          <span *ngIf="form.touched && form.hasError('passwordMismatch')">
+            As senhas temporárias são diferentes.
+          </span>
+        </div>
+      </section>
+
+      <div class="form-message error" role="alert" *ngIf="error()">{{ error() }}</div>
+
+      <footer class="form-footer">
+        <a class="btn btn-secondary" routerLink="/usuarios">Cancelar</a>
+        <button
+          class="btn btn-primary"
+          type="submit"
+          [disabled]="loading() || loadingPermissions()"
+        >
+          {{ loading() ? 'Cadastrando…' : 'Cadastrar usuário' }}
+        </button>
+      </footer>
+    </form>
+
+    <aside class="side-panel">
+      <section class="side-card">
+        <span>Como funciona</span>
+        <h2>Conta pronta em um único fluxo</h2>
+        <ul>
+          <li>Crie a identificação.</li>
+          <li>Escolha as ferramentas do usuário.</li>
+          <li>Entregue a senha temporária por canal seguro.</li>
+        </ul>
+      </section>
+
+      <section class="side-card success" *ngIf="created() as user">
+        <span>Conta criada</span>
+        <h2>{{ user.nome }}</h2>
+        <dl>
+          <div>
+            <dt>Login</dt>
+            <dd>{{ user.login }}</dd>
+          </div>
+          <div>
+            <dt>Perfil</dt>
+            <dd>{{ user.perfil === 'ADMINISTRADOR' ? 'Administrador' : 'Operacional' }}</dd>
+          </div>
+        </dl>
+        <a routerLink="/usuarios/cadastrados">Ver usuários cadastrados →</a>
+      </section>
+    </aside>
+  </div>
+</section>

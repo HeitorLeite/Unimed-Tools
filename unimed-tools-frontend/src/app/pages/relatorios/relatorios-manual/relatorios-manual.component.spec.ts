@@ -155,6 +155,12 @@ describe('RelatoriosManualComponent - importação SQL', () => {
     expect(arquivo.consultaSQL).toContain("GI.GUITE_IND_STATUS = 'I'");
     expect(arquivo.consultaSQL).not.toContain(':rn');
     expect(arquivo.consultaSQL).not.toContain(':guite_ind_status');
+    expect(arquivo.ordenacao).toBe(
+      'GRBNF_COD, GUIA_NRO_COMPET, GUITE_IND_STATUS',
+    );
+    expect(arquivo.ajustesAplicados).toContain(
+      'Foi definida uma ordenação determinística pelas colunas de saída para tornar a paginação estável.',
+    );
     expect(component.erroArquivoSql(arquivo)).toBe('');
 
     const definicaoSgu = (component as any).definicaoDoArquivoSql(arquivo);
@@ -165,6 +171,39 @@ describe('RelatoriosManualComponent - importação SQL', () => {
     expect(definicaoSgu.filtros[0].conteudoFiltro).toContain(':grbnfcod');
     expect(definicaoSgu.filtros[1].conteudoFiltro).toContain(':competencia');
     expect(definicaoSgu.consultaSQL).not.toContain(':grbnf_cod');
+  });
+
+  it('preserva ordenação explícita e infere aliases de expressões quando estiver vazia', () => {
+    const component = criarComponente();
+    const arquivo = criarArquivo(`
+      SELECT
+        BF.CODIGO AS COD_BENEFICIARIO,
+        CASE WHEN G.TIPO = 1 THEN 'A' ELSE 'B' END AS TIPO_GUIA,
+        GI.VALOR_TOTAL AS VALOR_TOTAL
+      FROM GUIA G
+      JOIN BENEFICIARIO BF ON BF.ID = G.BNF_ID
+      JOIN GUIA_ITEM GI ON GI.GUIA_ID = G.ID
+      WHERE G.COMPETENCIA IN (202608)
+    `);
+
+    component.ajustarArquivoSql(arquivo);
+
+    expect(arquivo.ordenacao).toBe(
+      'COD_BENEFICIARIO, TIPO_GUIA, VALOR_TOTAL',
+    );
+
+    arquivo.ordenacao = 'VALOR_TOTAL DESC';
+    component.ajustarArquivoSql(arquivo);
+    expect(arquivo.ordenacao).toBe('VALOR_TOTAL DESC');
+  });
+
+  it('não inventa ordenação para SELECT com wildcard', () => {
+    const component = criarComponente();
+    const arquivo = criarArquivo('SELECT G.* FROM GUIA G WHERE 1 = 1');
+
+    component.ajustarArquivoSql(arquivo);
+
+    expect(arquivo.ordenacao).toBe('');
   });
 
   it('rejeita filtros diferentes que ficam iguais após a compactação do SGU', () => {

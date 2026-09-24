@@ -1,4 +1,4 @@
-import { validarDelimitadoresSql, mascaraSqlSemTextosEComentarios } from './sql-lexico';
+import { validarDelimitadoresSql, mascaraSqlSemTextosEComentarios, localizarConsultaPrincipal, tokensSqlNivelZero } from './sql-lexico';
 import { ajustarEstruturaSqlImportado } from './sql-estrutura';
 import { SguFiltro, SguApiDefinicao } from '../../../shared/models/relatorio.model';
 
@@ -56,6 +56,90 @@ export function filtrosDeNegocio(filtros: SguFiltro[] | null | undefined): SguFi
 }
 
 
+/**
+ * A API do SGU pagina a consulta em chamadas independentes. Sem uma ordenação
+ * estável, o Oracle pode devolver a mesma linha em páginas diferentes e omitir
+ * outras. Para SQL importado, usamos os aliases da projeção principal como
+ * desempate determinístico. Se a projeção usa "*" ou não possui aliases
+ * seguros, a ordenação não é inferida e deve ser informada manualmente.
+ */
+export function inferirOrdenacaoDeterministicaSql(sql: string): string {
+  const estrutura = localizarConsultaPrincipal(sql);
+  if (!estrutura) return '';
+
+  const tokens = tokensSqlNivelZero(sql);
+  const tokenFrom = tokens.find(
+    (token) =>
+      token.palavra === 'FROM' &&
+      token.inicio >= estrutura.select.fim &&
+      token.inicio < estrutura.fimRamo,
+  );
+  if (!tokenFrom) return '';
+
+  const inicio = estrutura.select.fim;
+  const fim = tokenFrom.inicio;
+  const original = sql.slice(inicio, fim);
+  const mascarado = mascaraSqlSemTextosEComentarios(sql).slice(inicio, fim);
+
+  const limites = [0];
+  let profundidade = 0;
+  for (let indice = 0; indice < mascarado.length; indice += 1) {
+    const caractere = mascarado[indice];
+    if (caractere === '(') {
+      profundidade += 1;
+    } else if (caractere === ')') {
+      profundidade = Math.max(0, profundidade - 1);
+    } else if (caractere === ',' && profundidade === 0) {
+      limites.push(indice + 1);
+    }
+  }
+  limites.push(mascarado.length + 1);
+
+  const aliases: string[] = [];
+  const reservadas = new Set([
+    'ALL', 'AND', 'ASC', 'CASE', 'DESC', 'DISTINCT', 'ELSE', 'END',
+    'FROM', 'NULL', 'OR', 'THEN', 'WHEN',
+  ]);
+
+  for (let indice = 0; indice < limites.length - 1; indice += 1) {
+    const inicioTrecho = limites[indice];
+    const fimTrecho = Math.min(mascarado.length, limites[indice + 1] - 1);
+    const trechoOriginal = original.slice(inicioTrecho, fimTrecho).trim();
+    let trechoMascarado = mascarado.slice(inicioTrecho, fimTrecho).trim();
+
+    if (indice === 0) {
+      trechoMascarado = trechoMascarado.replace(/^(?:DISTINCT|ALL)\s+/i, '').trim();
+    }
+    if (!trechoMascarado || /^(?:[A-Za-z_][\w$#]*\.)?\*$/.test(trechoMascarado)) {
+      return '';
+    }
+
+    const comAs = trechoMascarado.match(/\bAS\s+([A-Za-z_][\w$#]*)\s*$/i);
+    const simples = trechoMascarado.match(
+      /^(?:[A-Za-z_][\w$#]*\.)*([A-Za-z_][\w$#]*)\s*$/,
+    );
+    const implicito = trechoMascarado.match(/\s+([A-Za-z_][\w$#]*)\s*$/);
+
+    let alias = comAs?.[1] ?? simples?.[1] ?? implicito?.[1] ?? '';
+    if (!alias || reservadas.has(alias.toUpperCase())) {
+      // Evita considerar END de CASE ou palavra reservada como alias implícito.
+      alias = comAs?.[1] ?? simples?.[1] ?? '';
+    }
+    if (!alias || !/^[A-Za-z_][\w$#]*$/.test(alias)) return '';
+
+    const normalizado = alias.toUpperCase();
+    if (aliases.some((existente) => existente.toUpperCase() === normalizado)) return '';
+    aliases.push(alias.toUpperCase());
+
+    // Mantém a variável usada para deixar claro que o trecho original é a
+    // projeção correspondente; comentários/textos não participam da inferência.
+    void trechoOriginal;
+  }
+
+  return aliases.join(', ');
+}
+
+
 export function removerFiltroTecnicoDaDefinicao(api: SguApiDefinicao): SguApiDefinicao {
   return {
     ...api,
@@ -85,10 +169,13 @@ export function prepararDefinicaoParaSgu(api: SguApiDefinicao): SguApiDefinicao 
     };
   });
 
+  const ordenacao =
+    api.ordenacao?.trim() || inferirOrdenacaoDeterministicaSql(consultaSQL);
+
   return {
     nome: api.nome.trim(),
     consultaSQL,
-    ordenacao: api.ordenacao?.trim() ?? '',
+    ordenacao,
     filtros: filtrosSgu,
   };
 }

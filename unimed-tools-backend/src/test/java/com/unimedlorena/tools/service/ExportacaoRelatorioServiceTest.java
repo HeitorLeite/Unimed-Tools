@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,6 +26,13 @@ import org.junit.jupiter.api.Test;
 
 class ExportacaoRelatorioServiceTest {
 
+  private Map<String, Object> apiOrdenada() {
+    return Map.of(
+      "content",
+      List.of(Map.of("nome", "api-teste", "ordenacao", "ID"))
+    );
+  }
+
   private ExportacaoRelatorioService semEspera(SguRelatorioService sgu) {
     return new ExportacaoRelatorioService(sgu, 1, 0) {
       @Override void aguardarNovaTentativa() {}
@@ -40,6 +48,7 @@ class ExportacaoRelatorioServiceTest {
       when(sgu.executar(anyString(), anyMap())).thenReturn(primeira)
         .thenThrow(new ApiException(status, status == HttpStatus.GATEWAY_TIMEOUT ? "SGU_TIMEOUT" : "SGU_INDISPONIVEL", "Falha temporária."))
         .thenReturn(segunda);
+      when(sgu.listar("api-teste")).thenReturn(apiOrdenada());
       var destino = new ByteArrayOutputStream();
       semEspera(sgu).exportarPara("api-teste", "xlsx", new RelatorioExportacaoRequest(Map.of(), "teste"), destino);
       try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(destino.toByteArray()))) {
@@ -292,6 +301,30 @@ class ExportacaoRelatorioServiceTest {
   }
 
   @Test
+  void bloqueiaExportacaoMultipaginaSemOrdenacaoAntesDeConsumirPrimeiraPagina() {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
+    registro.put("ID", "A");
+
+    when(sgu.executar(anyString(), anyMap()))
+      .thenReturn(Map.of("content", List.of(registro), "last", false));
+    when(sgu.listar("api-teste")).thenReturn(
+      Map.of("content", List.of(Map.of("nome", "api-teste", "ordenacao", "")))
+    );
+
+    var paginado = new ExportacaoRelatorioService(sgu, 1, 0);
+
+    assertThatThrownBy(() -> paginado.carregarRegistros("api-teste", Map.of()))
+      .isInstanceOf(IllegalStateException.class)
+      .hasMessageContaining("não possui ordenação estável")
+      .hasMessageContaining("repetir linhas")
+      .hasMessageContaining("omitir registros");
+
+    verify(sgu, times(1)).executar("api-teste", Map.of("page", 1, "size", 1));
+    verify(sgu, never()).executar("api-teste", Map.of("page", 2, "size", 1));
+  }
+
+  @Test
   void deveTransmitirCsvPaginaPorPaginaSemRnum() throws Exception {
     SguRelatorioService sgu = mock(SguRelatorioService.class);
     LinkedHashMap<String, Object> primeiro = new LinkedHashMap<>();
@@ -309,6 +342,7 @@ class ExportacaoRelatorioServiceTest {
         Map.of("content", List.of(primeiro, segundo), "last", false),
         Map.of("content", List.of(terceiro), "last", true)
       );
+    when(sgu.listar("api-teste")).thenReturn(apiOrdenada());
 
     var paginado = new ExportacaoRelatorioService(sgu, 2, 0);
     ByteArrayOutputStream destino = new ByteArrayOutputStream();
@@ -344,6 +378,7 @@ class ExportacaoRelatorioServiceTest {
         Map.of("content", List.of(primeiro, segundo), "last", false),
         Map.of("content", List.of(terceiro), "last", true)
       );
+    when(sgu.listar("api-teste")).thenReturn(apiOrdenada());
 
     var paginado = new ExportacaoRelatorioService(sgu, 2, 0);
     ByteArrayOutputStream destino = new ByteArrayOutputStream();

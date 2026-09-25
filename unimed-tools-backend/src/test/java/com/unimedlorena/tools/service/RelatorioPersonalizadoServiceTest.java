@@ -13,13 +13,58 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.unimedlorena.tools.dto.RelatorioPersonalizadoRequest;
+import java.io.ByteArrayInputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 class RelatorioPersonalizadoServiceTest {
+
+  @Test
+  void previaEDownloadAssistencialDevemResolverAGuiaCompletaComCamposTecnicosOcultos()
+      throws Exception {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    ExportacaoRelatorioService exportacao = new ExportacaoRelatorioService(sgu, 1000, 0);
+    RelatorioPersonalizadoService service = new RelatorioPersonalizadoService(
+        sgu, exportacao, new RelatorioPersonalizadoSqlBuilder());
+    when(sgu.criarOuAtualizar(anyMap())).thenReturn(Map.of());
+    when(sgu.executar(eq(RelatorioPersonalizadoService.API_NOME), anyMap()))
+      .thenAnswer(ignorada -> Map.of("content", List.of(
+        linhaEspecialidade("PRONTO SOCORRO", "medicamento"),
+        linhaEspecialidade("CARDIOLOGIA", "HOLTER 24 HORAS")
+      ), "last", true));
+    var request = new RelatorioPersonalizadoRequest(
+      List.of("NOME_ESPECIALIDADE"),
+      Map.of("competencia_inicio", "202608", "competencia_fim", "202608"),
+      false, 1, 1, "especialidades");
+
+    Map<String, Object> previa = service.executar(request);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> conteudo = (List<Map<String, Object>>) previa.get("content");
+    assertThat(conteudo).singleElement().satisfies(linha ->
+      assertThat(linha).containsOnlyKeys("NOME_ESPECIALIDADE")
+        .containsEntry("NOME_ESPECIALIDADE", "CARDIOLOGIA")
+    );
+    assertThat(previa.get("totalElements")).isEqualTo(2);
+
+    var arquivo = service.exportar("xlsx", request);
+    try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(arquivo.conteudo()))) {
+      var planilha = workbook.getSheetAt(0);
+      assertThat(planilha.getRow(0).getLastCellNum()).isEqualTo((short) 1);
+      assertThat(planilha.getRow(1).getCell(0).getStringCellValue()).isEqualTo("CARDIOLOGIA");
+      assertThat(planilha.getRow(2).getCell(0).getStringCellValue()).isEqualTo("CARDIOLOGIA");
+    }
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> definicao = ArgumentCaptor.forClass(Map.class);
+    verify(sgu).criarOuAtualizar(definicao.capture());
+    String sql = String.valueOf(definicao.getValue().get("consultaSQL"));
+    assertThat(sql).contains("COD_BENEFICIARIO", "NUMERO_GUIA", "DATA_GUIA",
+      "DESCRICAO_ITEM", "CID");
+  }
 
   @Test
   void deveReceberUnderscoreEEnviarNomeCompactoAoSgu() {
@@ -454,6 +499,19 @@ class RelatorioPersonalizadoServiceTest {
           .containsEntry("VALOR_TOTAL__202601", new java.math.BigDecimal("2.50"))
           .containsEntry("VALOR_TOTAL__202602", java.math.BigDecimal.ZERO);
     });
+  }
+
+  private LinkedHashMap<String, Object> linhaEspecialidade(
+      String especialidade,
+      String descricao) {
+    LinkedHashMap<String, Object> linha = new LinkedHashMap<>();
+    linha.put("NOME_ESPECIALIDADE", especialidade);
+    linha.put("COD_BENEFICIARIO", "BEN-1");
+    linha.put("NUMERO_GUIA", "GUIA-1");
+    linha.put("DATA_GUIA", "01/08/2026");
+    linha.put("DESCRICAO_ITEM", descricao);
+    linha.put("CID", "");
+    return linha;
   }
 
   private RelatorioPersonalizadoRequest requisicao(Map<String, Object> filtros) {

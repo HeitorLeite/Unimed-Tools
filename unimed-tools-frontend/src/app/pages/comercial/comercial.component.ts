@@ -254,9 +254,8 @@ export class ComercialComponent implements OnInit {
 
     report.downloading = true;
     report.error = '';
-    const combinations = this.selectedCompanies.flatMap((company) =>
-      this.parameterCombinations(report, company),
-    );
+    const company = this.selectedCompanies[0];
+    const combinations = company ? this.parameterCombinations(report, company) : [];
     const companyLabel = this.companyFileLabel();
 
     if (this.selectedCompanies.length === 1 && combinations.length === 1) {
@@ -280,13 +279,11 @@ export class ComercialComponent implements OnInit {
     const request = {
       nomeArquivo: `comercial_${companyLabel}_${report.arquivo}_${this.competence}`,
       formato,
-      itens: [
-        {
+      itens: this.selectedCompanies.map((selectedCompany) => ({
           apiNome: report.api,
-          nomeArquivo: `${companyLabel}_${report.arquivo}_${this.competence}`,
-          combinacoesFiltros: combinations,
-        },
-      ],
+          nomeArquivo: `${this.safe(selectedCompany.nome)}_${report.arquivo}_${this.competence}`,
+          combinacoesFiltros: this.parameterCombinations(report, selectedCompany),
+        })),
     };
 
     this.reportsService
@@ -322,13 +319,13 @@ export class ComercialComponent implements OnInit {
     const request = {
       nomeArquivo: `comercial_${companyLabel}_${this.competence}`,
       formato,
-      itens: this.selectedReports.map((report) => ({
-        apiNome: report.api,
-        nomeArquivo: `${companyLabel}_${report.arquivo}_${this.competence}`,
-        combinacoesFiltros: this.selectedCompanies.flatMap((company) =>
-          this.parameterCombinations(report, company),
-        ),
-      })),
+      itens: this.selectedReports.flatMap((report) =>
+        this.selectedCompanies.map((company) => ({
+          apiNome: report.api,
+          nomeArquivo: `${this.safe(company.nome)}_${report.arquivo}_${this.competence}`,
+          combinacoesFiltros: this.parameterCombinations(report, company),
+        })),
+      ),
     };
 
     this.reportsService

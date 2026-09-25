@@ -118,6 +118,70 @@ describe.each([
   });
 });
 
+describe('Comercial — arquivos separados por empresa', () => {
+  let fixture: ComponentFixture<ComercialComponent>;
+  let http: HttpTestingController;
+
+  beforeEach(async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    fixture = TestBed.createComponent(ComercialComponent);
+    await fixture.whenStable();
+    for (const request of http.match('/api/relatorios/sgu/listar')) {
+      request.flush({
+        content: [{
+          nome: request.request.body.nome,
+          filtros: [{
+            nomeFiltro: 'empresas',
+            conteudoFiltro: '',
+            tipoDadoFiltro: 'VARCHAR',
+            mascaraFiltro: '',
+            obrigatorioFiltro: 'S',
+          }],
+        }],
+      });
+    }
+    await fixture.whenStable();
+  });
+
+  afterEach(() => {
+    try {
+      http.verify();
+    } finally {
+      TestBed.resetTestingModule();
+    }
+  });
+
+  it('cria um item por relatório e por empresa, mantendo juntos os códigos da mesma empresa', async () => {
+    fixture.componentInstance.selectedCompanyIds = ['yakult', 'saint-gobain'];
+    fixture.componentInstance.competence = '202608';
+    fixture.componentInstance.downloadAll();
+
+    const request = http.expectOne('/api/relatorios/sgu/exportar-lote');
+    const itens = request.request.body.itens as Array<{
+      nomeArquivo: string;
+      combinacoesFiltros: Array<Record<string, unknown>>;
+    }>;
+
+    expect(itens).toHaveLength(fixture.componentInstance.selectedReports.length * 2);
+    expect(itens.filter((item) => item.nomeArquivo.startsWith('yakult_'))).toHaveLength(4);
+    expect(itens.filter((item) => item.nomeArquivo.startsWith('saint_gobain_'))).toHaveLength(4);
+    expect(itens.find((item) => item.nomeArquivo === 'yakult_despesas_202608')
+      ?.combinacoesFiltros).toEqual([{ empresas: '2232751,2234452' }]);
+    expect(itens.find((item) => item.nomeArquivo === 'saint_gobain_despesas_202608')
+      ?.combinacoesFiltros).toEqual([{ empresas: '2052097' }]);
+
+    request.flush(new Blob(), { status: 503, statusText: 'Unavailable' });
+    await fixture.whenStable();
+  });
+});
+
 describe('Hospital — atualização assíncrona', () => {
   let fixture: ComponentFixture<HospitalComponent>;
   let http: HttpTestingController;

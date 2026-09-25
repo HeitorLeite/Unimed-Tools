@@ -92,6 +92,7 @@ public class ExportacaoRelatorioService {
 
   private final SguRelatorioService sgu;
   private final EspecialidadeRelatorioResolver especialidades;
+  private final GrupoPrestadorComercialNormalizer gruposPrestador;
   private final int tamanhoLote;
   private final int maximoPaginas;
 
@@ -99,11 +100,13 @@ public class ExportacaoRelatorioService {
   public ExportacaoRelatorioService(
     SguRelatorioService sgu,
     EspecialidadeRelatorioResolver especialidades,
+    GrupoPrestadorComercialNormalizer gruposPrestador,
     @Value("${sgu.api.export.page-size:5000}") int tamanhoLote,
     @Value("${sgu.api.export.max-pages:0}") int maximoPaginas
   ) {
     this.sgu = sgu;
     this.especialidades = especialidades;
+    this.gruposPrestador = gruposPrestador;
     this.tamanhoLote = Math.max(1, tamanhoLote);
     this.maximoPaginas = Math.max(0, maximoPaginas);
   }
@@ -113,7 +116,13 @@ public class ExportacaoRelatorioService {
     int tamanhoLote,
     int maximoPaginas
   ) {
-    this(sgu, new EspecialidadeRelatorioResolver(), tamanhoLote, maximoPaginas);
+    this(
+      sgu,
+      new EspecialidadeRelatorioResolver(),
+      new GrupoPrestadorComercialNormalizer(),
+      tamanhoLote,
+      maximoPaginas
+    );
   }
 
   public Arquivo exportar(
@@ -212,10 +221,9 @@ public class ExportacaoRelatorioService {
   }
 
   /**
-   * A prévia comum consulta normalmente relatórios sem especialidade. Quando o
-   * campo existe, todas as páginas são reunidas, normalizadas por guia e só
-   * então a página solicitada é recortada. Assim prévia e arquivo usam a mesma
-   * coleção resolvida, mesmo se uma guia atravessar páginas do SGU.
+   * Aplica os tratamentos centrais antes de devolver a prévia. O grupo do
+   * prestador é corrigido por linha; especialidades exigem reunir todas as
+   * páginas para resolver guias que atravessam páginas do SGU.
    */
   public Map<String, Object> executarPaginaNormalizada(
     String apiNome,
@@ -226,7 +234,13 @@ public class ExportacaoRelatorioService {
       : new LinkedHashMap<>(parametros);
     Map<String, Object> resposta = sgu.executar(apiNome, recebidos);
     List<LinkedHashMap<String, Object>> pagina = extrairRegistros(resposta.get("content"));
-    if (!especialidades.aplicavel(pagina)) return resposta;
+    int gruposCorrigidos = gruposPrestador.normalizar(apiNome, pagina);
+    if (!especialidades.aplicavel(pagina)) {
+      if (gruposCorrigidos == 0) return resposta;
+      Map<String, Object> normalizada = new LinkedHashMap<>(resposta);
+      normalizada.put("content", pagina);
+      return normalizada;
+    }
 
     int numeroPagina = inteiroPositivo(recebidos.get("page"), 1);
     int tamanhoPagina = inteiroPositivo(recebidos.get("size"), tamanhoLote);
@@ -316,6 +330,7 @@ public class ExportacaoRelatorioService {
       List<LinkedHashMap<String, Object>> lote = extrairRegistros(
         resposta.get("content")
       );
+      gruposPrestador.normalizar(apiNome, lote);
 
       if (lote.isEmpty()) {
         if (Boolean.FALSE.equals(resposta.get("last")) ||

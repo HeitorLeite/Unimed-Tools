@@ -70,6 +70,12 @@ paginada são rejeitadas, em vez de descartar campos silenciosamente.
 - Quando o Comercial recebe várias empresas, o ZIP contém um arquivo por empresa
   e por relatório. Códigos do catálogo pertencentes à mesma empresa permanecem
   reunidos no arquivo dessa empresa.
+- Nas APIs do Comercial, `GrupoPrestadorComercialNormalizer` corrige somente
+  registros cujo `GRUPO_PRESTADOR` corresponde a médico(a)(s) não cooperado(a)(s).
+  A prioridade é OPME, recurso próprio, sessões multi, clínica de imagem, clínica
+  médica e reembolso. O tratamento ocorre por página antes da prévia e da escrita
+  de CSV/TXT/XLSX; `NOME_PRESTADOR`, `TIPO_PRESTADOR` e a quantidade de linhas são
+  preservados. Grupos já classificados e prestadores desconhecidos não mudam.
 - Durante a preparação, TI/manual e Assistencial mostram atividade e tempo;
   porcentagem de transferência depende dos bytes recebidos, não de estimativa
   de conclusão da consulta.

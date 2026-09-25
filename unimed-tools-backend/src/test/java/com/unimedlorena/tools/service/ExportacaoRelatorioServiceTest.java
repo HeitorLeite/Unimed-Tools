@@ -475,6 +475,68 @@ class ExportacaoRelatorioServiceTest {
   }
 
   @Test
+  void previaECsvTxtXlsxDevemUsarOMesmoGrupoPrestadorCorrigido() throws Exception {
+    String api = "0090-despesa-empresas";
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    when(sgu.executar(anyString(), anyMap())).thenAnswer(ignorada -> Map.of(
+      "content",
+      List.of(registroGrupoPrestador()),
+      "last",
+      true
+    ));
+    when(sgu.listar(api)).thenReturn(Map.of(
+      "content",
+      List.of(Map.of(
+        "nome", api,
+        "ordenacao", "grupo_prestador",
+        "consultaSQL", "SELECT grupo_prestador, nome_prestador, tipo_prestador FROM TESTE"
+      ))
+    ));
+    var relatorios = new ExportacaoRelatorioService(sgu, 1000, 0);
+
+    Map<String, Object> previa = relatorios.executarPaginaNormalizada(
+      api,
+      Map.of("page", 1, "size", 10)
+    );
+    assertThat((List<?>) previa.get("content")).singleElement().satisfies(item -> {
+      Map<?, ?> registro = (Map<?, ?>) item;
+      assertThat(registro.get("grupo_prestador")).isEqualTo("CLINICA DE IMAGEM");
+      assertThat(registro.get("nome_prestador")).isEqualTo("CAVALCA DIAGNOSTICOS");
+      assertThat(registro.get("tipo_prestador")).isEqualTo("CLINICA");
+    });
+
+    for (String formato : List.of("csv", "txt", "xlsx")) {
+      var destino = new ByteArrayOutputStream();
+      int quantidade = relatorios.exportarPara(api, formato, null, destino);
+      assertThat(quantidade).isEqualTo(1);
+
+      if (!"xlsx".equals(formato)) {
+        String conteudo = destino.toString(StandardCharsets.UTF_8);
+        assertThat(conteudo)
+          .contains("CLINICA DE IMAGEM")
+          .contains("CAVALCA DIAGNOSTICOS")
+          .contains("CLINICA");
+        continue;
+      }
+
+      try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(destino.toByteArray()))) {
+        var planilha = workbook.getSheetAt(0);
+        Map<String, Integer> colunas = new LinkedHashMap<>();
+        for (var celula : planilha.getRow(0)) {
+          colunas.put(celula.getStringCellValue(), celula.getColumnIndex());
+        }
+        assertThat(planilha.getLastRowNum()).isEqualTo(1);
+        assertThat(planilha.getRow(1).getCell(colunas.get("grupo_prestador")).getStringCellValue())
+          .isEqualTo("CLINICA DE IMAGEM");
+        assertThat(planilha.getRow(1).getCell(colunas.get("nome_prestador")).getStringCellValue())
+          .isEqualTo("CAVALCA DIAGNOSTICOS");
+        assertThat(planilha.getRow(1).getCell(colunas.get("tipo_prestador")).getStringCellValue())
+          .isEqualTo("CLINICA");
+      }
+    }
+  }
+
+  @Test
   void previaEDownloadDevemUsarAMesmaEspecialidadeResolvidaSemFiltroNoXlsx() throws Exception {
     SguRelatorioService sgu = mock(SguRelatorioService.class);
     LinkedHashMap<String, Object> clinico = registroEspecialidade("PRONTO SOCORRO", "medicamento");
@@ -525,6 +587,14 @@ class ExportacaoRelatorioServiceTest {
     registro.put("NOME_ESPECIALIDADE", especialidade);
     registro.put("DESCRICAO_ITEM", descricao);
     registro.put("CID", "");
+    return registro;
+  }
+
+  private LinkedHashMap<String, Object> registroGrupoPrestador() {
+    LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
+    registro.put("grupo_prestador", "MEDICA NAO COOPERADO");
+    registro.put("nome_prestador", "CAVALCA DIAGNOSTICOS");
+    registro.put("tipo_prestador", "CLINICA");
     return registro;
   }
 }

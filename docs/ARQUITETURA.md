@@ -172,6 +172,12 @@ Exportações percorrem a paginação no backend.
 número e data da guia, resolve Nome → Descrição → CID seguro → CLINICO e propaga
 o resultado antes da paginação entregue ao frontend e da geração do arquivo.
 
+`GrupoPrestadorComercialNormalizer` trata `GRUPO_PRESTADOR` somente nas quatro
+APIs nativas do Comercial. Como a regra depende apenas da própria linha, cada
+página é normalizada logo após a leitura do SGU e antes de alimentar a prévia,
+os escritores CSV/TXT/XLSX e os lotes ZIP. O mapa ordenado fica centralizado no
+serviço e não altera `NOME_PRESTADOR` nem `TIPO_PRESTADOR`.
+
 A paginação do SGU exige ordenação determinística. SQL importado pela Central de
 Relatórios passa a receber automaticamente uma ordenação pelos aliases da
 projeção principal quando isso pode ser inferido com segurança. APIs legadas

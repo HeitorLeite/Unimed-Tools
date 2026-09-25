@@ -40,6 +40,7 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -90,17 +91,29 @@ public class ExportacaoRelatorioService {
   }
 
   private final SguRelatorioService sgu;
+  private final EspecialidadeRelatorioResolver especialidades;
   private final int tamanhoLote;
   private final int maximoPaginas;
 
+  @Autowired
   public ExportacaoRelatorioService(
     SguRelatorioService sgu,
+    EspecialidadeRelatorioResolver especialidades,
     @Value("${sgu.api.export.page-size:5000}") int tamanhoLote,
     @Value("${sgu.api.export.max-pages:0}") int maximoPaginas
   ) {
     this.sgu = sgu;
+    this.especialidades = especialidades;
     this.tamanhoLote = Math.max(1, tamanhoLote);
     this.maximoPaginas = Math.max(0, maximoPaginas);
+  }
+
+  public ExportacaoRelatorioService(
+    SguRelatorioService sgu,
+    int tamanhoLote,
+    int maximoPaginas
+  ) {
+    this(sgu, new EspecialidadeRelatorioResolver(), tamanhoLote, maximoPaginas);
   }
 
   public Arquivo exportar(
@@ -151,6 +164,15 @@ public class ExportacaoRelatorioService {
     );
 
     long inicio = System.nanoTime();
+    if (apiPossuiEspecialidade(apiNome)) {
+      Arquivo arquivo = gerarArquivo(
+        descricao.extensao(),
+        carregarRegistros(apiNome, filtros)
+      );
+      destino.write(arquivo.conteudo());
+      destino.flush();
+      return arquivo.quantidadeRegistros();
+    }
     int quantidade = switch (descricao.extensao()) {
       case "csv" -> escreverCsvPaginado(apiNome, filtros, destino, ';');
       case "txt" -> escreverCsvPaginado(apiNome, filtros, destino, ';');
@@ -186,7 +208,64 @@ public class ExportacaoRelatorioService {
       // compartilhado com os escritores paginados.
       throw new IllegalStateException("Falha inesperada ao reunir as páginas.", ex);
     }
-    return todos;
+    return especialidades.normalizar(todos);
+  }
+
+  /**
+   * A prévia comum consulta normalmente relatórios sem especialidade. Quando o
+   * campo existe, todas as páginas são reunidas, normalizadas por guia e só
+   * então a página solicitada é recortada. Assim prévia e arquivo usam a mesma
+   * coleção resolvida, mesmo se uma guia atravessar páginas do SGU.
+   */
+  public Map<String, Object> executarPaginaNormalizada(
+    String apiNome,
+    Map<String, Object> parametros
+  ) {
+    Map<String, Object> recebidos = parametros == null
+      ? new LinkedHashMap<>()
+      : new LinkedHashMap<>(parametros);
+    Map<String, Object> resposta = sgu.executar(apiNome, recebidos);
+    List<LinkedHashMap<String, Object>> pagina = extrairRegistros(resposta.get("content"));
+    if (!especialidades.aplicavel(pagina)) return resposta;
+
+    int numeroPagina = inteiroPositivo(recebidos.get("page"), 1);
+    int tamanhoPagina = inteiroPositivo(recebidos.get("size"), tamanhoLote);
+    recebidos.remove("page");
+    recebidos.remove("size");
+    List<LinkedHashMap<String, Object>> todos = carregarRegistros(apiNome, recebidos);
+    int inicio = Math.min(todos.size(), (numeroPagina - 1) * tamanhoPagina);
+    int fim = Math.min(todos.size(), inicio + tamanhoPagina);
+    int totalPaginas = todos.isEmpty() ? 0 : (todos.size() + tamanhoPagina - 1) / tamanhoPagina;
+
+    Map<String, Object> normalizada = new LinkedHashMap<>(resposta);
+    normalizada.put("content", new ArrayList<>(todos.subList(inicio, fim)));
+    normalizada.put("numberOfElements", todos.size());
+    normalizada.put("totalElements", todos.size());
+    normalizada.put("totalPage", totalPaginas);
+    normalizada.put("totalPages", totalPaginas);
+    normalizada.put("number", numeroPagina - 1);
+    normalizada.put("last", numeroPagina >= Math.max(1, totalPaginas));
+    return normalizada;
+  }
+
+  private int inteiroPositivo(Object valor, int padrao) {
+    if (valor == null) return padrao;
+    try {
+      return Math.max(1, Integer.parseInt(String.valueOf(valor)));
+    } catch (NumberFormatException ex) {
+      return padrao;
+    }
+  }
+
+  private boolean apiPossuiEspecialidade(String apiNome) {
+    Map<String, Object> resposta = sgu.listar(apiNome);
+    Object conteudo = resposta == null ? null : resposta.get("content");
+    if (!(conteudo instanceof List<?> itens)) return false;
+    return itens.stream().filter(Map.class::isInstance).map(Map.class::cast)
+      .filter(item -> apiNome.equalsIgnoreCase(texto(valorIgnorandoCaixa(item, "nome")).trim()))
+      .map(item -> texto(valorIgnorandoCaixa(item, "consultaSQL")))
+      .map(sql -> sql.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", ""))
+      .anyMatch(sql -> sql.contains("NOMEESPECIALIDADE"));
   }
 
   private int percorrerPaginas(
@@ -594,17 +673,6 @@ public class ExportacaoRelatorioService {
         sheet.setColumnWidth(i, Math.min(60, estado.larguras[i]) * 256);
       }
 
-      if (!estado.colunas.isEmpty()) {
-        sheet.setAutoFilter(
-          new org.apache.poi.ss.util.CellRangeAddress(
-            0,
-            Math.max(0, estado.indiceLinha - 1),
-            0,
-            estado.colunas.size() - 1
-          )
-        );
-      }
-
       long inicioEmpacotamento = System.nanoTime();
       workbook.write(destino);
       destino.flush();
@@ -772,17 +840,6 @@ public class ExportacaoRelatorioService {
 
       for (int i = 0; i < colunas.size(); i++) {
         sheet.setColumnWidth(i, Math.min(60, larguras[i]) * 256);
-      }
-
-      if (!colunas.isEmpty()) {
-        sheet.setAutoFilter(
-          new org.apache.poi.ss.util.CellRangeAddress(
-            0,
-            Math.max(0, indiceLinha - 1),
-            0,
-            colunas.size() - 1
-          )
-        );
       }
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();

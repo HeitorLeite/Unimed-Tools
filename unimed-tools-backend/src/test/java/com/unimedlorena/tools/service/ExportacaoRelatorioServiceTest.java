@@ -171,6 +171,7 @@ class ExportacaoRelatorioServiceTest {
         new ByteArrayInputStream(arquivo.conteudo())
       )
     ) {
+      assertThat(workbook.getSheetAt(0).getCTWorksheet().isSetAutoFilter()).isFalse();
       var linha = workbook.getSheetAt(0).getRow(1);
 
       assertThat(linha.getCell(0).getCellType()).isEqualTo(CellType.STRING);
@@ -462,6 +463,7 @@ class ExportacaoRelatorioServiceTest {
       )
     ) {
       var planilha = workbook.getSheetAt(0);
+      assertThat(planilha.getCTWorksheet().isSetAutoFilter()).isFalse();
       assertThat(planilha.getLastRowNum()).isEqualTo(3);
       assertThat(planilha.getRow(0).getLastCellNum()).isEqualTo((short) 1);
       assertThat(planilha.getRow(0).getCell(0).getStringCellValue())
@@ -470,5 +472,59 @@ class ExportacaoRelatorioServiceTest {
         .isEqualTo("Terceiro");
     }
     verify(sgu, times(2)).executar(anyString(), anyMap());
+  }
+
+  @Test
+  void previaEDownloadDevemUsarAMesmaEspecialidadeResolvidaSemFiltroNoXlsx() throws Exception {
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+    LinkedHashMap<String, Object> clinico = registroEspecialidade("PRONTO SOCORRO", "medicamento");
+    LinkedHashMap<String, Object> cardio = registroEspecialidade("CARDIOLOGIA", "HOLTER 24 HORAS");
+    when(sgu.executar(anyString(), anyMap())).thenReturn(
+      Map.of("content", List.of(new LinkedHashMap<>(clinico)), "last", false),
+      Map.of("content", List.of(new LinkedHashMap<>(clinico), new LinkedHashMap<>(cardio)), "last", true),
+      Map.of("content", List.of(new LinkedHashMap<>(clinico), new LinkedHashMap<>(cardio)), "last", true)
+    );
+    when(sgu.listar("api-especialidade")).thenReturn(Map.of(
+      "content", List.of(Map.of(
+        "nome", "api-especialidade",
+        "ordenacao", "NUMERO_GUIA",
+        "consultaSQL", "SELECT NOME_ESPECIALIDADE, COD_BENEFICIARIO, NUMERO_GUIA, DATA_GUIA FROM TESTE"
+      ))
+    ));
+    var relatorios = new ExportacaoRelatorioService(sgu, 1000, 0);
+
+    Map<String, Object> previa = relatorios.executarPaginaNormalizada(
+      "api-especialidade", Map.of("page", 1, "size", 1));
+    assertThat((List<?>) previa.get("content")).singleElement().satisfies(item ->
+      assertThat(((Map<?, ?>) item).get("NOME_ESPECIALIDADE")).isEqualTo("CARDIOLOGIA")
+    );
+
+    var destino = new ByteArrayOutputStream();
+    relatorios.exportarPara("api-especialidade", "xlsx", null, destino);
+    try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(destino.toByteArray()))) {
+      var planilha = workbook.getSheetAt(0);
+      assertThat(planilha.getCTWorksheet().isSetAutoFilter()).isFalse();
+      int coluna = -1;
+      for (var celula : planilha.getRow(0)) {
+        if ("NOME_ESPECIALIDADE".equals(celula.getStringCellValue())) coluna = celula.getColumnIndex();
+      }
+      assertThat(coluna).isNotNegative();
+      assertThat(planilha.getRow(1).getCell(coluna).getStringCellValue()).isEqualTo("CARDIOLOGIA");
+      assertThat(planilha.getRow(2).getCell(coluna).getStringCellValue()).isEqualTo("CARDIOLOGIA");
+    }
+  }
+
+  private LinkedHashMap<String, Object> registroEspecialidade(
+    String especialidade,
+    String descricao
+  ) {
+    LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
+    registro.put("COD_BENEFICIARIO", "BEN-1");
+    registro.put("NUMERO_GUIA", "GUIA-1");
+    registro.put("DATA_GUIA", "01/09/2026");
+    registro.put("NOME_ESPECIALIDADE", especialidade);
+    registro.put("DESCRICAO_ITEM", descricao);
+    registro.put("CID", "");
+    return registro;
   }
 }

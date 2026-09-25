@@ -164,7 +164,10 @@ public class RelatorioController {
     @RequestBody(required = false) Map<String, Object> parametros
   ) {
     validarApiNaoReservada(nome);
-    return sgu.executar(nome, parametros == null ? Map.of() : parametros);
+    return exportacao.executarPaginaNormalizada(
+      nome,
+      parametros == null ? Map.of() : parametros
+    );
   }
 
   /** Só inicia a resposta após concluir todas as páginas em arquivo temporário. */

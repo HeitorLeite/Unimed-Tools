@@ -14,6 +14,10 @@
 - Prévia, análise e exportação usam `relatorios.personalizado.api-nome`; o
   desenvolvimento mantém o sufixo `-dev`. A exportação simples não usa mais
   o nome fixo de produção.
+- Quando `NOME_ESPECIALIDADE` é selecionada, a consulta inclui internamente a
+  chave da guia, descrição e CID. Esses campos são removidos da projeção final
+  quando não foram escolhidos. Prévia e exportação resolvem a guia completa pelo
+  mesmo serviço antes de paginar, inclusive quando seus itens cruzam páginas.
 - No modo de ranking com separação mensal, a consulta consolida cada beneficiário
   por competência antes de retornar ao backend. O backend soma todas as competências
   para determinar o Top N do período completo e somente depois abre esses mesmos

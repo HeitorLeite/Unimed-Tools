@@ -7,9 +7,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 class EspecialidadeRelatorioResolverTest {
 
@@ -43,6 +46,168 @@ class EspecialidadeRelatorioResolverTest {
       Arguments.of("CIRURGIA DE IMPLANTE COCLEAR", "OTORRINOLARINGOLOGIA"),
       Arguments.of("PEDIATRIA", "PEDIATRIA"),
       Arguments.of("CIRURGIA PEDIATRICA", "CIRURGIA PEDIATRICA")
+    );
+  }
+
+  @ParameterizedTest
+  @MethodSource("cidsResiduaisAprovados")
+  void deveAplicarMapaCidResidualComOuSemPontuacao(String cid, String esperado) {
+    var registros = new ArrayList<>(List.of(
+      registro("A", cid, "01/01/2026", "CLINICO", "HEMOGRAMA", cid)
+    ));
+
+    resolver.normalizar(registros);
+
+    assertThat(registros.getFirst().get("NOME_ESPECIALIDADE")).isEqualTo(esperado);
+    assertThat(registros.getFirst().get("CID")).isEqualTo(cid);
+  }
+
+  static Stream<Arguments> cidsResiduaisAprovados() {
+    return Stream.of(
+      Arguments.of("K804", "GASTROENTEROLOGIA"),
+      Arguments.of("K80.4", "GASTROENTEROLOGIA"),
+      Arguments.of(" k80.4 ", "GASTROENTEROLOGIA"),
+      Arguments.of("K573", "GASTROENTEROLOGIA"),
+      Arguments.of("K57.3", "GASTROENTEROLOGIA"),
+      Arguments.of("K40", "CIRURGIA GERAL"),
+      Arguments.of("N390", "UROLOGIA"),
+      Arguments.of("N39.0", "UROLOGIA"),
+      Arguments.of("K801", "CIRURGIA GERAL"),
+      Arguments.of("K80.1", "CIRURGIA GERAL"),
+      Arguments.of("S829", "ORTOPEDIA E TRAUMATOLOGIA"),
+      Arguments.of("S82.9", "ORTOPEDIA E TRAUMATOLOGIA"),
+      Arguments.of("O809", "OBSTETRICIA"),
+      Arguments.of("O80.9", "OBSTETRICIA"),
+      Arguments.of("S729", "ORTOPEDIA E TRAUMATOLOGIA"),
+      Arguments.of("S72.9", "ORTOPEDIA E TRAUMATOLOGIA")
+    );
+  }
+
+  @ParameterizedTest
+  @MethodSource("descricoesResiduaisObrigatorias")
+  void deveAplicarRegrasResiduaisOrdenadas(String descricao, String esperado) {
+    var registros = new ArrayList<>(List.of(
+      registro("A", descricao, "01/01/2026", "CLINICO", descricao, "")
+    ));
+
+    resolver.normalizar(registros);
+
+    assertThat(registros.getFirst().get("NOME_ESPECIALIDADE")).isEqualTo(esperado);
+    assertThat(registros.getFirst().get("DESCRICAO_ITEM")).isEqualTo(descricao);
+  }
+
+  static Stream<Arguments> descricoesResiduaisObrigatorias() {
+    return Stream.of(
+      Arguments.of("TC ANGIOTOMOGRAFIA CORONARIANA", "CARDIOLOGIA"),
+      Arguments.of("HERNIORRAFIA UMBILICAL", "CIRURGIA GERAL"),
+      Arguments.of("HERNIORRAFIA INGUINAL", "CIRURGIA GERAL"),
+      Arguments.of("COLECISTECTOMIA", "CIRURGIA GERAL"),
+      Arguments.of("MAPEAMENTO DE RETINA MONOCULAR", "OFTALMOLOGIA"),
+      Arguments.of("TONOMETRIA BINOCULAR", "OFTALMOLOGIA"),
+      Arguments.of("PAQUIMETRIA MONOCULAR", "OFTALMOLOGIA"),
+      Arguments.of("MICROSCOPIA DE CORNEA", "OFTALMOLOGIA"),
+      Arguments.of("EXERESE DE PTERIGIO", "OFTALMOLOGIA"),
+      Arguments.of("TELECONSULTA ELETIVA", "TELECONSULTA"),
+      Arguments.of("US TRANSVAGINAL", "GINECOLOGIA"),
+      Arguments.of("US PROSTATA", "UROLOGIA"),
+      Arguments.of("US APARELHO URINARIO", "UROLOGIA"),
+      Arguments.of("MAMOGRAFIA BILATERAL", "MASTOLOGIA"),
+      Arguments.of("US MAMAS", "MASTOLOGIA"),
+      Arguments.of("DOPPLER COLORIDO VENOSO DE MEMBRO", "CIRURGIA VASCULAR"),
+      Arguments.of("PROCEDIMENTO DIAGNOSTICO EM PECA CIRURGICA OU ANATOMICA",
+        "ANATOMIA PATOLOGICA"),
+      Arguments.of("RM ARTICULAR", "ORTOPEDIA E TRAUMATOLOGIA"),
+      Arguments.of("RX PUNHO", "ORTOPEDIA E TRAUMATOLOGIA"),
+      Arguments.of("TC DE ABDOME", "RADIOLOGIA E DIAGNOSTICO POR IMAGEM")
+    );
+  }
+
+  @ParameterizedTest
+  @MethodSource("descricoesQueDevemContinuarClinico")
+  void naoDeveClassificarTermosGenericosOuFalsosPositivos(String descricao) {
+    var registros = new ArrayList<>(List.of(
+      registro("A", descricao, "01/01/2026", "CLINICO", descricao, "")
+    ));
+
+    resolver.normalizar(registros);
+
+    assertThat(registros.getFirst().get("NOME_ESPECIALIDADE")).isEqualTo("CLINICO");
+  }
+
+  static Stream<String> descricoesQueDevemContinuarClinico() {
+    return Stream.of(
+      "HEMOGRAMA COMPLETO",
+      "MEDICAMENTO",
+      "",
+      "LUVA CIRURGICA",
+      "LAMINA CIRURGICA",
+      "PECA DE MATERIAL CIRURGICO",
+      "AVALIACAO MUSCULAR",
+      "CULTURA DE URINA",
+      "ROTINA DE URINA",
+      "DOSAGEM DE AMILASE E LIPASE"
+    );
+  }
+
+  @Test
+  @ExtendWith(OutputCaptureExtension.class)
+  void cidDesconhecidoDeveSerRegistradoEPermitirDescricaoResidual(CapturedOutput output) {
+    var registros = new ArrayList<>(List.of(
+      registro("A", "CID", "01/01/2026", "CLINICO", "US TRANSVAGINAL", "Z99.9")
+    ));
+
+    resolver.normalizar(registros);
+
+    assertThat(registros.getFirst())
+      .containsEntry("NOME_ESPECIALIDADE", "GINECOLOGIA")
+      .containsEntry("CID", "Z99.9");
+    assertThat(output).contains("CID(s) ainda não mapeados: Z999");
+  }
+
+  @Test
+  void especialidadeEspecificaDeveVencerTodaACamadaResidual() {
+    var registros = new ArrayList<>(List.of(
+      registro("A", "21", "01/01/2026", "CARDIOLOGIA", "PARTO CESAREA", "O80.9"),
+      registro("A", "21", "01/01/2026", "CLINICO", "US TRANSVAGINAL", "K80.4")
+    ));
+
+    resolver.normalizar(registros);
+
+    assertThat(registros).extracting(item -> item.get("NOME_ESPECIALIDADE"))
+      .containsOnly("CARDIOLOGIA");
+  }
+
+  @Test
+  void devePropagarCidResidualParaTodosOsItensDaGuia() {
+    var registros = new ArrayList<>(List.of(
+      registro("A", "22", "01/01/2026", "CLINICO", "HEMOGRAMA", "K57.3"),
+      registro("A", "22", "01/01/2026", "CLINICO", "MEDICAMENTO", ""),
+      registro("A", "22", "01/01/2026", "CLINICO", "MATERIAL", "")
+    ));
+
+    resolver.normalizar(registros);
+
+    assertThat(registros).extracting(item -> item.get("NOME_ESPECIALIDADE"))
+      .containsOnly("GASTROENTEROLOGIA");
+  }
+
+  @ParameterizedTest
+  @MethodSource("especialidadesProduzidasPelaCamadaResidual")
+  void resultadoResidualDeveSerIdempotente(String especialidade) {
+    var registros = new ArrayList<>(List.of(
+      registro("A", especialidade, "01/01/2026", especialidade, "HEMOGRAMA", "")
+    ));
+
+    resolver.normalizar(registros);
+
+    assertThat(registros.getFirst().get("NOME_ESPECIALIDADE")).isEqualTo(especialidade);
+  }
+
+  static Stream<String> especialidadesProduzidasPelaCamadaResidual() {
+    return Stream.of(
+      "TELECONSULTA",
+      "ANATOMIA PATOLOGICA",
+      "RADIOLOGIA E DIAGNOSTICO POR IMAGEM"
     );
   }
 

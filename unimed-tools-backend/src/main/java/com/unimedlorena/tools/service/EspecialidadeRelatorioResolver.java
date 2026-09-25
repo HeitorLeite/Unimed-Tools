@@ -10,12 +10,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class EspecialidadeRelatorioResolver {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(
+    EspecialidadeRelatorioResolver.class
+  );
 
   private static final Set<String> COLUNAS_ESPECIALIDADE = Set.of("NOMEESPECIALIDADE");
   private static final Set<String> COLUNAS_BENEFICIARIO = Set.of(
@@ -33,16 +40,21 @@ public class EspecialidadeRelatorioResolver {
   private static final Pattern ACENTOS = Pattern.compile("\\p{M}+");
   private static final Pattern PONTUACAO = Pattern.compile("[^A-Z0-9]+");
   private static final Pattern ESPACOS = Pattern.compile("\\s+");
+  private static final Pattern SEPARADORES_CID = Pattern.compile("[.\\s]+");
 
   private static final Map<String, String> POR_NOME = criarMapaNomes();
-  private static final List<RegraDescricao> POR_DESCRICAO = criarRegrasDescricao();
-
-  /*
-   * O requisito não forneceu associações CID inequívocas e o projeto não tinha
-   * um catálogo confiável. O estágio permanece centralizado e só deve receber
-   * códigos aprovados, sem inferir especialidade por capítulo ou CID ambíguo.
-   */
-  private static final Map<String, String> POR_CID_SEGURO = Map.of();
+  private static final List<RegraDescricao> POR_DESCRICAO_PRINCIPAL = criarRegrasDescricaoPrincipal();
+  private static final List<RegraDescricao> POR_DESCRICAO_RESIDUAL = criarRegrasDescricaoResidual();
+  private static final Map<String, String> POR_CID_SEGURO = Map.ofEntries(
+    Map.entry("K804", "GASTROENTEROLOGIA"),
+    Map.entry("K573", "GASTROENTEROLOGIA"),
+    Map.entry("K40", "CIRURGIA GERAL"),
+    Map.entry("N390", "UROLOGIA"),
+    Map.entry("K801", "CIRURGIA GERAL"),
+    Map.entry("S829", "ORTOPEDIA E TRAUMATOLOGIA"),
+    Map.entry("O809", "OBSTETRICIA"),
+    Map.entry("S729", "ORTOPEDIA E TRAUMATOLOGIA")
+  );
 
   public boolean aplicavel(List<? extends Map<String, Object>> registros) {
     return registros != null && registros.stream().anyMatch(registro ->
@@ -74,9 +86,17 @@ public class EspecialidadeRelatorioResolver {
       guia.cids.add(texto(valor(registro, COLUNAS_CID)));
     }
 
+    Set<String> cidsNaoMapeados = new TreeSet<>();
     for (Guia guia : guias.values()) {
-      String especialidade = resolverGuia(guia);
+      String especialidade = resolverGuia(guia, cidsNaoMapeados);
       guia.itens.forEach(item -> item.registro.put(item.colunaEspecialidade, especialidade));
+    }
+    if (!cidsNaoMapeados.isEmpty()) {
+      LOGGER.warn(
+        "Normalização residual encontrou {} CID(s) ainda não mapeados: {}",
+        cidsNaoMapeados.size(),
+        String.join(", ", cidsNaoMapeados)
+      );
     }
     return registros;
   }
@@ -91,7 +111,18 @@ public class EspecialidadeRelatorioResolver {
     ).replaceAll(" ").trim()).replaceAll(" ");
   }
 
-  private String resolverGuia(Guia guia) {
+  private String resolverGuia(Guia guia, Set<String> cidsNaoMapeados) {
+    String principal = resolverPrincipal(guia);
+    if (!"CLINICO".equals(principal)) return principal;
+
+    String porCid = resolverCidResidual(guia, cidsNaoMapeados);
+    if (porCid != null) return porCid;
+
+    String porDescricao = resolverDescricao(guia, POR_DESCRICAO_RESIDUAL);
+    return porDescricao == null ? "CLINICO" : porDescricao;
+  }
+
+  private String resolverPrincipal(Guia guia) {
     String generica = null;
     for (String nome : guia.nomes) {
       String encontrada = POR_NOME.get(normalizarTexto(nome));
@@ -101,18 +132,39 @@ public class EspecialidadeRelatorioResolver {
     }
     if (generica != null) return generica;
 
-    for (RegraDescricao regra : POR_DESCRICAO) {
+    String porDescricao = resolverDescricao(guia, POR_DESCRICAO_PRINCIPAL);
+    return porDescricao == null ? "CLINICO" : porDescricao;
+  }
+
+  private String resolverDescricao(Guia guia, List<RegraDescricao> regras) {
+    for (RegraDescricao regra : regras) {
       boolean corresponde = guia.descricoes.stream()
         .map(this::normalizarTexto)
         .anyMatch(regra::corresponde);
       if (corresponde) return regra.especialidade;
     }
+    return null;
+  }
 
+  private String resolverCidResidual(Guia guia, Set<String> cidsNaoMapeados) {
+    String especialidade = null;
     for (String cid : guia.cids) {
-      String encontrada = POR_CID_SEGURO.get(normalizarTexto(cid));
-      if (encontrada != null) return encontrada;
+      String normalizado = normalizarCid(cid);
+      if (normalizado.isBlank()) continue;
+      String encontrada = POR_CID_SEGURO.get(normalizado);
+      if (encontrada != null) {
+        if (especialidade == null) especialidade = encontrada;
+      } else {
+        cidsNaoMapeados.add(normalizado);
+      }
     }
-    return "CLINICO";
+    return especialidade;
+  }
+
+  private String normalizarCid(String cid) {
+    return cid == null
+      ? ""
+      : SEPARADORES_CID.matcher(cid.toUpperCase(Locale.ROOT)).replaceAll("");
   }
 
   private String chaveGuia(Map<String, Object> registro, int indice) {
@@ -155,6 +207,7 @@ public class EspecialidadeRelatorioResolver {
   private static Map<String, String> criarMapaNomes() {
     Map<String, String> mapa = new LinkedHashMap<>();
     aliases(mapa, "ALERGIA E IMUNOLOGIA", "ALERGIA E IMUNOLOGIA");
+    aliases(mapa, "ANATOMIA PATOLOGICA", "ANATOMIA PATOLOGICA");
     aliases(mapa, "ANESTESIOLOGIA", "ANESTESIOLOGIA");
     aliases(mapa, "CARDIOLOGIA", "CARDIOLOGIA", "CLINICA DE CARDIOLOGIA",
       "ELETROFISIOLOGIA CARDIACA/ABLA", "CIRURGIA CARDIOVASCULAR");
@@ -206,11 +259,12 @@ public class EspecialidadeRelatorioResolver {
     aliases(mapa, "PNEUMOLOGIA", "PNEUMOLOGIA", "CONSULTA EM PNEUMOLOGIA");
     aliases(mapa, "PSICOLOGIA", "PSICOLOGIA", "ATENDIMENTO PSICOSSOCIAL");
     aliases(mapa, "PSIQUIATRIA", "PSIQUIATRIA", "CONSULTA EM PSIQUIATRIA");
-    aliases(mapa, "RADIOLOGIA E DIAGNOSTICO POR IMAGEM", "RADIOLOGIA E DIAG. POR IMAGEM",
-      "CLINICA DE IMAGEM", "DENSITOMETRIA OSSEA", "ULTRASSONOGRAFIA",
-      "RESSONANCIA MAGNETICA", "MEDICINA NUCLEAR");
+    aliases(mapa, "RADIOLOGIA E DIAGNOSTICO POR IMAGEM", "RADIOLOGIA E DIAGNOSTICO POR IMAGEM",
+      "RADIOLOGIA E DIAG. POR IMAGEM", "CLINICA DE IMAGEM", "DENSITOMETRIA OSSEA",
+      "ULTRASSONOGRAFIA", "RESSONANCIA MAGNETICA", "MEDICINA NUCLEAR");
     aliases(mapa, "REUMATOLOGIA", "REUMATOLOGIA", "CONSULTA EM REUMATOLOGIA");
     aliases(mapa, "TERAPIA OCUPACIONAL", "TERAPIA OCUPACIONAL");
+    aliases(mapa, "TELECONSULTA", "TELECONSULTA");
     aliases(mapa, "UROLOGIA", "UROLOGIA", "CONSULTA EM UROLOGIA",
       "VASO-VASOSTOMIA MICROCIRURGIA", "HIPERTERMIA PROSTATICA");
     return Map.copyOf(mapa);
@@ -220,7 +274,7 @@ public class EspecialidadeRelatorioResolver {
     for (String origem : origens) mapa.put(normalizarEstatico(origem), destino);
   }
 
-  private static List<RegraDescricao> criarRegrasDescricao() {
+  private static List<RegraDescricao> criarRegrasDescricaoPrincipal() {
     return List.of(
       regra("OBSTETRICIA", "OBSTETRIC", "PARTO", "CESAREA", "CESARIANA", "GESTACAO",
         "GESTANTE", "PRE-NATAL", "PUERPERIO"),
@@ -257,9 +311,68 @@ public class EspecialidadeRelatorioResolver {
     );
   }
 
+  /**
+   * Segunda camada aplicada exclusivamente quando a resolução já existente
+   * terminou em CLINICO. A ordem evita que exames específicos sejam absorvidos
+   * pela regra genérica de diagnóstico por imagem.
+   */
+  private static List<RegraDescricao> criarRegrasDescricaoResidual() {
+    return List.of(
+      regraResidual("TELECONSULTA", "TELECONSULTA", "TELECONSULTA ELETIVA"),
+      regraResidual("OBSTETRICIA", "OBSTETRICIA", "OBSTETRICA", "OBSTETRICO", "PARTO",
+        "CESAREA", "CESARIANA", "GESTACAO", "GESTANTE", "PRE NATAL", "PUERPERIO",
+        "TRANSLUCENCIA NUCAL", "FETAL"),
+      regraResidual("CIRURGIA PEDIATRICA", "CIRURGIA PEDIATRICA"),
+      regraResidual("NEUROCIRURGIA", "NEUROCIRURGIA", "TRATAMENTO CIRURGICO DA EPILEPSIA"),
+      regraResidual("OFTALMOLOGIA", "OFTALMO", "OFTALMOLOGIA", "OFTALMOSCOPIA", "RETINA",
+        "RETINOGRAFIA", "CORNEA", "TONOMETRIA", "PAQUIMETRIA", "CERATOSCOPIA", "MONOCULAR",
+        "BINOCULAR", "FUNDOSCOPIA", "CAMPIMETRIA", "PTERIGIO", "CONJUNTIVAL"),
+      regraResidual("OTORRINOLARINGOLOGIA", "OTORRINO", "COCLEAR", "AUDIOMETRIA",
+        "IMPEDANCIOMETRIA", "IMITANCIOMETRIA", "NASOFIBRO", "LARINGOSCOPIA", "CERUMEN",
+        "MASTOIDE", "ORELHA"),
+      regraResidual("CARDIOLOGIA", "ANGIOTOMOGRAFIA", "ANGIOTOMOGRAFIA CORONARIANA", "ECG",
+        "ELETROCARDIOGRAMA", "ECODOPPLERCARDIOGRAMA", "ECOCARDIOGRAMA", "HOLTER",
+        "MAPA 24 HORAS", "TESTE ERGOMETRICO", "CORONARIANA", "VASOS CERVICAIS ARTERIAIS",
+        "CAROTIDAS"),
+      regraResidual("GINECOLOGIA", "TRANSVAGINAL", "UTERO", "OVARIO", "OVARIOS",
+        "ENDOMETRIOSE", "COLPOSCOPIA", "HISTEROSCOPIA", "CERVICO VAGINAL", "CERVICOVAGINAL"),
+      regraResidual("UROLOGIA", "APARELHO URINARIO", "PROSTATA", "PROSTATICO", "PSA",
+        "URETER", "URETERES", "LITOTRIPSIA", "URODINAMICA"),
+      regraResidual("GASTROENTEROLOGIA", "COLONOSCOPIA", "ENDOSCOPIA DIGESTIVA", "CPRE",
+        "MUCOSECTOMIA", "PROCTOLOGIA", "COLOPROCTOLOGIA", "RETOSSIGMOIDOSCOPIA", "GASTROSCOPIA"),
+      regraResidual("HEMATOLOGIA", "TRANSPLANTE DE MEDULA", "MIELOGRAMA"),
+      regraResidual("CIRURGIA VASCULAR", "DOPPLER COLORIDO VENOSO", "ANGIOLOGIA", "VARIZES"),
+      regraResidual("PNEUMOLOGIA", "PNEUMOLOGIA"),
+      regraResidual("DERMATOLOGIA", "DERMATOLOGIA"),
+      regraResidual("CIRURGIA PLASTICA", "MICROCIRUGIA REPARADORA", "RETALHOS CUTANEOS"),
+      regraResidual("PEDIATRIA", "PEDIATRIA", "CONSULTA PEDIATRICA", "PUERICULTURA"),
+      regraResidual("FISIOTERAPIA", "FISIOTERAPIA", "RECUPERACAO FUNCIONAL POS OPERATORIA",
+        "RECUPERACAO FUNCIONAL POSOPERATORIA"),
+      regraResidual("ORTOPEDIA E TRAUMATOLOGIA", "ORTOPEDIA", "ORTOPEDICO", "OSTEOMIOARTICULAR",
+        "ARTICULAR", "ARTICULACAO", "TORNOZELO", "PUNHO", "JOELHO", "QUIRODACTILO",
+        "PODODACTILO", "ESCANOMETRIA", "COLUNA LOMBO SACRA", "COLUNA CERVICAL", "COLUNA TOTAL"),
+      regraResidual("MASTOLOGIA", "MAMOGRAFIA", "US MAMAS", "ULTRASSONOGRAFIA DE MAMAS"),
+      regraResidual("ANATOMIA PATOLOGICA", "PROCEDIMENTO DIAGNOSTICO EM PECA CIRURGICA OU ANATOMICA",
+        "PROCEDIMENTO DIAGNOSTICO EM PECA ANATOMICA",
+        "PROCEDIMENTO DIAGNOSTICO EM GRUPOS DE LINFONODOS", "CELL BLOCK", "COLORACAO ESPECIAL",
+        "PROCEDIMENTO DIAGNOSTICO CITOPATOLOGICO"),
+      regraResidual("CIRURGIA GERAL", "COLECISTECTOMIA", "HERNIORRAFIA", "HERNIA",
+        "APENDICECTOMIA", "LAPAROTOMIA", "CIRURGIA GERAL", "TAXA DE SALA CIRURGICA",
+        "TAXA COMPACTA DE SALA DE PEQUENAS CIRURGIAS", "LAPAROSCOPIA PARA CIRURGIA"),
+      regraResidual("RADIOLOGIA E DIAGNOSTICO POR IMAGEM", "TC", "RM", "RX", "US",
+        "TOMOGRAFIA COMPUTADORIZADA", "RESSONANCIA MAGNETICA", "RADIOGRAFIA",
+        "DOPPLER COLORIDO DE ORGAO OU ESTRUTURA ISOLADA")
+    );
+  }
+
   private static RegraDescricao regra(String especialidade, String... termos) {
     return new RegraDescricao(especialidade, List.of(termos).stream()
-      .map(EspecialidadeRelatorioResolver::normalizarEstatico).toList());
+      .map(EspecialidadeRelatorioResolver::normalizarEstatico).toList(), false);
+  }
+
+  private static RegraDescricao regraResidual(String especialidade, String... termos) {
+    return new RegraDescricao(especialidade, List.of(termos).stream()
+      .map(EspecialidadeRelatorioResolver::normalizarEstatico).toList(), true);
   }
 
   private static String normalizarEstatico(String valor) {
@@ -283,9 +396,16 @@ public class EspecialidadeRelatorioResolver {
     String colunaEspecialidade
   ) {}
 
-  private record RegraDescricao(String especialidade, List<String> termos) {
+  private record RegraDescricao(
+    String especialidade,
+    List<String> termos,
+    boolean exigirLimitesDePalavra
+  ) {
     boolean corresponde(String descricao) {
-      return !descricao.isBlank() && termos.stream().anyMatch(descricao::contains);
+      if (descricao.isBlank()) return false;
+      if (!exigirLimitesDePalavra) return termos.stream().anyMatch(descricao::contains);
+      String delimitada = " " + descricao + " ";
+      return termos.stream().anyMatch(termo -> delimitada.contains(" " + termo + " "));
     }
   }
 }

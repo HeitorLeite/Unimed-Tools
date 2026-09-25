@@ -15,12 +15,11 @@ guias possivelmente diferentes nunca são misturados.
 
 ## Resolução
 
-A prioridade é aplicada sobre todas as linhas da guia:
+A resolução principal já existente continua aplicada sobre todas as linhas da guia:
 
 1. nomes de especialidade aprovados;
 2. descrições de alta confiança;
-3. catálogo de CID seguro;
-4. `CLINICO`.
+3. `CLINICO`.
 
 Nomes são comparados sem diferença de caixa, acentos, espaços repetidos e
 pontuação. O conteúdo original de `DESCRICAO_ITEM` e `CID` não é modificado.
@@ -34,11 +33,25 @@ guia. As regras preservam separadamente GINECOLOGIA/OBSTETRICIA,
 NEUROLOGIA/NEUROCIRURGIA, NEUROLOGIA PEDIATRICA e
 PEDIATRIA/CIRURGIA PEDIATRICA.
 
-O projeto não possuía um mapa CID → especialidade e o requisito não forneceu
-associações aprovadas. Por segurança, o catálogo de CID começa vazio e fica
-centralizado no resolvedor para futuras inclusões validadas. Nenhuma associação
-por capítulo ou CID ambíguo é inventada; sem evidência anterior, aplica-se
-`CLINICO`.
+Somente quando essa resolução termina exatamente em `CLINICO`, uma segunda
+camada tenta, nesta ordem:
+
+1. CID aprovado;
+2. termos residuais da descrição, em prioridade explícita;
+3. `CLINICO`.
+
+O catálogo CID aprovado contém apenas `K804`, `K573`, `K40`, `N390`, `K801`,
+`S829`, `O809` e `S729`. Pontos, espaços e diferença de caixa são ignorados na
+comparação, sem modificar o CID original. Códigos não cadastrados nunca são
+inferidos por capítulo; o backend registra somente o código normalizado como não
+mapeado para revisão e ainda permite que a descrição resolva a guia.
+
+As regras residuais ficam em uma lista central e ordenada. Evidências específicas
+como obstetrícia, cardiologia, oftalmologia, urologia, ortopedia, mastologia e
+anatomia patológica são avaliadas antes de radiologia genérica. Indicadores curtos
+como `TC`, `RM`, `RX` e `US` exigem limites de palavra, evitando coincidências em
+outras palavras. `CIRURGICA` isolado, materiais cirúrgicos, medicamentos e exames
+laboratoriais genéricos não classificam a guia.
 
 ## Prévia, exportação e desempenho
 

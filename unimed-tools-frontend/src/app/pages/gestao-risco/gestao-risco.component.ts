@@ -31,8 +31,8 @@ interface RiskReport {
   styleUrl: './gestao-risco.component.scss',
 })
 export class GestaoRiscoComponent implements OnInit {
-  formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'xlsx';
-  competence = this.currentCompetence();
+  formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'csv';
+  competence = this.previousCompetence();
   additionalValues: Record<string, string> = {};
   loadingDefinitions = true;
   generating = false;
@@ -134,11 +134,46 @@ export class GestaoRiscoComponent implements OnInit {
   }
 
   get hasPreview(): boolean {
-    return this.selectedReports.some((report) => report.previewed || report.loading);
+    return this.selectedReports.some(
+      (report) => report.previewed || report.loading || Boolean(report.error),
+    );
+  }
+
+  get previewsGenerated(): boolean {
+    return (
+      this.selectedReports.length > 0 &&
+      this.selectedReports.every((report) => report.previewed && !report.loading)
+    );
+  }
+
+  canDownloadReport(report: RiskReport): boolean {
+    return (
+      Boolean(report.previewed) &&
+      !report.loading &&
+      !report.downloading &&
+      !this.generating &&
+      !this.downloadingAll &&
+      Boolean(report.definition)
+    );
   }
 
   toggle(report: RiskReport): void {
+    if (this.generating || this.downloadingAll) return;
     report.selected = !report.selected;
+    report.records = [];
+    report.columns = [];
+    report.previewed = false;
+    if (report.definition) report.error = '';
+  }
+
+  onCompetenceChange(value: string): void {
+    this.competence = value;
+    this.clearPreviews();
+  }
+
+  onAdditionalValueChange(filter: string, value: string): void {
+    this.additionalValues[filter] = value;
+    this.clearPreviews();
   }
 
   async generate(): Promise<void> {
@@ -160,7 +195,7 @@ export class GestaoRiscoComponent implements OnInit {
 
     this.generating = true;
     for (const report of this.selectedReports) {
-      report.previewed = true;
+      report.previewed = false;
       report.loading = true;
       report.error = '';
       report.records = [];
@@ -173,6 +208,7 @@ export class GestaoRiscoComponent implements OnInit {
         });
         report.records = Array.isArray(response.content) ? response.content : [];
         report.columns = report.records.length ? Object.keys(report.records[0]) : [];
+        report.previewed = true;
       } catch (error: any) {
         report.error =
           error?.error?.message || error?.message || 'Não foi possível gerar a prévia.';
@@ -187,7 +223,14 @@ export class GestaoRiscoComponent implements OnInit {
 
   download(report: RiskReport): void {
     const formato = this.formatoSelecionado;
-    if (report.downloading || this.generating || this.downloadingAll) return;
+    if (
+      report.downloading ||
+      this.generating ||
+      this.downloadingAll ||
+      !report.definition ||
+      !report.previewed
+    )
+      return;
     report.downloading = true;
     report.error = '';
     const filename = `gestao_risco_${report.arquivo}_${this.competence}`;
@@ -210,7 +253,13 @@ export class GestaoRiscoComponent implements OnInit {
 
   downloadAll(): void {
     const formato = this.formatoSelecionado;
-    if (!this.selectedReports.length || this.downloadingAll || this.generating) return;
+    if (
+      !this.selectedReports.length ||
+      this.downloadingAll ||
+      this.generating ||
+      !this.previewsGenerated
+    )
+      return;
     this.downloadingAll = true;
     this.error = '';
     const request = {
@@ -263,9 +312,19 @@ export class GestaoRiscoComponent implements OnInit {
       .replace(/[^a-z0-9]/g, '');
   }
 
-  private currentCompetence(): string {
-    const date = new Date();
-    return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+  private clearPreviews(): void {
+    this.reports.forEach((report) => {
+      report.records = [];
+      report.columns = [];
+      report.previewed = false;
+      if (report.definition) report.error = '';
+    });
+  }
+
+  private previousCompetence(): string {
+    const today = new Date();
+    const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    return `${previousMonth.getFullYear()}${String(previousMonth.getMonth() + 1).padStart(2, '0')}`;
   }
 
   private save(blob: Blob, filename: string): void {

@@ -7,6 +7,70 @@ import { RelatorioService } from '../../../shared/services/relatorio.service';
 import { RelatoriosPersonalizadosComponent } from './relatorios-personalizados.component';
 
 describe('RelatoriosPersonalizadosComponent', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    [new Date(2026, 8, 15, 12), '2026-08'],
+    [new Date(2026, 0, 15, 12), '2025-12'],
+  ])(
+    'inicia sem colunas selecionadas e recomenda a competência anterior',
+    (hoje, competenciaEsperada) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(hoje);
+      const relatorioService = {
+        configuracaoPersonalizada: vi.fn(() =>
+          of({
+            apiNome: '0090-relatorio-personalizado',
+            fonte: 'Teste',
+            colunas: [
+              {
+                id: 'NOME_BENEFICIARIO',
+                rotulo: 'Nome do beneficiário',
+                grupo: 'Beneficiário',
+                selecionadaPorPadrao: true,
+                sensivel: true,
+              },
+            ],
+            filtros: [
+              {
+                id: 'competencia_inicio',
+                rotulo: 'Competência inicial',
+                grupo: 'Período',
+                tipo: 'competencia',
+                placeholder: '',
+                obrigatorio: true,
+                opcoes: [],
+              },
+              {
+                id: 'competencia_fim',
+                rotulo: 'Competência final',
+                grupo: 'Período',
+                tipo: 'competencia',
+                placeholder: '',
+                obrigatorio: true,
+                opcoes: [],
+              },
+            ],
+            limites: { maximoColunas: 10, maximoMeses: 12, maximoLinhasPagina: 100 },
+          }),
+        ),
+      } as unknown as RelatorioService;
+      const component = new RelatoriosPersonalizadosComponent(relatorioService, {
+        detectChanges: vi.fn(),
+      } as unknown as ChangeDetectorRef);
+
+      component.ngOnInit();
+
+      expect(component.colunasSelecionadas.size).toBe(0);
+      expect(component.ordemColunasSelecionadas).toEqual([]);
+      expect(component.colunasResultado).toEqual([]);
+      expect(component.valoresFiltro['competencia_inicio']).toBe(competenciaEsperada);
+      expect(component.valoresFiltro['competencia_fim']).toBe(competenciaEsperada);
+    },
+  );
+
   it('usa metadados para formatar valores e meses, preservando códigos e idade', () => {
     const component = new RelatoriosPersonalizadosComponent(
       {} as RelatorioService, { detectChanges: vi.fn() } as unknown as ChangeDetectorRef,

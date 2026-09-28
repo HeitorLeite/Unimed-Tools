@@ -10,11 +10,14 @@
     </div>
 
     <div class="batch-action">
-    <label class="export-format">Formato do arquivo
-      <select [(ngModel)]="formatoSelecionado" aria-label="Formato do arquivo">
-        <option value="xlsx">XLSX</option><option value="csv">CSV</option><option value="txt">TXT</option>
-      </select>
-    </label>
+      <label class="export-format"
+        >Formato do arquivo
+        <select [(ngModel)]="formatoSelecionado" aria-label="Formato do arquivo">
+          <option value="csv">CSV</option>
+          <option value="txt">TXT</option>
+          <option value="xlsx">XLSX</option>
+        </select>
+      </label>
 
       <button
         class="btn btn-primary batch-download"
@@ -22,6 +25,7 @@
         [disabled]="
           !selectedCompanies.length ||
           !selectedReports.length ||
+          !previewsGenerated ||
           generating ||
           downloadingAll ||
           loadingDefinitions
@@ -137,7 +141,8 @@
           type="text"
           maxlength="6"
           inputmode="numeric"
-          [(ngModel)]="competence"
+          [ngModel]="competence"
+          (ngModelChange)="onCompetenceChange($event)"
           [disabled]="generating || downloadingAll"
           placeholder="AAAAMM"
         />
@@ -148,8 +153,9 @@
         <input
           id="commercial-reference"
           type="date"
-          [(ngModel)]="referenceDate"
-          [disabled]="generating || downloadingAll"
+          [ngModel]="referenceDate"
+          (ngModelChange)="onReferenceDateChange($event)"
+          [disabled]="!ageRangeSelected || generating || downloadingAll"
         />
       </div>
 
@@ -220,7 +226,8 @@
         <strong>Prévia resumida</strong>
         <p>
           Para manter a consulta rápida, a tela mostra somente
-          <b>{{ previewCompany?.nome }}</b>. Os arquivos baixados incluem os dados de todas as
+          <b>{{ previewCompany?.nome }}</b
+          >. Os arquivos baixados incluem os dados de todas as
           {{ selectedCompanies.length }} empresas selecionadas.
         </p>
       </div>
@@ -231,11 +238,7 @@
             <small>{{ report.api }}</small>
             <h2>{{ report.nome }}</h2>
           </div>
-          <button
-            type="button"
-            [disabled]="!selectedCompanies.length || report.downloading || generating"
-            (click)="download(report)"
-          >
+          <button type="button" [disabled]="!canDownloadReport(report)" (click)="download(report)">
             {{
               report.downloading
                 ? 'Preparando…'
@@ -247,7 +250,9 @@
         </header>
 
         <div class="loading" *ngIf="report.loading">Consultando o SGU…</div>
-        <p class="error result-error" *ngIf="report.error && report.definition">{{ report.error }}</p>
+        <p class="error result-error" *ngIf="report.error && report.definition">
+          {{ report.error }}
+        </p>
 
         <app-report-preview
           *ngIf="!report.loading && report.previewed"

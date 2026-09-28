@@ -18,7 +18,13 @@
       <button
         type="button"
         class="btn btn-primary batch-download"
-        [disabled]="!selectedReports.length || loadingDefinitions || generating || downloadingAll"
+        [disabled]="
+          !selectedReports.length ||
+          !previewsGenerated ||
+          loadingDefinitions ||
+          generating ||
+          downloadingAll
+        "
         [attr.aria-busy]="downloadingAll"
         (click)="downloadAll()"
       >
@@ -34,7 +40,7 @@
         {{ downloadingAll ? 'Preparando ZIP…' : 'Baixar todos selecionados' }}
         <span class="batch-count">{{ selectedReports.length }}</span>
       </button>
-      <small>Um único ZIP com os relatórios em XLSX.</small>
+      <small>Um único ZIP com os relatórios em {{ formatoSelecionado.toUpperCase() }}.</small>
     </div>
   </header>
 
@@ -52,7 +58,8 @@
         type="text"
         maxlength="6"
         inputmode="numeric"
-        [(ngModel)]="competence"
+        [ngModel]="competence"
+        (ngModelChange)="onCompetenceChange($event)"
         [disabled]="generating || downloadingAll"
         placeholder="202609"
     /></label>
@@ -60,7 +67,8 @@
       ><span>{{ label(filter) }}</span
       ><input
         type="text"
-        [(ngModel)]="additionalValues[filter]"
+        [ngModel]="additionalValues[filter]"
+        (ngModelChange)="onAdditionalValueChange(filter, $event)"
         [disabled]="generating || downloadingAll"
     /></label>
     <button
@@ -112,14 +120,12 @@
       </div>
     </div>
     <ng-container *ngFor="let report of selectedReports">
-      <article *ngIf="report.previewed">
+      <article *ngIf="report.previewed || report.loading || report.error">
         <header>
           <h2>{{ report.nome }}</h2>
           <button
             type="button"
-            [disabled]="
-              !report.records.length || report.downloading || generating || downloadingAll
-            "
+            [disabled]="!canDownloadReport(report)"
             (click)="download(report)"
           >
             {{ report.downloading ? 'Preparando…' : 'Baixar ' + formatoSelecionado.toUpperCase() }}

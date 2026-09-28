@@ -99,7 +99,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   rankingMetrica = '';
   colunaResultadoArrastada: string | null = null;
 
-  formatoSelecionado: FormatoExportacao = 'xlsx';
+  formatoSelecionado: FormatoExportacao = 'csv';
   nomeArquivo = 'relatorio_personalizado';
   carregandoConfiguracao = true;
   gerando = false;
@@ -317,7 +317,8 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.sincronizarOrdemColunas();
     const indiceAtual = this.ordemColunasSelecionadas.indexOf(id);
     const novoIndice = indiceAtual + deslocamento;
-    if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length) return;
+    if (indiceAtual < 0 || novoIndice < 0 || novoIndice >= this.ordemColunasSelecionadas.length)
+      return;
 
     const ordem = [...this.ordemColunasSelecionadas];
     [ordem[indiceAtual], ordem[novoIndice]] = [ordem[novoIndice], ordem[indiceAtual]];
@@ -484,11 +485,14 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
 
   limparFiltros(): void {
     this.versaoLimpezaFiltros++;
-    const competenciaAtual = this.competenciaAtual();
+    const competenciaRecomendada = this.competenciaRecomendada();
     Object.keys(this.valoresFiltro).forEach((chave) => (this.valoresFiltro[chave] = ''));
-    this.valoresFiltro['competencia_inicio'] = competenciaAtual;
-    this.valoresFiltro['competencia_fim'] = competenciaAtual;
-    this.filtrosAtivos = this.configuracao?.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id) ?? [];
+    this.valoresFiltro['competencia_inicio'] = competenciaRecomendada;
+    this.valoresFiltro['competencia_fim'] = competenciaRecomendada;
+    this.filtrosAtivos =
+      this.configuracao?.filtros
+        .filter((filtro) => filtro.obrigatorio)
+        .map((filtro) => filtro.id) ?? [];
     this.registros = [];
     this.totalRegistros = null;
     this.totalRegistrosExportados = null;
@@ -500,8 +504,22 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     const mensal = id.match(/^(.+)__(\d{4})(\d{2})$/);
     if (mensal) {
       const [, base, ano, mes] = mensal;
-      const rotulo = this.configuracao?.colunas.find((coluna) => coluna.id === base)?.rotulo ?? base;
-      const meses = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+      const rotulo =
+        this.configuracao?.colunas.find((coluna) => coluna.id === base)?.rotulo ?? base;
+      const meses = [
+        'JAN',
+        'FEV',
+        'MAR',
+        'ABR',
+        'MAI',
+        'JUN',
+        'JUL',
+        'AGO',
+        'SET',
+        'OUT',
+        'NOV',
+        'DEZ',
+      ];
       const indice = Number(mes) - 1;
       const mesRotulo = meses[indice] ?? mes;
       return `${rotulo} ${mesRotulo}/${ano}`;
@@ -586,7 +604,9 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     const permitidas = new Set(this.configuracao.colunas.map((coluna) => coluna.id));
     this.ordemColunasSelecionadas = preset.colunas.filter((idColuna) => permitidas.has(idColuna));
     this.colunasSelecionadas = new Set(this.ordemColunasSelecionadas);
-    const obrigatorios = this.configuracao.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id);
+    const obrigatorios = this.configuracao.filtros
+      .filter((filtro) => filtro.obrigatorio)
+      .map((filtro) => filtro.id);
     this.filtrosAtivos = [...new Set([...obrigatorios, ...preset.filtros])];
     this.somenteDistintos = preset.distinct;
     this.separarMeses = Boolean(preset.separarMeses);
@@ -606,8 +626,8 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       this.rankingMetrica = '';
     }
     this.ajustarRankingDisponivel();
-    Object.keys(this.valoresFiltro).forEach((key) => this.valoresFiltro[key] = '');
-    const competencia = this.competenciaAtual();
+    Object.keys(this.valoresFiltro).forEach((key) => (this.valoresFiltro[key] = ''));
+    const competencia = this.competenciaRecomendada();
     this.valoresFiltro['competencia_inicio'] = competencia;
     this.valoresFiltro['competencia_fim'] = competencia;
     this.colunasResultado = [...this.ordemColunasSelecionadas];
@@ -624,7 +644,7 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
 
   valorCelula(coluna: string, valor: unknown): string {
     const base = coluna.split('__')[0];
-    const metadados = this.configuracao?.colunas.find(campo => campo.id === base);
+    const metadados = this.configuracao?.colunas.find((campo) => campo.id === base);
     if (metadados?.casasDecimais === 2 && !isProtectedBeneficiaryColumn(coluna)) {
       return formatAssistencialDecimal(valor) ?? formatReportPreviewValue(coluna, valor);
     }
@@ -681,17 +701,13 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
     this.gruposFiltros = this.agrupar(configuracao.filtros);
     this.gruposColunas = this.agrupar(configuracao.colunas);
     this.valoresFiltro = Object.fromEntries(configuracao.filtros.map((filtro) => [filtro.id, '']));
-    this.filtrosAtivos = configuracao.filtros.filter((filtro) => filtro.obrigatorio).map((filtro) => filtro.id);
+    this.filtrosAtivos = configuracao.filtros
+      .filter((filtro) => filtro.obrigatorio)
+      .map((filtro) => filtro.id);
 
-    const competenciaAtual = this.competenciaAtual();
-    this.valoresFiltro['competencia_inicio'] = competenciaAtual;
-    this.valoresFiltro['competencia_fim'] = competenciaAtual;
-    configuracao.colunas
-      .filter((coluna) => coluna.selecionadaPorPadrao)
-      .forEach((coluna) => {
-        this.colunasSelecionadas.add(coluna.id);
-        this.ordemColunasSelecionadas.push(coluna.id);
-      });
+    const competenciaRecomendada = this.competenciaRecomendada();
+    this.valoresFiltro['competencia_inicio'] = competenciaRecomendada;
+    this.valoresFiltro['competencia_fim'] = competenciaRecomendada;
     this.colunasResultado = [...this.ordemColunasSelecionadas];
   }
 
@@ -873,7 +889,9 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   private carregarPresets(): AssistencialPreset[] {
     if (typeof localStorage === 'undefined') return [];
     try {
-      return JSON.parse(localStorage.getItem('unimed-tools.assistencial.modelos.v1') || '[]') as AssistencialPreset[];
+      return JSON.parse(
+        localStorage.getItem('unimed-tools.assistencial.modelos.v1') || '[]',
+      ) as AssistencialPreset[];
     } catch {
       return [];
     }
@@ -891,9 +909,10 @@ export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  private competenciaAtual(): string {
+  private competenciaRecomendada(): string {
     const hoje = new Date();
-    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    const mesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    return `${mesAnterior.getFullYear()}-${String(mesAnterior.getMonth() + 1).padStart(2, '0')}`;
   }
 
   private nomeArquivoSeguro(): string {

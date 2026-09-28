@@ -167,7 +167,6 @@ h3 {
   }
 }
 
-
 /* Drag and drop da ordem de saída */
 .ordem-colunas li {
   position: relative;
@@ -175,7 +174,9 @@ h3 {
   min-height: 42px;
   padding: 8px 6px;
   border-radius: 8px;
-  transition: background 0.15s ease, opacity 0.15s ease;
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease;
 }
 .ordem-colunas li:hover {
   background: #f7faf8;

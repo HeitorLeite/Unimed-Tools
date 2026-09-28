@@ -100,6 +100,9 @@ describe.each([
 
   it('destaca o ZIP, evita duplicação e libera a ação após erro sem clique extra', async () => {
     await loadDefinitions();
+    fixture.componentInstance.selectedReports.forEach((report) => (report.previewed = true));
+    fixture.changeDetectorRef.markForCheck();
+    await fixture.whenStable();
     const download = button('.batch-download');
     expect(download.classList.contains('btn-primary')).toBe(true);
     download.click();
@@ -161,6 +164,7 @@ describe('Comercial — arquivos separados por empresa', () => {
   it('cria um item por relatório e por empresa, mantendo juntos os códigos da mesma empresa', async () => {
     fixture.componentInstance.selectedCompanyIds = ['yakult', 'saint-gobain'];
     fixture.componentInstance.competence = '202608';
+    fixture.componentInstance.selectedReports.forEach((report) => (report.previewed = true));
     fixture.componentInstance.downloadAll();
 
     const request = http.expectOne('/api/relatorios/sgu/exportar-lote');
@@ -172,13 +176,32 @@ describe('Comercial — arquivos separados por empresa', () => {
     expect(itens).toHaveLength(fixture.componentInstance.selectedReports.length * 2);
     expect(itens.filter((item) => item.nomeArquivo.startsWith('yakult_'))).toHaveLength(4);
     expect(itens.filter((item) => item.nomeArquivo.startsWith('saint_gobain_'))).toHaveLength(4);
-    expect(itens.find((item) => item.nomeArquivo === 'yakult_despesas_202608')
-      ?.combinacoesFiltros).toEqual([{ empresas: '2232751,2234452' }]);
-    expect(itens.find((item) => item.nomeArquivo === 'saint_gobain_despesas_202608')
-      ?.combinacoesFiltros).toEqual([{ empresas: '2052097' }]);
+    expect(
+      itens.find((item) => item.nomeArquivo === 'yakult_despesas_202608')?.combinacoesFiltros,
+    ).toEqual([{ empresas: '2232751,2234452' }]);
+    expect(
+      itens.find((item) => item.nomeArquivo === 'saint_gobain_despesas_202608')?.combinacoesFiltros,
+    ).toEqual([{ empresas: '2052097' }]);
 
     request.flush(new Blob(), { status: 503, statusText: 'Unavailable' });
     await fixture.whenStable();
+  });
+
+  it('libera a data de referência somente quando a faixa etária está selecionada', async () => {
+    const referenceDate = fixture.nativeElement.querySelector(
+      '#commercial-reference',
+    ) as HTMLInputElement;
+    const ageRangeIndex = fixture.componentInstance.reports.findIndex(
+      (report) => report.api === '0090-faixa-etaria',
+    );
+    const ageRangeCheckbox = fixture.nativeElement.querySelectorAll(
+      '.report-options input[type="checkbox"]',
+    )[ageRangeIndex] as HTMLInputElement;
+
+    expect(referenceDate.disabled).toBe(false);
+    ageRangeCheckbox.click();
+    await fixture.whenStable();
+    expect(referenceDate.disabled).toBe(true);
   });
 });
 

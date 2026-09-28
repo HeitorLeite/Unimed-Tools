@@ -36,12 +36,12 @@ interface ComercialReport {
   styleUrl: './comercial.component.scss',
 })
 export class ComercialComponent implements OnInit {
-  formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'xlsx';
+  formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'csv';
   readonly companies = EMPRESAS_RELATORIOS;
   selectedCompanyIds: string[] = [];
   companySearch = '';
-  competence = this.currentCompetence();
-  referenceDate = new Date().toISOString().slice(0, 10);
+  competence = this.previousCompetence();
+  referenceDate = this.lastDayOfCompetence(this.competence);
   loadingDefinitions = true;
   generating = false;
   downloadingAll = false;
@@ -147,6 +147,32 @@ export class ComercialComponent implements OnInit {
     return this.selectedReports.some((report) => report.previewed || report.loading);
   }
 
+  get ageRangeSelected(): boolean {
+    return this.reports.some(
+      (report) =>
+        report.api === '0090-faixa-etaria' && report.selected && Boolean(report.definition),
+    );
+  }
+
+  get previewsGenerated(): boolean {
+    return (
+      this.selectedReports.length > 0 &&
+      this.selectedReports.every((report) => report.previewed && !report.loading)
+    );
+  }
+
+  canDownloadReport(report: ComercialReport): boolean {
+    return (
+      report.previewed &&
+      !report.loading &&
+      !report.downloading &&
+      !this.generating &&
+      !this.downloadingAll &&
+      Boolean(report.definition) &&
+      this.selectedCompanies.length > 0
+    );
+  }
+
   isCompanySelected(id: string): boolean {
     return this.selectedCompanyIds.includes(id);
   }
@@ -188,6 +214,23 @@ export class ComercialComponent implements OnInit {
     report.previewed = false;
     report.records = [];
     report.columns = [];
+
+    if (report.api === '0090-faixa-etaria' && report.selected && !this.referenceDate) {
+      this.referenceDate = this.lastDayOfCompetence(this.competence);
+    }
+  }
+
+  onCompetenceChange(value: string): void {
+    this.competence = value;
+    if (/^\d{6}$/.test(value)) {
+      this.referenceDate = this.lastDayOfCompetence(value);
+    }
+    this.clearPreview();
+  }
+
+  onReferenceDateChange(value: string): void {
+    this.referenceDate = value;
+    this.clearPreview();
   }
 
   async generatePreview(): Promise<void> {
@@ -211,7 +254,7 @@ export class ComercialComponent implements OnInit {
     this.generating = true;
 
     for (const report of this.selectedReports) {
-      report.previewed = true;
+      report.previewed = false;
       report.loading = true;
       report.error = '';
       report.records = [];
@@ -227,6 +270,7 @@ export class ComercialComponent implements OnInit {
           }),
         );
         this.applyPreview(report, response);
+        report.previewed = true;
       } catch (error: any) {
         report.error =
           error?.error?.message || error?.message || 'Não foi possível gerar a prévia.';
@@ -247,7 +291,8 @@ export class ComercialComponent implements OnInit {
       this.generating ||
       this.downloadingAll ||
       !report.definition ||
-      !this.selectedCompanies.length
+      !this.selectedCompanies.length ||
+      !report.previewed
     ) {
       return;
     }
@@ -270,7 +315,8 @@ export class ComercialComponent implements OnInit {
             }
           },
           error: (error: any) => {
-            report.error = error?.error?.message || error?.message || 'Falha ao baixar o relatório.';
+            report.error =
+              error?.error?.message || error?.message || 'Falha ao baixar o relatório.';
           },
         });
       return;
@@ -280,10 +326,10 @@ export class ComercialComponent implements OnInit {
       nomeArquivo: `comercial_${companyLabel}_${report.arquivo}_${this.competence}`,
       formato,
       itens: this.selectedCompanies.map((selectedCompany) => ({
-          apiNome: report.api,
-          nomeArquivo: `${this.safe(selectedCompany.nome)}_${report.arquivo}_${this.competence}`,
-          combinacoesFiltros: this.parameterCombinations(report, selectedCompany),
-        })),
+        apiNome: report.api,
+        nomeArquivo: `${this.safe(selectedCompany.nome)}_${report.arquivo}_${this.competence}`,
+        combinacoesFiltros: this.parameterCombinations(report, selectedCompany),
+      })),
     };
 
     this.reportsService
@@ -293,7 +339,8 @@ export class ComercialComponent implements OnInit {
         next: (response) => {
           if (response.body) this.saveBlob(response.body, `${request.nomeArquivo}.zip`);
           if (Number(response.headers.get('X-Relatorios-Erros')) > 0)
-            report.error = 'O pacote contém falhas. Confira o resumo de geração dentro do ZIP antes de usar os relatórios.';
+            report.error =
+              'O pacote contém falhas. Confira o resumo de geração dentro do ZIP antes de usar os relatórios.';
         },
         error: () => {
           report.error = 'Não foi possível gerar o arquivo com todas as empresas.';
@@ -307,7 +354,8 @@ export class ComercialComponent implements OnInit {
       !this.selectedCompanies.length ||
       !this.selectedReports.length ||
       this.downloadingAll ||
-      this.generating
+      this.generating ||
+      !this.previewsGenerated
     ) {
       return;
     }
@@ -340,7 +388,8 @@ export class ComercialComponent implements OnInit {
         next: (response) => {
           if (response.body) this.saveBlob(response.body, `${request.nomeArquivo}.zip`);
           if (Number(response.headers.get('X-Relatorios-Erros')) > 0)
-            this.error = 'O pacote contém falhas. Confira o resumo de geração dentro do ZIP antes de usar os relatórios.';
+            this.error =
+              'O pacote contém falhas. Confira o resumo de geração dentro do ZIP antes de usar os relatórios.';
         },
         error: () => {
           this.error = 'Não foi possível gerar o pacote de relatórios.';
@@ -385,10 +434,7 @@ export class ComercialComponent implements OnInit {
       if (normalized.includes('datareferencia') || normalized.includes('referencia')) {
         combinations = combinations.map((combination) => ({
           ...combination,
-          [filter.nomeFiltro]: this.formatDateForFilter(
-            this.referenceDate,
-            filter.mascaraFiltro,
-          ),
+          [filter.nomeFiltro]: this.formatDateForFilter(this.referenceDate, filter.mascaraFiltro),
         }));
       }
     }
@@ -430,9 +476,22 @@ export class ComercialComponent implements OnInit {
     return value;
   }
 
-  private currentCompetence(): string {
+  private previousCompetence(): string {
     const now = new Date();
-    return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return `${previousMonth.getFullYear()}${String(previousMonth.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  private lastDayOfCompetence(competence: string): string {
+    const match = /^(\d{4})(\d{2})$/.exec(competence);
+    if (!match) return '';
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (month < 1 || month > 12) return '';
+
+    const lastDay = new Date(year, month, 0).getDate();
+    return `${match[1]}-${match[2]}-${String(lastDay).padStart(2, '0')}`;
   }
 
   private safe(value: string): string {

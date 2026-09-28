@@ -2,6 +2,10 @@
 
 ## Assistencial — Atual
 
+- Ao abrir o construtor, nenhuma coluna começa selecionada; o usuário escolhe
+  somente os campos necessários. A competência inicial e final recomendada é o
+  mês anterior ao mês corrente, inclusive após limpar filtros ou aplicar um
+  modelo. Modelos salvos continuam restaurando sua própria seleção de colunas.
 - A última estrutura publicada (colunas, conjunto de filtros, distinct e ordenação)
   é comparada antes de reconstruir o SQL. Paginação e troca somente dos valores
   dos filtros reutilizam a definição, mas consultam dados novos no SGU.

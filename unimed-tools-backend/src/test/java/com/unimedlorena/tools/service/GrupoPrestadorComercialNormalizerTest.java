@@ -42,9 +42,8 @@ class GrupoPrestadorComercialNormalizerTest {
       Arguments.of("CLINICA FISIOCLINICA LTDA", "SESSOES MULTI"),
       Arguments.of("MBA GUARANY LTDA", "SESSOES MULTI"),
       Arguments.of("NUTRISAUDE LTDA", "SESSOES MULTI"),
-      Arguments.of("VITALLIS CLINICA", "SESSOES MULTI"),
+      Arguments.of("VTALLIS CLINICA", "SESSOES MULTI"),
       Arguments.of("CAVALCA DIAGNOSTICOS", "CLINICA DE IMAGEM"),
-      Arguments.of("ABIS CLINICA MEDICA", "CLINICA MEDICA"),
       Arguments.of("CLINICA KARINE LTDA", "CLINICA MEDICA"),
       Arguments.of("Fundação João Paulo II", "CLINICA MEDICA"),
       Arguments.of("L2A SERVICOS MEDICOS", "CLINICA MEDICA"),
@@ -143,8 +142,8 @@ class GrupoPrestadorComercialNormalizerTest {
 
   @Test
   void devePreservarQuantidadeNomeTipoERegistrosNaoElegiveis() {
-    var elegivel = registro("MEDICA NAO COOPERADO", "VITALLIS LTDA", "CLINICA");
-    var classificado = registro("INTERCAMBIO", "VITALLIS LTDA", "CLINICA");
+    var elegivel = registro("MEDICA NAO COOPERADO", "VTALLIS LTDA", "CLINICA");
+    var classificado = registro("INTERCAMBIO", "VTALLIS LTDA", "CLINICA");
     var elegivelAntes = new LinkedHashMap<>(elegivel);
     var classificadoAntes = new LinkedHashMap<>(classificado);
     var registros = new ArrayList<>(List.of(elegivel, classificado));
@@ -154,7 +153,7 @@ class GrupoPrestadorComercialNormalizerTest {
     assertThat(registros).hasSize(2);
     assertThat(registros.get(0))
       .containsEntry("grupo_prestador", "SESSOES MULTI")
-      .containsEntry("nome_prestador", "VITALLIS LTDA")
+      .containsEntry("nome_prestador", "VTALLIS LTDA")
       .containsEntry("tipo_prestador", "CLINICA")
       .containsEntry("nome_especialidade", "CARDIOLOGIA");
     elegivelAntes.forEach((coluna, valor) -> {

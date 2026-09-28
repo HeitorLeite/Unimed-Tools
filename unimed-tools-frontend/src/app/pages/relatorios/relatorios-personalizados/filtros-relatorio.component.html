@@ -84,7 +84,7 @@
   <p>Escolha os filtros de que precisa. Remover um filtro também limpa seu valor.</p>
   <div class="opcoes-campos" aria-label="Filtros disponíveis">
     <button type="button" *ngFor="let filtro of disponiveis; trackBy: trackCampo" [disabled]="bloqueado" (click)="adicionar(filtro)">
-      <span>+ {{ filtro.rotulo }}</span><small>{{ filtro.grupo }}</small>
+      <span>+ {{ filtro.rotulo }}</span>
     </button>
   </div>
   <p *ngIf="!disponiveis.length" role="status">Nenhum filtro disponível para esta busca.</p>

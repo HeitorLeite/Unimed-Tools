@@ -45,6 +45,13 @@ O usuário pode selecionar **uma ou várias empresas** pelo nome. A interface re
 
 Quando mais de uma empresa é selecionada, a prévia mostra somente a primeira empresa para manter a consulta rápida. No download, cada empresa recebe seu próprio arquivo dentro do ZIP; códigos que pertencem à mesma empresa continuam reunidos no arquivo dessa empresa.
 
+**Atual:** a competência sugerida é o mês anterior ao mês corrente. A data de
+referência acompanha essa competência com o último dia do respectivo mês e só
+pode ser editada quando o relatório de faixa etária está selecionado. Os
+downloads individuais e em lote ficam disponíveis somente depois que todas as
+prévias correspondentes forem geradas com sucesso; uma prévia sem registros
+continua sendo considerada válida.
+
 Fluxo:
 
 1. uma ou várias empresas;
@@ -57,6 +64,10 @@ Fluxo:
 ## Assistencial
 
 O Assistencial substitui a antiga entrada de relatório personalizado.
+
+Ao abrir a ferramenta, nenhuma coluna é selecionada automaticamente. A
+competência inicial e final começa no mês anterior ao mês corrente; modelos
+salvos continuam restaurando as colunas definidas pelo usuário.
 
 Fluxo:
 
@@ -125,6 +136,12 @@ Centraliza:
 - `0090-sangue-oculto-ramiro`.
 
 A tela usa competência e também detecta outros filtros obrigatórios cadastrados em cada API.
+
+**Atual:** o formato inicial de exportação é CSV e a competência sugerida é o
+mês anterior ao mês corrente. Downloads individuais e em lote ficam disponíveis
+somente depois que as prévias correspondentes forem geradas com sucesso; alterar
+a competência, um filtro obrigatório ou a seleção de relatórios invalida as
+prévias anteriores.
 
 ## TI
 

@@ -16,6 +16,8 @@ import { NativeToolManagerComponent } from '../native-tool-manager/native-tool-m
   styleUrl: './tool-manager.component.scss',
 })
 export class ToolManagerComponent implements OnInit {
+  section: 'native' | 'custom' = 'native';
+  formOpen = false;
   tools: CustomReportTool[] = [];
   apiDefinition: SguApiDefinicao | null = null;
   editingId = '';
@@ -86,6 +88,7 @@ export class ToolManagerComponent implements OnInit {
   }
 
   edit(tool: CustomReportTool): void {
+    this.formOpen = true;
     this.editingId = tool.id;
     this.nome = tool.nome;
     this.slug = tool.slug;
@@ -99,6 +102,11 @@ export class ToolManagerComponent implements OnInit {
 
   cancelEdit(): void {
     this.resetForm();
+  }
+
+  create(): void {
+    this.resetForm();
+    this.formOpen = true;
   }
 
   save(): void {
@@ -170,6 +178,7 @@ export class ToolManagerComponent implements OnInit {
   }
 
   private resetForm(clearMessages = true): void {
+    this.formOpen = false;
     this.editingId = '';
     this.nome = '';
     this.slug = '';

@@ -1,4 +1,25 @@
 /* Estilos de execução manual e administração da Central de Relatórios; seletores ficam limitados ao contexto indicado pelo arquivo. */
+
+/* Na TI, a navegação externa já identifica a seção: destaque para a tarefa atual. */
+.reports-manual-page.embedded {
+  .reports-commandbar { min-height: auto; padding: 0; margin: 0 0 8px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  .commandbar-title > span { display: none; }
+  .commandbar-title h2 { margin: 0; font-size: 20px; line-height: 1.3; }
+  .section-description { color: var(--text-secondary); font-size: 13px; line-height: 1.6; margin: 0 0 24px; }
+  .reports-shell { gap: 24px; grid-template-columns: 280px minmax(0, 1fr); }
+  .catalog { padding: 20px; border-radius: 10px; top: 24px; }
+  .local-storage-note { color: var(--text-muted); font-size: 12px; line-height: 1.5; margin: 16px 0 0; }
+  .report-config, .execution-card, .group-summary, .results-card { border-radius: 10px; }
+  .report-copy strong, .group-card-copy strong { white-space: normal; font-size: 13px; }
+  .report-copy small, .group-card-copy small { font-size: 11px; }
+  .field > span { font-size: 13px; }
+}
+.templates-disclosure > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 4px 0 12px; }
+.templates-disclosure > summary span { float: right; font-weight: 400; }
+.templates-disclosure > summary:focus-visible { outline: 2px solid var(--brand-green); outline-offset: 3px; }
+@media (max-width: 1000px) { .reports-manual-page.embedded .reports-shell { grid-template-columns: 1fr; } .reports-manual-page.embedded .catalog { position: static; } }
+@media (max-width: 620px) { .reports-manual-page.embedded .reports-commandbar { align-items: stretch; } }
+
 .reports-manual-page {
   position: relative;
 }
@@ -1486,6 +1507,8 @@
   color: var(--text-muted);
   font-size: 12px;
 }
+.sql-import-help > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.sql-import-help > summary:focus-visible { outline: 2px solid var(--brand-green); outline-offset: 3px; }
 .sql-import-help,
 .batch-progress,
 .sql-file-card {
@@ -1792,7 +1815,7 @@
 }
 
 .reports-manual-page.embedded .catalog {
-  top: 88px;
+  top: 24px;
 }
 
 .reports-manual-page.embedded .report-card.active,

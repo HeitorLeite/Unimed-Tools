@@ -31,6 +31,11 @@ describe('Administração de ferramentas — atualização assíncrona', () => {
   afterEach(() => http.verify());
 
   it('apresenta os filtros carregados e libera a busca ao receber a resposta', async () => {
+    const buttons = fixture.nativeElement.querySelectorAll('.section-switch button');
+    (buttons[1] as HTMLButtonElement).click();
+    await fixture.whenStable();
+    (fixture.nativeElement.querySelector('.existing .save') as HTMLButtonElement).click();
+    await fixture.whenStable();
     const input = fixture.nativeElement.querySelector('.api-field input') as HTMLInputElement;
     input.value = 'api-teste';
     input.dispatchEvent(new Event('input'));
@@ -53,6 +58,23 @@ describe('Administração de ferramentas — atualização assíncrona', () => {
       'Competencia',
     );
     expect(fixture.nativeElement.querySelector('.api-field button').disabled).toBe(false);
+  });
+
+  it('separa páginas e ferramentas e só abre o formulário quando solicitado', async () => {
+    expect(fixture.nativeElement.querySelector('.builder')).toBeNull();
+    expect(fixture.nativeElement.querySelector('app-native-tool-manager').hidden).toBe(false);
+    (fixture.nativeElement.querySelectorAll('.section-switch button')[1] as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('app-native-tool-manager').hidden).toBe(true);
+    expect(fixture.nativeElement.querySelector('.manager').hidden).toBe(false);
+    (fixture.nativeElement.querySelector('.existing .save') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.builder')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.existing')).toBeNull();
+    (fixture.nativeElement.querySelector('.builder header button') as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.builder')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.existing')).not.toBeNull();
   });
 
   it('mostra erro ao salvar página nativa e encerra o carregamento', async () => {

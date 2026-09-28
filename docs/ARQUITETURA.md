@@ -97,6 +97,18 @@ Reúne:
 - grupos;
 - criação de ferramentas configuráveis.
 
+**Atual — interface da TI:** navegação compacta em Relatórios e APIs, Grupos de
+relatórios e Páginas e ferramentas. As consultas mantêm o catálogo lateral e
+os templates em uma seção recolhível; buscas sem correspondência são
+diferenciadas de catálogo vazio. Páginas principais e ferramentas personalizadas
+ficam em subseções separadas. O formulário de ferramenta personalizada aparece
+apenas ao criar ou editar, retornando à lista após salvar ou cancelar. Rotas e
+permissões das páginas principais ficam em detalhes expansíveis.
+
+A apresentação usa a paleta institucional, controles com foco visível e layout
+adaptável a telas menores. A reorganização não altera contratos HTTP, permissões,
+consultas, exportações ou o armazenamento local de catálogo, templates e grupos.
+
 Ferramentas configuráveis são armazenadas no MariaDB e executadas pelo componente genérico `pages/tools/custom-report/`.
 
 A apresentação das ferramentas nativas pode ser sobrescrita por

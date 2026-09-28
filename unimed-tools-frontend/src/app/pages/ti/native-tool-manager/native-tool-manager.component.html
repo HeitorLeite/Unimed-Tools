@@ -1,15 +1,14 @@
 <section class="native-manager">
   <header>
     <div>
-      <span>Páginas principais</span>
-      <h2>Gerencie o que já existe</h2>
-      <p>Altere o nome, a descrição e a visibilidade dos cards nativos sem modificar rota, permissão ou implementação.</p>
+      <h2>Páginas principais</h2>
+      <p>Personalize o nome, a descrição e a visibilidade das ferramentas existentes.</p>
     </div>
     <strong>{{ items.length }}</strong>
   </header>
 
-  <p class="message error" *ngIf="error">{{ error }}</p>
-  <p class="message success" *ngIf="success">{{ success }}</p>
+  <p class="message error" role="alert" *ngIf="error">{{ error }}</p>
+  <p class="message success" role="status" *ngIf="success">{{ success }}</p>
   <div class="loading" *ngIf="loading">Carregando páginas principais…</div>
 
   <div class="native-grid" *ngIf="!loading">
@@ -27,10 +26,13 @@
 
         <p>{{ item.tool.descricao }}</p>
 
+        <details>
+          <summary>Rota e permissão de acesso</summary>
         <dl>
           <div><dt>Rota</dt><dd>{{ item.tool.route }}</dd></div>
           <div><dt>Acesso</dt><dd>{{ permission(item) }}</dd></div>
         </dl>
+        </details>
 
         <footer>
           <button type="button" (click)="edit(item)">Editar apresentação</button>

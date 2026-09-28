@@ -7,7 +7,8 @@
 
       <div class="commandbar-title">
         <span>Execução individual</span>
-        <h1>Importação e consultas</h1>
+        <h1 *ngIf="!embedded">Importação e consultas</h1>
+        <h2 *ngIf="embedded">Consultar e exportar</h2>
       </div>
 
       <div class="page-header-actions">
@@ -15,7 +16,7 @@
           <span aria-hidden="true">▦</span> Novo template
         </button>
         <button class="btn btn-primary" type="button" (click)="abrirNovo()">
-          <span aria-hidden="true">＋</span> Novo relatório
+          <span aria-hidden="true">＋</span> Adicionar relatório
         </button>
       </div>
     </header>
@@ -26,7 +27,8 @@
       aria-hidden="true"
     ></div>
 
-    <div class="manual-context-strip">
+    <p class="section-description" *ngIf="embedded">Escolha um relatório no catálogo, preencha os filtros e confira a prévia antes de exportar.</p>
+    <div class="manual-context-strip" *ngIf="!embedded">
       <div><span>01</span><strong>Selecione no catálogo</strong></div>
       <div><span>02</span><strong>Preencha os filtros</strong></div>
       <div><span>03</span><strong>Revise e exporte</strong></div>
@@ -123,9 +125,9 @@
 
         <ng-template #catalogoVazio>
           <div class="empty-catalog">
-            <strong>Nenhum relatório cadastrado</strong>
-            <p>Adicione uma API existente ou cadastre uma nova consulta no SGU.</p>
-            <button class="btn btn-secondary btn-sm" type="button" (click)="abrirNovo()">
+            <strong>{{ pesquisa ? 'Nenhum resultado encontrado' : 'Nenhum relatório cadastrado' }}</strong>
+            <p>{{ pesquisa ? 'Tente outro nome para encontrar seu relatório.' : 'Adicione uma API existente ou cadastre uma nova consulta no SGU.' }}</p>
+            <button *ngIf="!pesquisa" class="btn btn-secondary btn-sm" type="button" (click)="abrirNovo()">
               Adicionar relatório
             </button>
           </div>
@@ -133,6 +135,8 @@
 
         <div class="catalog-divider"></div>
 
+        <details class="templates-disclosure" [open]="!!templateAtivo || !embedded">
+          <summary>Templates salvos <span>{{ templates.length }}</span></summary>
         <div class="template-catalog-header">
           <div>
             <h2>Templates</h2>
@@ -181,6 +185,8 @@
             </button>
           </div>
         </ng-template>
+        </details>
+        <p class="local-storage-note" *ngIf="embedded">Catálogo e templates salvos neste navegador.</p>
       </aside>
 
       <main class="workspace">
@@ -737,8 +743,8 @@
           </button>
         </div>
 
-        <div class="sql-import-help">
-          <strong>Como funciona</strong>
+        <details class="sql-import-help">
+          <summary>Como a importação prepara os filtros?</summary>
           <p>
             O nome da API e o nome de exibição são preenchidos a partir do nome do arquivo.
             Variáveis como <code>:competencia</code> são detectadas automaticamente. Competências
@@ -748,7 +754,7 @@
             compartilhados. A aplicação também inclui <code>WHERE 1 = 1</code> e
             <code>/*FILTROS*/</code> quando necessário.
           </p>
-        </div>
+        </details>
 
         <div class="batch-progress" *ngIf="criandoApisEmLote" aria-live="polite">
           <div>

@@ -1,21 +1,28 @@
-<app-native-tool-manager />
+<nav class="section-switch" aria-label="Tipo de ferramenta">
+  <button type="button" [class.active]="section === 'native'" [attr.aria-pressed]="section === 'native'" (click)="section = 'native'">Páginas principais</button>
+  <button type="button" [class.active]="section === 'custom'" [attr.aria-pressed]="section === 'custom'" (click)="section = 'custom'">Ferramentas personalizadas <span>{{ tools.length }}</span></button>
+</nav>
+<app-native-tool-manager [hidden]="section !== 'native'" />
 
-<section class="manager">
-  <div class="builder">
+<p class="message error" role="alert" *ngIf="error">{{ error }}</p>
+<p class="message success" role="status" *ngIf="success">{{ success }}</p>
+<section class="manager" [hidden]="section !== 'custom'">
+  <div class="builder" *ngIf="formOpen">
     <header>
       <div>
         <span>{{ editingId ? 'Editar ferramenta' : 'Nova ferramenta' }}</span>
         <h2>{{ editingId ? 'Atualize o card e seu relatório' : 'Crie um novo card de relatório' }}</h2>
       </div>
-      <button *ngIf="editingId" type="button" (click)="cancelEdit()">Cancelar edição</button>
+      <button type="button" [disabled]="saving || loadingApi" (click)="cancelEdit()">Cancelar</button>
     </header>
 
     <p class="explanation">
       A nova ferramenta aparecerá na Home e no menu Ferramentas. A consulta usa uma API
-      existente do SGU e mantém a chave da integração somente no backend.
+      existente do SGU. Preencha a apresentação do card e carregue a API para escolher os filtros.
     </p>
 
     <div class="form-grid">
+      <h3 class="form-section-title wide">Apresentação na plataforma</h3>
       <label>
         <span>Nome da ferramenta *</span>
         <input [(ngModel)]="nome" maxlength="120" placeholder="Ex.: Auditoria de internações" />
@@ -29,6 +36,7 @@
         <textarea [(ngModel)]="descricao" rows="3" maxlength="500"
           placeholder="Explique em linguagem simples para que serve esta ferramenta."></textarea>
       </label>
+      <h3 class="form-section-title wide">Fonte de dados</h3>
       <label class="api-field">
         <span>API do SGU *</span>
         <div>
@@ -64,17 +72,15 @@
       <p *ngIf="!apiDefinition.filtros.length">A API não possui filtros cadastrados.</p>
     </section>
 
-    <p class="message error" *ngIf="error">{{ error }}</p>
-    <p class="message success" *ngIf="success">{{ success }}</p>
-    <button class="save" type="button" [disabled]="saving" (click)="save()">
+    <button class="save" type="button" [disabled]="saving || loadingApi" (click)="save()">
       {{ saving ? 'Salvando…' : editingId ? 'Salvar alterações' : 'Criar ferramenta' }}
     </button>
   </div>
 
-  <div class="existing">
+  <div class="existing" *ngIf="!formOpen">
     <header>
-      <div><span>Ferramentas configuráveis</span><h2>Cards criados pela TI</h2></div>
-      <strong>{{ tools.length }}</strong>
+      <div><h2>Ferramentas personalizadas</h2><p>Publique consultas do SGU como ferramentas na Home e no menu.</p></div>
+      <button class="save" type="button" (click)="create()">+ Nova ferramenta</button>
     </header>
 
     <div class="tool-list" *ngIf="tools.length; else empty">
@@ -93,7 +99,9 @@
     </div>
     <ng-template #empty>
       <div class="empty">
-        Nenhuma ferramenta adicional criada. As ferramentas principais continuam disponíveis normalmente.
+        <h3>Sua primeira ferramenta começa aqui</h3>
+        <p>Use “Nova ferramenta” para criar um card conectado a uma API do SGU.</p>
+        <small>As páginas principais continuam disponíveis na seção ao lado.</small>
       </div>
     </ng-template>
   </div>

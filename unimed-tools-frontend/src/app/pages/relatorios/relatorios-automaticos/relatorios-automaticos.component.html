@@ -8,7 +8,8 @@
 
     <div class="commandbar-title">
       <span>Execução em lote</span>
-      <h1>Relatórios em grupo</h1>
+      <h1 *ngIf="!embedded">Relatórios em grupo</h1>
+      <h2 *ngIf="embedded">Gerar relatórios em lote</h2>
     </div>
 
     <button class="btn btn-primary" type="button" (click)="abrirNovoGrupo()">＋ Novo grupo</button>
@@ -16,7 +17,8 @@
 
   <div *ngIf="operacaoRelatorioEmAndamento" class="report-operation-lock" aria-hidden="true"></div>
 
-  <div class="automatic-context-strip">
+  <p class="section-description" *ngIf="embedded">Selecione um grupo, informe as empresas e os filtros e gere os arquivos em um único ZIP.</p>
+  <div class="automatic-context-strip" *ngIf="!embedded">
     <div><span>01</span><strong>Escolha o grupo</strong></div>
     <div><span>02</span><strong>Informe empresas e filtros</strong></div>
     <div><span>03</span><strong>Gere o arquivo ZIP</strong></div>
@@ -63,6 +65,7 @@
         </div>
         <button type="button" title="Novo grupo" (click)="abrirNovoGrupo()">＋</button>
       </div>
+      <p class="local-storage-note" *ngIf="embedded">Grupos salvos neste navegador.</p>
 
       <div class="group-list">
         <button

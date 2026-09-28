@@ -40,7 +40,7 @@ Home e menu Ferramentas consomem a mesma fonte.
 
 Frontend: `pages/comercial/`
 
-Consome quatro APIs SGU existentes e resolve empresa pelo catálogo local. Não permite escolher APIs arbitrárias.
+Consome quatro APIs SGU existentes e resolve empresa pelo catálogo local. Não permite escolher APIs arbitrárias. Em seleções múltiplas, monta um item de lote por empresa e relatório, produzindo arquivos separados no ZIP.
 
 ### Assistencial
 
@@ -166,6 +166,17 @@ O frontend nunca chama o SGU diretamente.
 - endpoints de publicação e execução.
 
 Exportações percorrem a paginação no backend.
+
+`EspecialidadeRelatorioResolver` é o ponto central para respostas que possuem
+`NOME_ESPECIALIDADE`. Ele reúne a coleção completa, agrupa por beneficiário,
+número e data da guia, resolve Nome → Descrição → CID seguro → CLINICO e propaga
+o resultado antes da paginação entregue ao frontend e da geração do arquivo.
+
+`GrupoPrestadorComercialNormalizer` trata `GRUPO_PRESTADOR` somente nas quatro
+APIs nativas do Comercial. Como a regra depende apenas da própria linha, cada
+página é normalizada logo após a leitura do SGU e antes de alimentar a prévia,
+os escritores CSV/TXT/XLSX e os lotes ZIP. O mapa ordenado fica centralizado no
+serviço e não altera `NOME_PRESTADOR` nem `TIPO_PRESTADOR`.
 
 A paginação do SGU exige ordenação determinística. SQL importado pela Central de
 Relatórios passa a receber automaticamente uma ordenação pelos aliases da

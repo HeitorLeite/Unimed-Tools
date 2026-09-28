@@ -59,13 +59,23 @@ paginada são rejeitadas, em vez de descartar campos silenciosamente.
 
 - CSV/TXT: UTF-8 com BOM, ponto e vírgula, aspas conforme necessário e CRLF.
 - XLSX: códigos preservados como texto, datas e números tipados; fórmulas externas
-  nunca são criadas a partir dos valores recebidos.
+  nunca são criadas a partir dos valores recebidos. A linha de títulos não recebe
+  autofiltro nem tabela automática: contém somente os nomes das colunas.
 - Decimal SGU `1.005` significa 1,005, não 1005. Decimais em páginas posteriores
   não recebem indevidamente a máscara de inteiro da primeira página.
 - O Assistencial preserva a ordem de colunas ajustada na prévia também na
   exportação simples, além da análise avançada.
 - Comercial, Hospital, Gestão de Risco e ferramentas configuráveis oferecem os
   três formatos, além das telas de TI e Assistencial que já os ofereciam.
+- Quando o Comercial recebe várias empresas, o ZIP contém um arquivo por empresa
+  e por relatório. Códigos do catálogo pertencentes à mesma empresa permanecem
+  reunidos no arquivo dessa empresa.
+- Nas APIs do Comercial, `GrupoPrestadorComercialNormalizer` corrige somente
+  registros cujo `GRUPO_PRESTADOR` corresponde a médico(a)(s) não cooperado(a)(s).
+  A prioridade é OPME, recurso próprio, sessões multi, clínica de imagem, clínica
+  médica e reembolso. O tratamento ocorre por página antes da prévia e da escrita
+  de CSV/TXT/XLSX; `NOME_PRESTADOR`, `TIPO_PRESTADOR` e a quantidade de linhas são
+  preservados. Grupos já classificados e prestadores desconhecidos não mudam.
 - Durante a preparação, TI/manual e Assistencial mostram atividade e tempo;
   porcentagem de transferência depende dos bytes recebidos, não de estimativa
   de conclusão da consulta.

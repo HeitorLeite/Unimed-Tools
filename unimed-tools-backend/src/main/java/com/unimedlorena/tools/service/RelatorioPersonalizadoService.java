@@ -152,6 +152,9 @@ public class RelatorioPersonalizadoService {
     if (normalizada.analiseAvancada()) {
       return paginarAnalise(transformar(carregar(normalizada), normalizada), normalizada);
     }
+    if (corrigeEspecialidade(normalizada)) {
+      return paginarAnalise(prepararResultadoSimples(carregar(normalizada), normalizada), normalizada);
+    }
 
     Map<String, Object> parametros = parametrosSgu(normalizada.filtros());
     parametros.put("page", normalizada.pagina());
@@ -176,8 +179,7 @@ public class RelatorioPersonalizadoService {
     RequisicaoNormalizada normalizada = normalizar(request, false);
     List<LinkedHashMap<String, Object>> registros = carregar(normalizada);
     if (normalizada.analiseAvancada()) registros = transformar(registros, normalizada);
-    else if (!normalizada.ordemResultado().isEmpty())
-      registros = reordenarMapas(registros, colunasResultado(normalizada));
+    else registros = prepararResultadoSimples(registros, normalizada);
     Set<String> decimais = colunasResultado(normalizada).stream()
         .filter(coluna -> sqlBuilder.campoDecimal(coluna.split("__", 2)[0]))
         .collect(java.util.stream.Collectors.toSet());
@@ -200,9 +202,10 @@ public class RelatorioPersonalizadoService {
 
   private void publicarApi(RequisicaoNormalizada normalizada) {
     boolean transformarNoBackend = normalizada.analiseAvancada();
+    boolean normalizarEspecialidade = corrigeEspecialidade(normalizada);
     EstruturaApi estrutura = new EstruturaApi(
         colunasConsulta(normalizada), Set.copyOf(normalizada.filtros().keySet()),
-        transformarNoBackend ? false : normalizada.distinct(),
+        transformarNoBackend || normalizarEspecialidade ? false : normalizada.distinct(),
         transformarNoBackend ? null : normalizada.ordenarPor(),
         transformarNoBackend ? null : normalizada.direcaoOrdenacao());
     // Evita reconstruir SQL extenso ao paginar ou trocar apenas valores de filtros.
@@ -210,7 +213,7 @@ public class RelatorioPersonalizadoService {
     RelatorioPersonalizadoSqlBuilder.ApiGerada gerada = sqlBuilder.gerar(
         colunasConsulta(normalizada),
         normalizada.filtros().keySet(),
-        transformarNoBackend ? false : normalizada.distinct(),
+        transformarNoBackend || normalizarEspecialidade ? false : normalizada.distinct(),
         transformarNoBackend ? null : normalizada.ordenarPor(),
         transformarNoBackend ? null : normalizada.direcaoOrdenacao());
 
@@ -711,12 +714,37 @@ public class RelatorioPersonalizadoService {
 
   private List<String> colunasConsulta(RequisicaoNormalizada normalizada) {
     LinkedHashSet<String> colunas = new LinkedHashSet<>(normalizada.colunas());
+    if (corrigeEspecialidade(normalizada)) {
+      // Campos técnicos necessários para resolver a guia inteira. A projeção
+      // final os remove quando não foram escolhidos pelo usuário.
+      colunas.add("COD_BENEFICIARIO");
+      colunas.add("NUMERO_GUIA");
+      colunas.add("DATA_GUIA");
+      colunas.add("DESCRICAO_ITEM");
+      colunas.add("CID");
+    }
     if (normalizada.separarMeses()) {
       // A competência é necessária para montar as colunas mensais, mas não é
       // exibida como coluna normal quando o modo mensal está ativo.
       colunas.add("PERIODO");
     }
     return List.copyOf(colunas);
+  }
+
+  private boolean corrigeEspecialidade(RequisicaoNormalizada normalizada) {
+    return normalizada.colunas().contains("NOME_ESPECIALIDADE");
+  }
+
+  private List<LinkedHashMap<String, Object>> prepararResultadoSimples(
+      List<LinkedHashMap<String, Object>> registros,
+      RequisicaoNormalizada normalizada) {
+    List<LinkedHashMap<String, Object>> resultado = reordenarMapas(
+        registros,
+        colunasResultado(normalizada));
+    if (normalizada.distinct()) {
+      resultado = new ArrayList<>(new LinkedHashSet<>(resultado));
+    }
+    return resultado;
   }
 
   private List<LinkedHashMap<String, Object>> transformar(
@@ -729,13 +757,19 @@ public class RelatorioPersonalizadoService {
     if (normalizada.separarMeses()) {
       registros = pivotarMeses(registros, normalizada);
     }
-    if (normalizada.distinct()) {
+    if (normalizada.distinct() && !corrigeEspecialidade(normalizada)) {
       registros = new ArrayList<>(new LinkedHashSet<>(registros));
     }
 
     ordenarAnalise(registros, normalizada);
-    return normalizada.separarMeses() || !normalizada.ordemResultado().isEmpty()
-        ? reordenarMapas(registros, colunasResultado(normalizada)) : registros;
+    if (normalizada.separarMeses() || !normalizada.ordemResultado().isEmpty() ||
+        corrigeEspecialidade(normalizada)) {
+      registros = reordenarMapas(registros, colunasResultado(normalizada));
+    }
+    if (normalizada.distinct() && corrigeEspecialidade(normalizada)) {
+      registros = new ArrayList<>(new LinkedHashSet<>(registros));
+    }
+    return registros;
   }
 
   private List<LinkedHashMap<String, Object>> reordenarMapas(

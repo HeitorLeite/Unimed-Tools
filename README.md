@@ -43,7 +43,7 @@ O Comercial usa somente:
 
 O usuário pode selecionar **uma ou várias empresas** pelo nome. A interface resolve os códigos internos do catálogo e envia apenas os parâmetros exigidos pela API.
 
-Quando mais de uma empresa é selecionada, a prévia mostra somente a primeira empresa para manter a consulta rápida. O download, porém, usa todas as empresas escolhidas e consolida os resultados nos arquivos exportados.
+Quando mais de uma empresa é selecionada, a prévia mostra somente a primeira empresa para manter a consulta rápida. No download, cada empresa recebe seu próprio arquivo dentro do ZIP; códigos que pertencem à mesma empresa continuam reunidos no arquivo dessa empresa.
 
 Fluxo:
 
@@ -65,6 +65,8 @@ Fluxo:
 3. adicionar filtros;
 4. gerar a prévia;
 5. exportar CSV, TXT ou XLSX.
+
+Relatórios que retornam `NOME_ESPECIALIDADE` são normalizados por guia no backend antes da paginação exibida e da geração do arquivo. A chave usa beneficiário, número e data da guia. Detalhes em [Especialidades nos relatórios](docs/ESPECIALIDADES_RELATORIOS.md).
 
 Modelos de estrutura podem ser salvos no navegador para reutilização. Eles guardam colunas, filtros escolhidos e opções de estrutura, mas **não guardam os valores digitados nos filtros**.
 

@@ -111,6 +111,10 @@ class HospitalRelatorioServiceTest {
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Map<String, Object>> definicao = ArgumentCaptor.forClass(Map.class);
     verify(sgu).criarOuAtualizar(definicao.capture());
+    String ordenacao = (String) definicao.getValue().get("ordenacao");
+    assertThat(ordenacao).hasSizeLessThanOrEqualTo(100).doesNotContain("STATUS");
+    assertThat(OrdenacaoRelatorio.preparar(definicao.getValue()))
+      .isSameAs(definicao.getValue());
     assertThat((String) definicao.getValue().get("consultaSQL"))
       .contains("GSOL.GSOL_NOM_PROFIS AS PRESTADOR", "AS DATA_VALIDADE")
       .doesNotContain("d' exemplo");

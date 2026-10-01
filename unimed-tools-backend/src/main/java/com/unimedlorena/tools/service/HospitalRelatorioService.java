@@ -206,7 +206,9 @@ public class HospitalRelatorioService {
     definicao.put("nome", apiNome);
     definicao.put("consultaSQL", SQL);
     definicao.put("ordenacao", "DATA_AUTORIZACAO DESC," + String.join(",",
-      COLUNAS.stream().filter(coluna -> !coluna.equals("DATA_AUTORIZACAO")).toList()));
+      COLUNAS.stream()
+        .filter(coluna -> !Set.of("DATA_AUTORIZACAO", "STATUS").contains(coluna))
+        .toList()));
     definicao.put("filtros", definicoesFiltros());
     sgu.criarOuAtualizar(definicao);
   }

@@ -5,7 +5,8 @@
       <h1>Comercial</h1>
       <p>
         Selecione uma ou várias empresas, confira uma amostra da primeira e gere os arquivos
-        completos, separados por empresa, para todas as empresas escolhidas.
+        completos. A faixa etária reúne todas as empresas escolhidas em uma única tabela;
+        os demais relatórios são separados por empresa.
       </p>
     </div>
 
@@ -212,7 +213,7 @@
           <span>4</span>
           <div>
             <strong>Conferência</strong>
-            <small>A prévia é somente uma amostra da primeira empresa selecionada.</small>
+            <small>Faixa etária: consolidado completo. Demais relatórios: amostra da primeira empresa.</small>
           </div>
         </div>
 
@@ -225,7 +226,8 @@
       <div class="preview-notice" *ngIf="selectedCompanies.length > 1">
         <strong>Prévia resumida</strong>
         <p>
-          Para manter a consulta rápida, a tela mostra somente
+          Na faixa etária, a tabela soma todas as empresas selecionadas. Nos demais relatórios,
+          a tela mostra somente
           <b>{{ previewCompany?.nome }}</b
           >. Os arquivos baixados incluem os dados de todas as
           {{ selectedCompanies.length }} empresas selecionadas.
@@ -242,6 +244,8 @@
             {{
               report.downloading
                 ? 'Preparando…'
+                : isAgeRange(report)
+                  ? 'Baixar consolidado ' + formatoSelecionado.toUpperCase()
                 : selectedCompanies.length > 1
                   ? 'Baixar todas as empresas'
                   : 'Baixar ' + formatoSelecionado.toUpperCase()
@@ -269,7 +273,7 @@
       <div class="start-state" *ngIf="!hasPreview">
         <strong>Selecione as empresas e gere uma prévia.</strong>
         <span>
-          A primeira empresa serve como amostra. O download consolida todas as empresas escolhidas.
+          A faixa etária consolida todas as empresas. Os demais relatórios usam a primeira como amostra.
         </span>
       </div>
     </main>

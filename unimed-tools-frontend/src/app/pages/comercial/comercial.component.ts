@@ -90,7 +90,7 @@ export class ComercialComponent implements OnInit {
     {
       api: '0090-faixa-etaria',
       nome: 'Faixa etária',
-      descricao: 'Distribuição etária calculada na data de referência.',
+      descricao: 'Tabela geral de titulares e dependentes de todas as empresas selecionadas.',
       arquivo: 'faixa_etaria',
       selected: true,
       records: [],
@@ -264,7 +264,9 @@ export class ComercialComponent implements OnInit {
         const combinations = this.parameterCombinations(report, company);
         const response = await firstValueFrom(
           this.reportsService.executar(report.api, {
-            ...(combinations[0] ?? {}),
+            ...(this.isAgeRange(report)
+              ? { combinacoesFiltros: this.ageRangeCombinations(report) }
+              : combinations[0] ?? {}),
             page: 1,
             size: 20,
           }),
@@ -303,10 +305,12 @@ export class ComercialComponent implements OnInit {
     const combinations = company ? this.parameterCombinations(report, company) : [];
     const companyLabel = this.companyFileLabel();
 
-    if (this.selectedCompanies.length === 1 && combinations.length === 1) {
+    if (this.isAgeRange(report) || (this.selectedCompanies.length === 1 && combinations.length === 1)) {
       const filename = `${companyLabel}_${report.arquivo}_${this.competence}`;
       this.reportsService
-        .exportar(report.api, formato, combinations[0], filename)
+        .exportar(report.api, formato, this.isAgeRange(report)
+          ? { combinacoesFiltros: this.ageRangeCombinations(report) }
+          : combinations[0], filename)
         .pipe(finalize(() => this.finishReportDownload(report)))
         .subscribe({
           next: (event) => {
@@ -368,7 +372,11 @@ export class ComercialComponent implements OnInit {
       nomeArquivo: `comercial_${companyLabel}_${this.competence}`,
       formato,
       itens: this.selectedReports.flatMap((report) =>
-        this.selectedCompanies.map((company) => ({
+        this.isAgeRange(report) ? [{
+          apiNome: report.api,
+          nomeArquivo: `${companyLabel}_${report.arquivo}_${this.competence}`,
+          combinacoesFiltros: this.ageRangeCombinations(report),
+        }] : this.selectedCompanies.map((company) => ({
           apiNome: report.api,
           nomeArquivo: `${this.safe(company.nome)}_${report.arquivo}_${this.competence}`,
           combinacoesFiltros: this.parameterCombinations(report, company),
@@ -395,6 +403,16 @@ export class ComercialComponent implements OnInit {
           this.error = 'Não foi possível gerar o pacote de relatórios.';
         },
       });
+  }
+
+  isAgeRange(report: ComercialReport): boolean {
+    return report.api === '0090-faixa-etaria';
+  }
+
+  private ageRangeCombinations(report: ComercialReport): Record<string, unknown>[] {
+    // Um código compartilhado por entradas do catálogo deve ser consultado só uma vez.
+    const codigos = [...new Set(this.selectedCompanies.flatMap((company) => [...company.codigos]))];
+    return this.parameterCombinations(report, { id: 'geral', nome: 'Geral', codigos });
   }
 
   private parameterCombinations(

@@ -68,8 +68,9 @@ paginada são rejeitadas, em vez de descartar campos silenciosamente.
 - Comercial, Hospital, Gestão de Risco e ferramentas configuráveis oferecem os
   três formatos, além das telas de TI e Assistencial que já os ofereciam.
 - Quando o Comercial recebe várias empresas, o ZIP contém um arquivo por empresa
-  e por relatório. Códigos do catálogo pertencentes à mesma empresa permanecem
-  reunidos no arquivo dessa empresa.
+  e por relatório, exceto faixa etária, que contém um único consolidado das
+  empresas selecionadas. Códigos do catálogo pertencentes à mesma empresa
+  permanecem reunidos no arquivo dessa empresa nos demais relatórios.
 - Nas APIs do Comercial, `GrupoPrestadorComercialNormalizer` corrige somente
   registros cujo `GRUPO_PRESTADOR` corresponde a médico(a)(s) não cooperado(a)(s).
   A prioridade é OPME, recurso próprio, sessões multi, clínica de imagem, clínica
@@ -84,6 +85,54 @@ paginada são rejeitadas, em vez de descartar campos silenciosamente.
   de Risco também avisam quando o pacote contém falhas. Causas internas não são
   copiadas para o manifesto.
 - Hospital exporta pela API do ambiente configurado, inclusive o sufixo `-dev`.
+
+## Faixa etária consolidada — Atual
+
+A API `0090-faixa-etaria` mantém o SQL por contrato no SGU. O backend consome
+todas as páginas antes de devolver a prévia ou o arquivo. Somente linhas das dez
+faixas conhecidas alimentam as somas; cabeçalhos CONTRATO e TOTAL GERAL da origem
+são descartados para não contar os mesmos beneficiários duas vezes.
+
+A saída segue a aba GERAL do modelo informado pelo Comercial:
+
+| Coluna | Cálculo por faixa |
+| --- | --- |
+| DEP | DEP_MASC + DEP_FEM |
+| TIT | TIT_MASC + TIT_FEM |
+| FEM | DEP_FEM + TIT_FEM |
+| MASC | DEP_MASC + TIT_MASC |
+| TOTAL | DEP + TIT, sem agregados |
+
+O cabeçalho é `FAIXA_ETARIA;DEP;TIT;FEM;MASC;TOTAL`, seguido diretamente pelas dez
+faixas em ordem crescente e TOTAL GERAL, sem linha de identificação GERAL vazia. XLSX usa uma única aba
+Geral, com contagens numéricas. CSV e TXT mantêm o contrato de codificação existente.
+Faixas ausentes são preenchidas com zero quando há dados válidos em outras faixas.
+Resposta completamente vazia permite prévia vazia e impede exportação com 422.
+Contagem ausente, negativa, fracionária ou inválida e faixa desconhecida impedem
+a consolidação com 502, em vez de produzir totais incompletos.
+
+Os endpoints existentes continuam protegidos por sessão, permissão e CSRF:
+
+- `POST /api/relatorios/sgu/executar/0090-faixa-etaria`: aceita os filtros simples
+  anteriores ou `{ "combinacoesFiltros": [{...}], "page": 1, "size": 20 }`.
+  A paginação entregue refere-se à tabela consolidada; cada consulta da origem
+  sempre percorre suas páginas com os limites e retries existentes.
+- `POST /api/relatorios/sgu/exportar/0090-faixa-etaria`: o campo `filtros` pode
+  conter `{ "combinacoesFiltros": [{...}] }`. Retorna um único arquivo no formato
+  solicitado, sem ZIP. Os headers e o temporário seguem o exportador existente.
+- `POST /api/relatorios/sgu/exportar-lote`: o Comercial envia um único item para
+  faixa etária. Suas combinações são acumuladas antes da escrita. Se uma delas
+  falhar, o consolidado inteiro fica fora do ZIP e a falha entra no manifesto;
+  os demais relatórios mantêm o contrato de sucesso parcial.
+
+O envelope de combinações é interpretado somente para a API de faixa etária e
+nunca é enviado como filtro ao SGU. A seleção de várias empresas usa códigos
+únicos, unidos em uma lista quando o filtro aceita VARCHAR ou divididos em
+combinações quando exige NUMBER. As contagens são acumuladas em memória fixa
+de dez faixas, sem reunir todas as linhas de origem.
+
+**Pendente:** homologar a nova tabela no SGU e no navegador autenticado após
+publicação. Testes locais usam somente dados sintéticos.
 
 ## Desempenho e limites
 

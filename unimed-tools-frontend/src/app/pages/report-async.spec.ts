@@ -173,9 +173,14 @@ describe('Comercial — arquivos separados por empresa', () => {
       combinacoesFiltros: Array<Record<string, unknown>>;
     }>;
 
-    expect(itens).toHaveLength(fixture.componentInstance.selectedReports.length * 2);
-    expect(itens.filter((item) => item.nomeArquivo.startsWith('yakult_'))).toHaveLength(4);
-    expect(itens.filter((item) => item.nomeArquivo.startsWith('saint_gobain_'))).toHaveLength(4);
+    expect(itens).toHaveLength(7);
+    expect(itens.filter((item) => item.nomeArquivo.startsWith('yakult_'))).toHaveLength(3);
+    expect(itens.filter((item) => item.nomeArquivo.startsWith('saint_gobain_'))).toHaveLength(3);
+    expect(itens.filter((item) => item.nomeArquivo.includes('faixa_etaria'))).toEqual([{
+      apiNome: '0090-faixa-etaria',
+      nomeArquivo: '2_empresas_faixa_etaria_202608',
+      combinacoesFiltros: [{ empresas: '2232751,2234452,2052097' }],
+    }]);
     expect(
       itens.find((item) => item.nomeArquivo === 'yakult_despesas_202608')?.combinacoesFiltros,
     ).toEqual([{ empresas: '2232751,2234452' }]);
@@ -185,6 +190,30 @@ describe('Comercial — arquivos separados por empresa', () => {
 
     request.flush(new Blob(), { status: 503, statusText: 'Unavailable' });
     await fixture.whenStable();
+  });
+
+  it('consulta todas as empresas na prévia da faixa etária e baixa um arquivo sem ZIP', async () => {
+    const component = fixture.componentInstance;
+    component.selectedCompanyIds = ['yakult', 'saint-gobain'];
+    component.reports.forEach((report) => (report.selected = component.isAgeRange(report)));
+    const pending = component.generatePreview();
+    const preview = http.expectOne('/api/relatorios/sgu/executar/0090-faixa-etaria');
+    expect(preview.request.body).toEqual({
+      combinacoesFiltros: [{ empresas: '2232751,2234452,2052097' }], page: 1, size: 20,
+    });
+    preview.flush({ content: [{ FAIXA_ETARIA: '0 a 18', DEP: 4, TIT: 2, FEM: 3, MASC: 3, TOTAL: 6 }] });
+    await pending;
+    const report = component.selectedReports[0];
+    expect(report.columns).toEqual(['FAIXA_ETARIA', 'DEP', 'TIT', 'FEM', 'MASC', 'TOTAL']);
+    component.download(report);
+    const download = http.expectOne('/api/relatorios/sgu/exportar/0090-faixa-etaria?formato=csv');
+    expect(download.request.body.filtros).toEqual({
+      combinacoesFiltros: [{ empresas: '2232751,2234452,2052097' }],
+    });
+    http.expectNone('/api/relatorios/sgu/exportar-lote');
+    download.flush(new Blob(), { status: 503, statusText: 'Unavailable' });
+    await fixture.whenStable();
+    expect(report.downloading).toBe(false);
   });
 
   it('libera a data de referência somente quando a faixa etária está selecionada', async () => {

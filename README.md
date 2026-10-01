@@ -43,7 +43,14 @@ O Comercial usa somente:
 
 O usuário pode selecionar **uma ou várias empresas** pelo nome. A interface resolve os códigos internos do catálogo e envia apenas os parâmetros exigidos pela API.
 
-Quando mais de uma empresa é selecionada, a prévia mostra somente a primeira empresa para manter a consulta rápida. No download, cada empresa recebe seu próprio arquivo dentro do ZIP; códigos que pertencem à mesma empresa continuam reunidos no arquivo dessa empresa.
+Quando mais de uma empresa é selecionada, as prévias de beneficiários, receita e despesas mostram somente a primeira empresa. No download desses relatórios, cada empresa recebe seu próprio arquivo dentro do ZIP; códigos que pertencem à mesma empresa continuam reunidos no arquivo dessa empresa.
+
+**Atual — faixa etária:** prévia e download consolidam todas as empresas selecionadas
+em uma tabela com `FAIXA_ETARIA`, `DEP`, `TIT`, `FEM`, `MASC` e `TOTAL`, seguindo
+o modelo GERAL. Agregados não entram nas somas. O arquivo contém as dez faixas
+e TOTAL GERAL, sem linha de identificação GERAL nem blocos por contrato. O download individual
+gera um único CSV/TXT/XLSX (aba Geral no XLSX), mesmo com várias empresas.
+O pacote completo inclui apenas um arquivo de faixa etária consolidado.
 
 **Atual:** a competência sugerida é o mês anterior ao mês corrente. A data de
 referência acompanha essa competência com o último dia do respectivo mês e só
@@ -58,7 +65,7 @@ Fluxo:
 2. competência;
 3. data de referência da faixa etária;
 4. seleção dos relatórios;
-5. prévia da primeira empresa;
+5. prévia da primeira empresa nos demais relatórios e consolidado completo da faixa etária;
 6. download completo individual ou pacote ZIP.
 
 ## Assistencial

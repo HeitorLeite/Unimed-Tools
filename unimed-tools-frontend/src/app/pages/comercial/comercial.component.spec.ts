@@ -1,6 +1,7 @@
 import { ChangeDetectorRef } from '@angular/core';
 import { RelatorioService } from '../../shared/services/relatorio.service';
 import { ComercialComponent } from './comercial.component';
+import { of } from 'rxjs';
 
 describe('ComercialComponent', () => {
   function createComponent(): ComercialComponent {
@@ -12,6 +13,29 @@ describe('ComercialComponent', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('envia todos os códigos de uma empresa com filtro NUMBER e formata a referência', async () => {
+    const executar = vi.fn().mockReturnValue(of({ content: [] }));
+    const component = new ComercialComponent(
+      { executar } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.selectedCompanyIds = ['yakult', 'yakult'];
+    component.referenceDate = '2026-08-31';
+    const report = component.reports.find((item) => component.isAgeRange(item))!;
+    component.reports.forEach((item) => (item.selected = item === report));
+    report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [
+      { nomeFiltro: 'empresas', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+      { nomeFiltro: 'datareferencia', tipoDadoFiltro: 'DATE', mascaraFiltro: 'DD/MM/YYYY', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+    ] };
+    await component.generatePreview();
+    expect(executar).toHaveBeenCalledWith(report.api, {
+      combinacoesFiltros: [
+        { empresas: 2232751, datareferencia: '31/08/2026' },
+        { empresas: 2234452, datareferencia: '31/08/2026' },
+      ], page: 1, size: 20,
+    });
   });
 
   it.each([

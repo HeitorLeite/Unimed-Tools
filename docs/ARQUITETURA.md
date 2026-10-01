@@ -40,7 +40,13 @@ Home e menu Ferramentas consomem a mesma fonte.
 
 Frontend: `pages/comercial/`
 
-Consome quatro APIs SGU existentes e resolve empresa pelo catálogo local. Não permite escolher APIs arbitrárias. Em seleções múltiplas, monta um item de lote por empresa e relatório, produzindo arquivos separados no ZIP.
+Consome quatro APIs SGU existentes e resolve empresa pelo catálogo local. Não permite escolher APIs arbitrárias. Em seleções múltiplas, monta um item de lote por empresa e relatório, exceto faixa etária, que ocupa um único item com todos os códigos selecionados.
+
+**Atual:** `FaixaEtariaConsolidator` acumula as dez faixas no backend durante a
+leitura paginada da API `0090-faixa-etaria`. `ExportacaoRelatorioService` reutiliza
+essa consolidação para prévia, exportação individual e lote, sem persistir
+resultados ou alterar o SQL no SGU. O frontend reúne códigos únicos do catálogo
+para evitar repetir a mesma empresa na consulta consolidada.
 
 ### Assistencial
 

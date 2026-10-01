@@ -130,6 +130,10 @@ public class ExportacaoRelatorioService {
     String formato,
     RelatorioExportacaoRequest request
   ) throws IOException {
+    if (FaixaEtariaConsolidator.aplicavel(apiNome)) {
+      return gerarArquivoFaixaEtaria(formato, carregarFaixaEtaria(
+        combinacoesFaixaEtaria(request == null ? null : request.filtros())));
+    }
     List<LinkedHashMap<String, Object>> registros = carregarRegistros(
       apiNome,
       request == null ? null : request.filtros()
@@ -164,6 +168,13 @@ public class ExportacaoRelatorioService {
   ) throws IOException {
     DescricaoArquivo descricao = descreverArquivo(formato);
     Map<String, Object> filtros = request == null ? null : request.filtros();
+
+    if (FaixaEtariaConsolidator.aplicavel(apiNome)) {
+      Arquivo arquivo = exportar(apiNome, formato, request);
+      destino.write(arquivo.conteudo());
+      destino.flush();
+      return arquivo.quantidadeRegistros();
+    }
 
     log.info(
       "Iniciando exportação paginada. api={}, formato={}, lote={}",
@@ -229,6 +240,15 @@ public class ExportacaoRelatorioService {
     String apiNome,
     Map<String, Object> parametros
   ) {
+    if (FaixaEtariaConsolidator.aplicavel(apiNome)) {
+      List<LinkedHashMap<String, Object>> linhas = carregarFaixaEtaria(combinacoesFaixaEtaria(parametros));
+      int pagina = inteiroPositivo(parametros == null ? null : parametros.get("page"), 1);
+      int tamanho = inteiroPositivo(parametros == null ? null : parametros.get("size"), 20);
+      int inicio = (int) Math.min(linhas.size(), (long) (pagina - 1) * tamanho);
+      int fim = (int) Math.min(linhas.size(), (long) inicio + tamanho);
+      return Map.of("content", linhas.subList(inicio, fim), "totalElements", linhas.size(),
+        "number", pagina - 1, "last", fim == linhas.size());
+    }
     Map<String, Object> recebidos = parametros == null
       ? new LinkedHashMap<>()
       : new LinkedHashMap<>(parametros);
@@ -260,6 +280,55 @@ public class ExportacaoRelatorioService {
     normalizada.put("number", numeroPagina - 1);
     normalizada.put("last", numeroPagina >= Math.max(1, totalPaginas));
     return normalizada;
+  }
+
+  /** Usa o leitor paginado existente e mantém somente os acumuladores das dez faixas. */
+  public List<LinkedHashMap<String, Object>> carregarFaixaEtaria(List<Map<String, Object>> combinacoes) {
+    FaixaEtariaConsolidator consolidado = new FaixaEtariaConsolidator();
+    if (combinacoes == null || combinacoes.isEmpty()) {
+      throw new IllegalArgumentException("Informe os filtros da faixa etária.");
+    }
+    try {
+      for (Map<String, Object> filtros : new LinkedHashSet<>(combinacoes)) {
+        if (filtros == null) throw new IllegalArgumentException("Filtros da faixa etária inválidos.");
+        percorrerPaginas(FaixaEtariaConsolidator.API, filtros, consolidado::aceitar);
+      }
+    } catch (IOException ex) {
+      throw new IllegalStateException("Não foi possível concluir a consolidação da faixa etária.", ex);
+    }
+    return consolidado.resultado();
+  }
+
+  private List<Map<String, Object>> combinacoesFaixaEtaria(Map<String, Object> parametros) {
+    Map<String, Object> filtros = new LinkedHashMap<>(parametros == null ? Map.of() : parametros);
+    filtros.remove("page");
+    filtros.remove("size");
+    if (!filtros.containsKey("combinacoesFiltros")) return List.of(filtros);
+    Object recebidas = filtros.remove("combinacoesFiltros");
+    if (!filtros.isEmpty() || !(recebidas instanceof List<?> lista) || lista.isEmpty()) {
+      throw new IllegalArgumentException("Informe uma lista válida de filtros da faixa etária.");
+    }
+    List<Map<String, Object>> combinacoes = new ArrayList<>();
+    for (Object recebida : lista) {
+      if (!(recebida instanceof Map<?, ?> mapa) || mapa.isEmpty()) {
+        throw new IllegalArgumentException("Filtros da faixa etária inválidos.");
+      }
+      Map<String, Object> combinacao = new LinkedHashMap<>();
+      for (var entrada : mapa.entrySet()) {
+        if (!(entrada.getKey() instanceof String chave) ||
+            !(entrada.getValue() instanceof String || entrada.getValue() instanceof Number)) {
+          throw new IllegalArgumentException("Filtros da faixa etária inválidos.");
+        }
+        combinacao.put(chave, entrada.getValue());
+      }
+      combinacoes.add(combinacao);
+    }
+    return combinacoes;
+  }
+
+  public Arquivo gerarArquivoFaixaEtaria(String formato, List<LinkedHashMap<String, Object>> registros)
+      throws IOException {
+    return gerarArquivo(formato, registros, java.util.Set.of(), "Geral");
   }
 
   private int inteiroPositivo(Object valor, int padrao) {
@@ -484,6 +553,11 @@ public class ExportacaoRelatorioService {
   /** Metadados do Assistencial prevalecem sobre inferência por amostra. */
   public Arquivo gerarArquivo(String formato, List<LinkedHashMap<String, Object>> registros,
       java.util.Set<String> decimais) throws IOException {
+    return gerarArquivo(formato, registros, decimais, "Relatório");
+  }
+
+  private Arquivo gerarArquivo(String formato, List<LinkedHashMap<String, Object>> registros,
+      java.util.Set<String> decimais, String nomeAba) throws IOException {
     String tipo = formato == null ? "xlsx" : formato.toLowerCase(Locale.ROOT);
 
     List<LinkedHashMap<String, Object>> dados =
@@ -504,7 +578,7 @@ public class ExportacaoRelatorioService {
         dados.size()
       );
       case "xlsx" -> new Arquivo(
-        gerarXlsx(dados, decimais),
+        gerarXlsx(dados, decimais, nomeAba),
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "xlsx",
         dados.size()
@@ -781,13 +855,14 @@ public class ExportacaoRelatorioService {
     return gerarCsv(registros, ';', java.util.Set.of());
   }
 
-  private byte[] gerarXlsx(List<LinkedHashMap<String, Object>> registros, java.util.Set<String> decimais)
+  private byte[] gerarXlsx(List<LinkedHashMap<String, Object>> registros, java.util.Set<String> decimais,
+      String nomeAba)
     throws IOException {
     // A janela de 100 linhas reduz memória durante relatórios extensos.
     SXSSFWorkbook workbook = new SXSSFWorkbook(100);
     try (workbook) {
       workbook.setCompressTempFiles(true);
-      Sheet sheet = workbook.createSheet("Relatório");
+      Sheet sheet = workbook.createSheet(nomeAba);
       sheet.createFreezePane(0, 1);
 
       List<String> colunas = colunas(registros);

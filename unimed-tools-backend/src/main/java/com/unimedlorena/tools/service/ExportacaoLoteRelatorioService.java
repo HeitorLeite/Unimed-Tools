@@ -65,15 +65,14 @@ public class ExportacaoLoteRelatorioService {
         }
 
         try {
-          List<LinkedHashMap<String, Object>> registros = carregarCombinacoes(
-            apiNome,
-            item.combinacoesFiltros()
-          );
+          boolean faixaEtaria = FaixaEtariaConsolidator.aplicavel(apiNome);
+          List<LinkedHashMap<String, Object>> registros = faixaEtaria
+            ? exportacao.carregarFaixaEtaria(item.combinacoesFiltros())
+            : carregarCombinacoes(apiNome, item.combinacoesFiltros());
 
-          ExportacaoRelatorioService.Arquivo arquivo = exportacao.gerarArquivo(
-            formato,
-            registros
-          );
+          ExportacaoRelatorioService.Arquivo arquivo = faixaEtaria
+            ? exportacao.gerarArquivoFaixaEtaria(formato, registros)
+            : exportacao.gerarArquivo(formato, registros);
 
           String nomeEntrada = nomeUnico(
             nomeBase + "." + arquivo.extensao(),

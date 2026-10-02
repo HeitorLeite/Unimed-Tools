@@ -73,6 +73,40 @@
   font-size: 11px;
 }
 
+.final-report-download {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 14px;
+  border: 1px solid #91bba0;
+  border-radius: 9px;
+  background: var(--brand-green-soft);
+  color: var(--brand-green-dark);
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.final-report-download:hover:not(:disabled) {
+  border-color: var(--brand-green);
+  background: #e8f5ed;
+}
+
+.final-report-download:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.final-report-download svg {
+  width: 18px;
+  height: 18px;
+}
+
+.batch-action .final-report-hint {
+  color: var(--brand-green-dark);
+}
+
 .workflow {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);

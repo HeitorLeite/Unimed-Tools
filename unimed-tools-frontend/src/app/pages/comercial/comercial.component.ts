@@ -45,6 +45,7 @@ export class ComercialComponent implements OnInit {
   loadingDefinitions = true;
   generating = false;
   downloadingAll = false;
+  generatingFinal = false;
   error = '';
 
   reports: ComercialReport[] = [
@@ -161,6 +162,18 @@ export class ComercialComponent implements OnInit {
     );
   }
 
+  get canGenerateFinal(): boolean {
+    return (
+      this.selectedCompanies.length === 1 &&
+      /^\d{6}$/.test(this.competence) &&
+      !this.loadingDefinitions &&
+      !this.generating &&
+      !this.downloadingAll &&
+      !this.generatingFinal &&
+      this.reports.every((report) => Boolean(report.definition))
+    );
+  }
+
   canDownloadReport(report: ComercialReport): boolean {
     return (
       report.previewed &&
@@ -178,7 +191,7 @@ export class ComercialComponent implements OnInit {
   }
 
   toggleCompany(id: string): void {
-    if (this.generating || this.downloadingAll) return;
+    if (this.generating || this.downloadingAll || this.generatingFinal) return;
     if (this.isCompanySelected(id)) {
       this.selectedCompanyIds = this.selectedCompanyIds.filter((current) => current !== id);
     } else {
@@ -197,19 +210,19 @@ export class ComercialComponent implements OnInit {
   }
 
   clearCompanies(): void {
-    if (this.generating || this.downloadingAll) return;
+    if (this.generating || this.downloadingAll || this.generatingFinal) return;
     this.selectedCompanyIds = [];
     this.clearPreview();
   }
 
   removeCompany(id: string): void {
-    if (this.generating || this.downloadingAll) return;
+    if (this.generating || this.downloadingAll || this.generatingFinal) return;
     this.selectedCompanyIds = this.selectedCompanyIds.filter((current) => current !== id);
     this.clearPreview();
   }
 
   toggleReport(report: ComercialReport): void {
-    if (this.generating || this.downloadingAll) return;
+    if (this.generating || this.downloadingAll || this.generatingFinal) return;
     report.selected = !report.selected;
     report.previewed = false;
     report.records = [];
@@ -234,7 +247,7 @@ export class ComercialComponent implements OnInit {
   }
 
   async generatePreview(): Promise<void> {
-    if (this.generating || this.downloadingAll) return;
+    if (this.generating || this.downloadingAll || this.generatingFinal) return;
     this.error = '';
 
     const company = this.previewCompany;
@@ -292,6 +305,7 @@ export class ComercialComponent implements OnInit {
       report.downloading ||
       this.generating ||
       this.downloadingAll ||
+      this.generatingFinal ||
       !report.definition ||
       !this.selectedCompanies.length ||
       !report.previewed
@@ -352,6 +366,62 @@ export class ComercialComponent implements OnInit {
       });
   }
 
+  downloadFinal(): void {
+    this.error = '';
+
+    if (this.selectedCompanies.length !== 1) {
+      this.error = 'Selecione exatamente uma empresa para gerar o relatório final.';
+      return;
+    }
+    if (!/^\d{6}$/.test(this.competence)) {
+      this.error = 'Informe a competência no formato AAAAMM.';
+      return;
+    }
+    if (this.loadingDefinitions || this.reports.some((report) => !report.definition)) {
+      this.error = 'As quatro APIs do Comercial precisam estar disponíveis para gerar o relatório final.';
+      return;
+    }
+    if (!this.canGenerateFinal) return;
+
+    const company = this.selectedCompanies[0];
+    const filtrosPorApi: Record<string, Record<string, unknown>[]> = {};
+
+    for (const report of this.reports) {
+      filtrosPorApi[report.api] = this.isAgeRange(report)
+        ? this.ageRangeCombinations(report)
+        : this.parameterCombinations(report, company);
+    }
+
+    this.generatingFinal = true;
+    const filename = `sinistralidade_${this.safe(company.nome)}_${this.competence}.xlsx`;
+
+    this.reportsService
+      .exportarComercialFinal({
+        empresa: company.nome,
+        competencia: this.competence,
+        filtrosPorApi,
+      })
+      .pipe(
+        finalize(() => {
+          this.generatingFinal = false;
+          this.cdr.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: (event) => {
+          if (event.type === HttpEventType.Response && event.body) {
+            this.saveBlob(event.body, filename);
+          }
+        },
+        error: (error: any) => {
+          this.error =
+            error?.error?.message ||
+            error?.message ||
+            'Não foi possível gerar o relatório final de sinistralidade.';
+        },
+      });
+  }
+
   downloadAll(): void {
     const formato = this.formatoSelecionado;
     if (
@@ -359,6 +429,7 @@ export class ComercialComponent implements OnInit {
       !this.selectedReports.length ||
       this.downloadingAll ||
       this.generating ||
+      this.generatingFinal ||
       !this.previewsGenerated
     ) {
       return;

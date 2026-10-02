@@ -25,17 +25,161 @@ describe('ComercialComponent', () => {
     component.referenceDate = '2026-08-31';
     const report = component.reports.find((item) => component.isAgeRange(item))!;
     component.reports.forEach((item) => (item.selected = item === report));
-    report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [
-      { nomeFiltro: 'empresas', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
-      { nomeFiltro: 'datareferencia', tipoDadoFiltro: 'DATE', mascaraFiltro: 'DD/MM/YYYY', conteudoFiltro: '', obrigatorioFiltro: 'S' },
-    ] };
+    report.definition = {
+      nome: report.api,
+      consultaSQL: '',
+      ordenacao: '',
+      filtros: [
+        {
+          nomeFiltro: 'empresas',
+          tipoDadoFiltro: 'NUMBER',
+          mascaraFiltro: '',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+        {
+          nomeFiltro: 'datareferencia',
+          tipoDadoFiltro: 'DATE',
+          mascaraFiltro: 'DD/MM/YYYY',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+        {
+          nomeFiltro: 'codigoscarteirinha',
+          tipoDadoFiltro: 'NUMBER',
+          mascaraFiltro: '',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+      ],
+    };
     await component.generatePreview();
     expect(executar).toHaveBeenCalledWith(report.api, {
       combinacoesFiltros: [
-        { empresas: 2232751, datareferencia: '31/08/2026' },
-        { empresas: 2234452, datareferencia: '31/08/2026' },
-      ], page: 1, size: 20,
+        { empresas: 2232751, datareferencia: '31/08/2026', codigoscarteirinha: 2128 },
+        { empresas: 2232751, datareferencia: '31/08/2026', codigoscarteirinha: 9128 },
+        { empresas: 2234452, datareferencia: '31/08/2026', codigoscarteirinha: 2128 },
+        { empresas: 2234452, datareferencia: '31/08/2026', codigoscarteirinha: 9128 },
+      ],
+      page: 1,
+      size: 20,
     });
+  });
+
+  it.each([
+    ['ATIVOS', [2128, 422]],
+    ['INATIVOS', [9128, 5002]],
+  ] as const)(
+    'filtra a faixa etária por códigos %s das empresas selecionadas',
+    async (situacao, codigos) => {
+      const executar = vi.fn().mockReturnValue(of({ content: [] }));
+      const component = new ComercialComponent(
+        { executar } as unknown as RelatorioService,
+        { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+      );
+      component.selectedCompanyIds = ['yakult', 'orica'];
+      component.situacaoCodigoCarteirinha = situacao;
+      const report = component.reports.find((item) => component.isAgeRange(item))!;
+      component.reports.forEach((item) => (item.selected = item === report));
+      report.definition = {
+        nome: report.api,
+        consultaSQL: '',
+        ordenacao: '',
+        filtros: [
+          {
+            nomeFiltro: 'empresas',
+            tipoDadoFiltro: 'VARCHAR',
+            mascaraFiltro: '',
+            conteudoFiltro: '',
+            obrigatorioFiltro: 'S',
+          },
+          {
+            nomeFiltro: 'codigoscarteirinha',
+            tipoDadoFiltro: 'NUMBER',
+            mascaraFiltro: '',
+            conteudoFiltro: '',
+            obrigatorioFiltro: 'S',
+          },
+        ],
+      };
+
+      await component.generatePreview();
+
+      expect(executar).toHaveBeenCalledWith(report.api, {
+        combinacoesFiltros: codigos.map((codigo) => ({
+          empresas: '2232751,2234452,2010038,2011533,2011372',
+          codigoscarteirinha: codigo,
+        })),
+        page: 1,
+        size: 20,
+      });
+    },
+  );
+
+  it.each([
+    ['ATIVOS', [2152, 2154, 2156, 2158, 2160, 2162]],
+    ['TODOS', [2152, 2154, 2156, 2158, 2160, 2162, 9152]],
+  ] as const)(
+    'envia a Canção Nova com a situação %s sem lista textual no filtro numérico',
+    async (situacao, codigos) => {
+      const executar = vi.fn().mockReturnValue(of({ content: [] }));
+      const component = new ComercialComponent(
+        { executar } as unknown as RelatorioService,
+        { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+      );
+      component.selectedCompanyIds = ['cancao-nova'];
+      component.situacaoCodigoCarteirinha = situacao;
+      const report = component.reports.find((item) => component.isAgeRange(item))!;
+      component.reports.forEach((item) => (item.selected = item === report));
+      report.definition = {
+        nome: report.api,
+        consultaSQL: '',
+        ordenacao: '',
+        filtros: [
+          {
+            nomeFiltro: 'empresas',
+            tipoDadoFiltro: 'VARCHAR',
+            mascaraFiltro: '',
+            conteudoFiltro: '',
+            obrigatorioFiltro: 'S',
+          },
+          {
+            nomeFiltro: 'codigoscarteirinha',
+            tipoDadoFiltro: 'NUMBER',
+            mascaraFiltro: '',
+            conteudoFiltro: '',
+            obrigatorioFiltro: 'S',
+          },
+        ],
+      };
+
+      await component.generatePreview();
+
+      const filtros = executar.mock.calls[0][1].combinacoesFiltros as Array<
+        Record<string, unknown>
+      >;
+      expect(filtros.map((filtro) => filtro['codigoscarteirinha'])).toEqual(codigos);
+      expect(filtros.every((filtro) => typeof filtro['codigoscarteirinha'] === 'number')).toBe(
+        true,
+      );
+    },
+  );
+
+  it('interrompe a faixa etária quando a definição do SGU ainda não possui o novo filtro', async () => {
+    const executar = vi.fn();
+    const component = new ComercialComponent(
+      { executar } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.selectedCompanyIds = ['yakult'];
+    const report = component.reports.find((item) => component.isAgeRange(item))!;
+    component.reports.forEach((item) => (item.selected = item === report));
+    report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [] };
+
+    await component.generatePreview();
+
+    expect(executar).not.toHaveBeenCalled();
+    expect(report.error).toContain('filtro codigoscarteirinha');
   });
 
   it.each([

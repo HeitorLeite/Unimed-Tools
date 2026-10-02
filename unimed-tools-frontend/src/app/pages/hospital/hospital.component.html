@@ -6,10 +6,14 @@
       <p>
         Consulte solicitações autorizadas, negadas ou em estudo que ainda não possuem guia gerada.
       </p>
+      <app-tool-help [content]="help" />
     </div>
-    <label class="export-format">Formato do arquivo
+    <label class="export-format"
+      >Formato do arquivo
       <select [(ngModel)]="formatoSelecionado" aria-label="Formato do arquivo">
-        <option value="xlsx">XLSX</option><option value="csv">CSV</option><option value="txt">TXT</option>
+        <option value="xlsx">XLSX</option>
+        <option value="csv">CSV</option>
+        <option value="txt">TXT</option>
       </select>
     </label>
     <button

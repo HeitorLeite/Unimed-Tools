@@ -1,0 +1,69 @@
+<button type="button" class="help-trigger" aria-haspopup="dialog" (click)="open()">
+  <span aria-hidden="true">?</span>
+  Ajuda
+</button>
+
+<dialog
+  #helpDialog
+  class="help-dialog"
+  [attr.aria-labelledby]="titleId"
+  [attr.aria-describedby]="summaryId"
+  (click)="closeOnBackdrop($event)"
+>
+  <article class="help-panel">
+    <header>
+      <div>
+        <span class="help-kicker">Guia da ferramenta · {{ content.status || 'Atual' }}</span>
+        <h2 [id]="titleId">{{ content.title }}</h2>
+      </div>
+      <button type="button" class="help-close" aria-label="Fechar ajuda" (click)="close()">
+        ×
+      </button>
+    </header>
+
+    <p class="help-summary" [id]="summaryId">{{ content.summary }}</p>
+
+    <section *ngIf="content.prerequisites?.length">
+      <h3>Antes de começar</h3>
+      <ul class="help-checklist">
+        <li *ngFor="let item of content.prerequisites">{{ item }}</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>Passo a passo</h3>
+      <ol class="help-steps">
+        <li *ngFor="let step of content.steps; let index = index">
+          <span>{{ index + 1 }}</span>
+          <div>
+            <strong>{{ step.title }}</strong>
+            <p>{{ step.description }}</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="help-result">
+      <h3>Resultado esperado</h3>
+      <p>{{ content.result }}</p>
+    </section>
+
+    <section *ngIf="content.tips?.length">
+      <h3>Dicas</h3>
+      <ul>
+        <li *ngFor="let tip of content.tips">{{ tip }}</li>
+      </ul>
+    </section>
+
+    <section class="help-warning" *ngIf="content.warnings?.length">
+      <h3>Atenção</h3>
+      <ul>
+        <li *ngFor="let warning of content.warnings">{{ warning }}</li>
+      </ul>
+    </section>
+
+    <footer>
+      <button type="button" class="btn btn-primary" (click)="close()">Entendi</button>
+    </footer>
+  </article>
+</dialog>

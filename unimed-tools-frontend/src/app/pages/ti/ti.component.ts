@@ -1,5 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
+import { ToolHelpComponent } from '../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../shared/constants/tool-help.constants';
 import { RelatorioCatalogo } from '../../shared/models/relatorio.model';
 import { RelatorioService } from '../../shared/services/relatorio.service';
 import { RelatoriosAutomaticosComponent } from '../relatorios/relatorios-automaticos/relatorios-automaticos.component';
@@ -16,11 +18,13 @@ type TiTab = 'apis' | 'grupos' | 'ferramentas';
     RelatoriosManualComponent,
     RelatoriosAutomaticosComponent,
     ToolManagerComponent,
+    ToolHelpComponent,
   ],
   templateUrl: './ti.component.html',
   styleUrl: './ti.component.scss',
 })
 export class TiComponent implements OnInit {
+  readonly help = TOOL_HELP_CONTENT.ti;
   tab: TiTab = 'apis';
   relatorios: RelatorioCatalogo[] = [];
 

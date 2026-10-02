@@ -7,6 +7,7 @@
         Monte o relatório na ordem em que você pensa: escolha as colunas, adicione os filtros
         necessários, confira a prévia e exporte.
       </p>
+      <app-tool-help [content]="help" />
     </div>
     <div class="privacy-note"><span>●</span> Dados sensíveis são protegidos na prévia.</div>
   </header>
@@ -82,7 +83,9 @@
             <strong>Adicione os filtros e análises</strong>
             <small>Competência é obrigatória; os demais filtros e análises são opcionais.</small>
           </div>
-          <button type="button" class="text-button" (click)="limparFiltros()">Limpar filtros</button>
+          <button type="button" class="text-button" (click)="limparFiltros()">
+            Limpar filtros
+          </button>
         </div>
 
         <app-filtros-relatorio
@@ -150,7 +153,9 @@
           <div
             class="analysis-card stacked"
             [class.active]="rankingAtivo"
-            [class.unavailable]="!metricasRankingDisponiveis.length || !dimensoesRankingDisponiveis.length"
+            [class.unavailable]="
+              !metricasRankingDisponiveis.length || !dimensoesRankingDisponiveis.length
+            "
           >
             <label class="analysis-toggle">
               <input
@@ -166,8 +171,8 @@
               <span>
                 <strong>Maiores / menores gastadores</strong>
                 <small>
-                  O ranking usa o total do período completo. Se “Separar meses” estiver ativo,
-                  os mesmos resultados do Top N são detalhados mês a mês depois da classificação.
+                  O ranking usa o total do período completo. Se “Separar meses” estiver ativo, os
+                  mesmos resultados do Top N são detalhados mês a mês depois da classificação.
                 </small>
               </span>
             </label>
@@ -285,7 +290,9 @@
             ><small>{{ segundosOperacao }}s decorridos</small>
           </div>
         </div>
-        <div class="progress-line" *ngIf="progressoOperacao > 0"><span [style.width.%]="progressoOperacao"></span></div>
+        <div class="progress-line" *ngIf="progressoOperacao > 0">
+          <span [style.width.%]="progressoOperacao"></span>
+        </div>
       </div>
 
       <div class="empty-result" *ngIf="!registros.length && !gerando">
@@ -321,13 +328,16 @@
                     (dragend)="encerrarArrasteResultado()"
                     title="Arraste para alterar a posição"
                     [attr.aria-label]="'Arraste para alterar a posição de ' + rotuloColuna(coluna)"
-                  >⋮⋮</span>
+                    >⋮⋮</span
+                  >
                   <button class="sort-button" type="button" (click)="ordenarPor(coluna)">
                     <span>
                       <strong>{{ rotuloColuna(coluna) }}</strong>
                       <small>{{ textoOrdenacao(coluna) }}</small>
                     </span>
-                    <b [class.active]="colunaOrdenacao === coluna">{{ simboloOrdenacao(coluna) }}</b>
+                    <b [class.active]="colunaOrdenacao === coluna">{{
+                      simboloOrdenacao(coluna)
+                    }}</b>
                   </button>
                 </div>
               </th>

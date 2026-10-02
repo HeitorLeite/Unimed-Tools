@@ -4,10 +4,14 @@
       <span>Ferramenta configurada pela TI</span>
       <h1>{{ tool.nome }}</h1>
       <p>{{ tool.descricao }}</p>
+      <app-tool-help [content]="help" />
     </div>
-    <label class="export-format">Formato do arquivo
+    <label class="export-format"
+      >Formato do arquivo
       <select [(ngModel)]="formatoSelecionado" aria-label="Formato do arquivo">
-        <option value="xlsx">XLSX</option><option value="csv">CSV</option><option value="txt">TXT</option>
+        <option value="xlsx">XLSX</option>
+        <option value="csv">CSV</option>
+        <option value="txt">TXT</option>
       </select>
     </label>
     <button

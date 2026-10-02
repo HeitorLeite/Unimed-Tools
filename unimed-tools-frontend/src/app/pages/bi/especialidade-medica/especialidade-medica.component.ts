@@ -4,6 +4,8 @@
 import { Component, signal, ViewChild, ElementRef } from '@angular/core';
 import { NgIf, NgFor, NgClass } from '@angular/common';
 import { ApiService } from '../../../shared/services/api.service';
+import { ToolHelpComponent } from '../../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../../shared/constants/tool-help.constants';
 import { baixarBlob, formatarTamanhoArquivo } from '../../../shared/utils/file.utils';
 import { HttpEventType } from '@angular/common/http';
 
@@ -23,13 +25,14 @@ interface Stats {
 @Component({
   selector: 'app-especialidade-medica',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass],
+  imports: [NgIf, NgFor, NgClass, ToolHelpComponent],
   templateUrl: './especialidade-medica.component.html',
   styleUrls: ['./especialidade-medica.component.scss'],
 })
 export class EspecialidadeMedicaComponent {
   @ViewChild('logBox') logBoxRef!: ElementRef<HTMLDivElement>;
 
+  readonly help = TOOL_HELP_CONTENT.especialidade;
   estado = signal<Estado>('idle');
   arquivoDespesas: File | null = null;
   arquivoMedicos: File | null = null;

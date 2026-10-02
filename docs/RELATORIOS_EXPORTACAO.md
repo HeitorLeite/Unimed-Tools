@@ -93,18 +93,54 @@ todas as páginas antes de devolver a prévia ou o arquivo. Somente linhas das d
 faixas conhecidas alimentam as somas; cabeçalhos CONTRATO e TOTAL GERAL da origem
 são descartados para não contar os mesmos beneficiários duas vezes.
 
+### Situação dos códigos de carteirinha — Atual no código
+
+A tela oferece **Todos os códigos** (padrão), **Somente códigos ativos** e
+**Somente códigos inativos**. A escolha afeta apenas `0090-faixa-etaria`.
+O catálogo guarda `BNF_COD_CNTRAT_CART` sem zeros decorativos à esquerda. Para
+classificar a situação, o código é normalizado em quatro posições: os iniciados
+por `5` ou `9` são inativos; os demais são ativos.
+
+| Empresa | Ativos | Inativos |
+| --- | --- | --- |
+| Yakult | 2128 | 9128 |
+| Grupo Canção Nova | 2152, 2154, 2156, 2158, 2160, 2162 | 9152 |
+| Órica | 422 | 5002 |
+| Saint Gobain | 99 | — |
+| Grupo Biondi | 2173, 2174, 2175, 2176, 2177, 2178, 2179, 2180 | 9173 |
+| Biemme | 45 | 5045 |
+| Liceu | 364, 365, 366, 367, 369, 2190 | 5364, 5365 |
+| Apolo | 156, 2260 | 5156 |
+| Comunidade Canção Nova | 2191 | — |
+| Grupo EPPO | 2416, 2417 | — |
+| AKG | 2401 | — |
+| Instituto Santa Teresa | 92 | 5092 |
+| AECI Latam | 2022, 2303 | — |
+| ICE do Brasil | 2142 | — |
+| Serra Dourada | 2311, 2314 | — |
+
+Os identificadores internos usados no filtro de empresa continuam separados
+desses códigos. O frontend envia cada código em uma combinação separada. Para
+**Todos**, cria combinações para todos os códigos catalogados das empresas; para
+ativos ou inativos, usa somente o subconjunto correspondente. Códigos com zeros
+decorativos à esquerda seguem como número. Se nenhuma empresa possuir código da
+situação, é enviado `0`, que não encontra beneficiários.
+
 A saída segue a aba GERAL do modelo informado pelo Comercial:
 
 | Coluna | Cálculo por faixa |
 | --- | --- |
 | DEP | DEP_MASC + DEP_FEM |
 | TIT | TIT_MASC + TIT_FEM |
-| FEM | DEP_FEM + TIT_FEM |
-| MASC | DEP_MASC + TIT_MASC |
-| TOTAL | DEP + TIT, sem agregados |
+| AGR | AGR_MASC + AGR_FEM; a coluna só aparece quando existe agregado |
+| FEM | DEP_FEM + TIT_FEM + AGR_FEM |
+| MASC | DEP_MASC + TIT_MASC + AGR_MASC |
+| TOTAL | DEP + TIT + AGR |
 
-O cabeçalho é `FAIXA_ETARIA;DEP;TIT;FEM;MASC;TOTAL`, seguido diretamente pelas dez
-faixas em ordem crescente e TOTAL GERAL, sem linha de identificação GERAL vazia. XLSX usa uma única aba
+Sem agregados, o cabeçalho é `FAIXA_ETARIA;DEP;TIT;FEM;MASC;TOTAL`. Quando pelo
+menos uma faixa possui agregado, `AGR` aparece entre `TIT` e `FEM`. Em ambos os casos,
+seguem diretamente as dez faixas em ordem crescente e TOTAL GERAL, sem linha de
+identificação GERAL vazia. XLSX usa uma única aba
 Geral, com contagens numéricas. CSV e TXT mantêm o contrato de codificação existente.
 Faixas ausentes são preenchidas com zero quando há dados válidos em outras faixas.
 Resposta completamente vazia permite prévia vazia e impede exportação com 422.
@@ -128,11 +164,32 @@ Os endpoints existentes continuam protegidos por sessão, permissão e CSRF:
 O envelope de combinações é interpretado somente para a API de faixa etária e
 nunca é enviado como filtro ao SGU. A seleção de várias empresas usa códigos
 únicos, unidos em uma lista quando o filtro aceita VARCHAR ou divididos em
-combinações quando exige NUMBER. As contagens são acumuladas em memória fixa
-de dez faixas, sem reunir todas as linhas de origem.
+combinações quando exige NUMBER. `codigoscarteirinha` sempre usa uma combinação
+numérica por código porque o SGU interpola esse valor no bloco PL/SQL; uma lista
+com vírgulas causaria `PLS-00103`. As contagens são acumuladas em memória fixa de
+dez faixas, sem reunir todas as linhas de origem.
 
-**Pendente:** homologar a nova tabela no SGU e no navegador autenticado após
-publicação. Testes locais usam somente dados sintéticos.
+### Configuração no SGU — Atual
+
+A definição `0090-faixa-etaria` deve manter o filtro obrigatório
+`codigoscarteirinha`, do tipo `NUMBER`, e o SQL de
+`docs/sql/0090-faixa-etaria-corrigida.sql`. O `WHERE` compara diretamente um
+código numérico por execução com `b.bnf_cod_cntrat_cart`. A tela interrompe a
+consulta com uma mensagem explícita quando a
+definição publicada ainda não expõe esse filtro, evitando ignorar a escolha do
+usuário.
+
+Consultas anteriores que preenchiam `b.bnf_cod_cntrat_cart` com zeros e procuravam
+o parâmetro com `INSTR` não encontram códigos numéricos menores que 1000: por
+exemplo, o parâmetro `422` não coincide com a representação textual `0422`.
+Nesses casos, é obrigatório publicar o `WHERE` desta versão, que faz a comparação
+numérica direta.
+
+Depois de atualizar frontend ou SQL, homologar no navegador autenticado as três
+opções com uma empresa que possua códigos ativos e inativos e outra que possua
+somente ativos.
+Os testes locais usam somente dados sintéticos; a atualização deste repositório
+não publica automaticamente a definição no SGU.
 
 ## Desempenho e limites
 

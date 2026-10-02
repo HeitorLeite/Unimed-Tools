@@ -16,8 +16,9 @@ final class FaixaEtariaConsolidator {
     "0 a 18", "19 a 23", "24 a 28", "29 a 33", "34 a 38",
     "39 a 43", "44 a 48", "49 a 53", "54 a 58", "59 a 999"
   );
-  private final long[][] totais = new long[10][4];
+  private final long[][] totais = new long[10][6];
   private boolean possuiFaixa;
+  private boolean possuiAgregado;
 
   static boolean aplicavel(String api) {
     return API.equalsIgnoreCase(api == null ? "" : api.trim());
@@ -32,10 +33,12 @@ final class FaixaEtariaConsolidator {
       int indice = FAIXAS.indexOf(faixa);
       if (indice < 0) throw invalido();
       possuiFaixa = true;
-      String[] campos = {"DEP_MASC", "DEP_FEM", "TIT_MASC", "TIT_FEM"};
+      String[] campos = {"DEP_MASC", "DEP_FEM", "TIT_MASC", "TIT_FEM", "AGR_MASC", "AGR_FEM"};
       for (int i = 0; i < campos.length; i++) {
         try {
-          totais[indice][i] = Math.addExact(totais[indice][i], numero(linha, campos[i]));
+          long quantidade = numero(linha, campos[i]);
+          totais[indice][i] = Math.addExact(totais[indice][i], quantidade);
+          if (i >= 4 && quantidade > 0) possuiAgregado = true;
         } catch (ArithmeticException ex) {
           throw invalido();
         }
@@ -46,7 +49,7 @@ final class FaixaEtariaConsolidator {
   List<LinkedHashMap<String, Object>> resultado() {
     if (!possuiFaixa) return List.of();
     List<LinkedHashMap<String, Object>> linhas = new ArrayList<>();
-    long[] soma = new long[4];
+    long[] soma = new long[6];
     try {
       for (int i = 0; i < FAIXAS.size(); i++) {
         linhas.add(linha(FAIXAS.get(i), totais[i]));
@@ -64,12 +67,13 @@ final class FaixaEtariaConsolidator {
     linha.put("FAIXA_ETARIA", faixa);
     long dep = Math.addExact(v[0], v[1]);
     long tit = Math.addExact(v[2], v[3]);
+    long agr = Math.addExact(v[4], v[5]);
     linha.put("DEP", dep);
     linha.put("TIT", tit);
-    linha.put("FEM", Math.addExact(v[1], v[3]));
-    linha.put("MASC", Math.addExact(v[0], v[2]));
-    // O modelo GERAL exclui agregados inclusive do total, conforme regra do Comercial.
-    linha.put("TOTAL", Math.addExact(dep, tit));
+    if (possuiAgregado) linha.put("AGR", agr);
+    linha.put("FEM", Math.addExact(Math.addExact(v[1], v[3]), v[5]));
+    linha.put("MASC", Math.addExact(Math.addExact(v[0], v[2]), v[4]));
+    linha.put("TOTAL", Math.addExact(Math.addExact(dep, tit), agr));
     return linha;
   }
 

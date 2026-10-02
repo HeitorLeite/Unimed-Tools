@@ -40,13 +40,18 @@ Home e menu Ferramentas consomem a mesma fonte.
 
 Frontend: `pages/comercial/`
 
-Consome quatro APIs SGU existentes e resolve empresa pelo catálogo local. Não permite escolher APIs arbitrárias. Em seleções múltiplas, monta um item de lote por empresa e relatório, exceto faixa etária, que ocupa um único item com todos os códigos selecionados.
+Consome quatro APIs SGU existentes e resolve empresa pelo catálogo local. Não permite escolher APIs arbitrárias. Em seleções múltiplas, monta um item de lote por empresa e relatório, exceto faixa etária, que ocupa um único item com todos os códigos selecionados. O catálogo mantém separadamente os identificadores de empresa (`codigos`) e os valores numéricos de `BNF_COD_CNTRAT_CART`, sem zeros decorativos à esquerda (`codigosCarteirinha`).
 
 **Atual:** `FaixaEtariaConsolidator` acumula as dez faixas no backend durante a
 leitura paginada da API `0090-faixa-etaria`. `ExportacaoRelatorioService` reutiliza
 essa consolidação para prévia, exportação individual e lote, sem persistir
-resultados ou alterar o SQL no SGU. O frontend reúne códigos únicos do catálogo
-para evitar repetir a mesma empresa na consulta consolidada.
+resultados. O frontend reúne códigos únicos do catálogo para evitar repetir a
+mesma empresa na consulta consolidada e envia uma combinação por
+`codigoscarteirinha`. A opção Todos gera combinações para todos os códigos
+catalogados; ativos e inativos geram somente o subconjunto correspondente. O SQL
+de referência fica em
+`docs/sql/0090-faixa-etaria-corrigida.sql`; sua publicação no SGU é uma etapa
+operacional separada.
 
 ### Assistencial
 
@@ -145,12 +150,24 @@ O backend nega acesso por padrão.
 
 Permissões operacionais principais:
 
-- `XML_ACESSAR`;
-- `BI_ACESSAR`;
-- `RELATORIOS_ACESSAR`;
-- `ANS_ACESSAR`.
+- `COMERCIAL_ACESSAR`;
+- `ASSISTENCIAL_ACESSAR`;
+- `REVISAO_CONTAS_ACESSAR`;
+- `UNICA_ACESSAR`;
+- `HOSPITAL_ACESSAR`;
+- `GESTAO_RISCO_ACESSAR`.
+
+`RELATORIOS_ACESSAR`, `RELATORIO_PERSONALIZADO_ACESSAR`, `XML_ACESSAR` e
+`ANS_ACESSAR` permanecem como permissões técnicas necessárias aos endpoints,
+mas não são apresentadas como áreas de negócio no gerenciamento de usuários.
 
 Permissões administrativas permanecem no perfil Administrador e são validadas no backend. Criar/editar ferramentas exige `FERRAMENTAS_ADMINISTRAR`.
+
+Na inicialização, `PermissaoFerramentasBootstrapService` sincroniza o catálogo das
+ferramentas atuais. A migração a partir das permissões técnicas legadas ocorre
+somente quando cada permissão operacional é criada. Depois disso, reinícios não
+podem acrescentar concessões em `usuario_permissao`, preservando a seleção feita
+pelo administrador.
 
 ## 6. Persistência
 
@@ -256,6 +273,17 @@ mvn clean package
 ```
 
 O CI executa os mesmos gates em branches `refactor/**` e em pull requests.
+
+
+## 11. Ajuda e documentação em contexto
+
+`ToolHelpComponent` oferece um diálogo acessível e reutilizável nas páginas das
+ferramentas. O conteúdo fica centralizado em
+`shared/constants/tool-help.constants.ts`, separado da apresentação, para que
+entradas, etapas, saídas e limitações possam ser revisadas em um único lugar.
+
+As instruções operacionais ampliadas ficam no [Guia do usuário](GUIA_DO_USUARIO.md)
+e a localização de cada fluxo no [Mapa do código](MAPA_DO_CODIGO.md).
 
 
 O contrato atualizado está em [Exportação de relatórios](RELATORIOS_EXPORTACAO.md).

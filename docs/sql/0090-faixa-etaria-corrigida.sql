@@ -1,3 +1,7 @@
+-- Parâmetros obrigatórios da definição SGU:
+--   datareferencia      DATE
+--   empresas            VARCHAR ou NUMBER, conforme o contrato já publicado
+--   codigoscarteirinha  NUMBER; recebe um código por execução
 WITH base AS
 (
 SELECT trunc(months_between(:datareferencia,
@@ -16,6 +20,7 @@ LEFT JOIN dbaunimed.emp_contrt emp
        ON emp.empcn_cod = ctv.empcn_cod
 WHERE b.bnf_dat_inic_vigen <= :datareferencia
 AND instr(',' || replace(:empresas, ' ', '') || ',', ',' || to_char(emp.empcn_cod_pessoa) || ',') > 0
+AND b.bnf_cod_cntrat_cart = :codigoscarteirinha
 AND ctv.plano_nro_reg_ans NOT LIKE '%GRATUITO%'
 AND (
        b.bnf_dat_excl IS NULL

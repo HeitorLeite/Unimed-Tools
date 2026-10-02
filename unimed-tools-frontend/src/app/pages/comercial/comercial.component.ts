@@ -5,11 +5,15 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, finalize, firstValueFrom, forkJoin, of } from 'rxjs';
 import { ReportPreviewComponent } from '../../shared/components/report-preview/report-preview.component';
+import { ToolHelpComponent } from '../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../shared/constants/tool-help.constants';
 import { SguApiDefinicao, SguResultado } from '../../shared/models/relatorio.model';
 import { RelatorioService } from '../../shared/services/relatorio.service';
 import {
+  codigosCarteirinhaPorSituacao,
   EmpresaCatalogo,
   EMPRESAS_RELATORIOS,
+  SituacaoCodigoCarteirinha,
 } from '../relatorios/relatorios-automaticos/empresa-catalogo';
 import { chaveLogicaFiltro } from '../relatorios/relatorios-automaticos/grupo-filtros.utils';
 
@@ -31,17 +35,19 @@ interface ComercialReport {
 @Component({
   selector: 'app-comercial',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReportPreviewComponent],
+  imports: [CommonModule, FormsModule, ReportPreviewComponent, ToolHelpComponent],
   templateUrl: './comercial.component.html',
   styleUrl: './comercial.component.scss',
 })
 export class ComercialComponent implements OnInit {
+  readonly help = TOOL_HELP_CONTENT.comercial;
   formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'csv';
   readonly companies = EMPRESAS_RELATORIOS;
   selectedCompanyIds: string[] = [];
   companySearch = '';
   competence = this.previousCompetence();
   referenceDate = this.lastDayOfCompetence(this.competence);
+  situacaoCodigoCarteirinha: SituacaoCodigoCarteirinha = 'TODOS';
   loadingDefinitions = true;
   generating = false;
   downloadingAll = false;
@@ -90,7 +96,8 @@ export class ComercialComponent implements OnInit {
     {
       api: '0090-faixa-etaria',
       nome: 'Faixa etária',
-      descricao: 'Tabela geral de titulares e dependentes de todas as empresas selecionadas.',
+      descricao:
+        'Tabela geral de titulares, dependentes e agregados de todas as empresas selecionadas.',
       arquivo: 'faixa_etaria',
       selected: true,
       records: [],
@@ -233,6 +240,11 @@ export class ComercialComponent implements OnInit {
     this.clearPreview();
   }
 
+  onSituacaoCodigoCarteirinhaChange(value: SituacaoCodigoCarteirinha): void {
+    this.situacaoCodigoCarteirinha = value;
+    this.clearPreview();
+  }
+
   async generatePreview(): Promise<void> {
     if (this.generating || this.downloadingAll) return;
     this.error = '';
@@ -266,7 +278,7 @@ export class ComercialComponent implements OnInit {
           this.reportsService.executar(report.api, {
             ...(this.isAgeRange(report)
               ? { combinacoesFiltros: this.ageRangeCombinations(report) }
-              : combinations[0] ?? {}),
+              : (combinations[0] ?? {})),
             page: 1,
             size: 20,
           }),
@@ -305,12 +317,20 @@ export class ComercialComponent implements OnInit {
     const combinations = company ? this.parameterCombinations(report, company) : [];
     const companyLabel = this.companyFileLabel();
 
-    if (this.isAgeRange(report) || (this.selectedCompanies.length === 1 && combinations.length === 1)) {
+    if (
+      this.isAgeRange(report) ||
+      (this.selectedCompanies.length === 1 && combinations.length === 1)
+    ) {
       const filename = `${companyLabel}_${report.arquivo}_${this.competence}`;
       this.reportsService
-        .exportar(report.api, formato, this.isAgeRange(report)
-          ? { combinacoesFiltros: this.ageRangeCombinations(report) }
-          : combinations[0], filename)
+        .exportar(
+          report.api,
+          formato,
+          this.isAgeRange(report)
+            ? { combinacoesFiltros: this.ageRangeCombinations(report) }
+            : combinations[0],
+          filename,
+        )
         .pipe(finalize(() => this.finishReportDownload(report)))
         .subscribe({
           next: (event) => {
@@ -372,15 +392,19 @@ export class ComercialComponent implements OnInit {
       nomeArquivo: `comercial_${companyLabel}_${this.competence}`,
       formato,
       itens: this.selectedReports.flatMap((report) =>
-        this.isAgeRange(report) ? [{
-          apiNome: report.api,
-          nomeArquivo: `${companyLabel}_${report.arquivo}_${this.competence}`,
-          combinacoesFiltros: this.ageRangeCombinations(report),
-        }] : this.selectedCompanies.map((company) => ({
-          apiNome: report.api,
-          nomeArquivo: `${this.safe(company.nome)}_${report.arquivo}_${this.competence}`,
-          combinacoesFiltros: this.parameterCombinations(report, company),
-        })),
+        this.isAgeRange(report)
+          ? [
+              {
+                apiNome: report.api,
+                nomeArquivo: `${companyLabel}_${report.arquivo}_${this.competence}`,
+                combinacoesFiltros: this.ageRangeCombinations(report),
+              },
+            ]
+          : this.selectedCompanies.map((company) => ({
+              apiNome: report.api,
+              nomeArquivo: `${this.safe(company.nome)}_${report.arquivo}_${this.competence}`,
+              combinacoesFiltros: this.parameterCombinations(report, company),
+            })),
       ),
     };
 
@@ -412,12 +436,37 @@ export class ComercialComponent implements OnInit {
   private ageRangeCombinations(report: ComercialReport): Record<string, unknown>[] {
     // Um código compartilhado por entradas do catálogo deve ser consultado só uma vez.
     const codigos = [...new Set(this.selectedCompanies.flatMap((company) => [...company.codigos]))];
-    return this.parameterCombinations(report, { id: 'geral', nome: 'Geral', codigos });
+    const filtroCarteirinha = report.definition?.filtros?.find((filter) =>
+      this.normalize(filter.nomeFiltro).includes('codigoscarteirinha'),
+    );
+    if (!filtroCarteirinha) {
+      throw new Error(
+        'A API de faixa etária ainda não possui o filtro codigoscarteirinha. Solicite à TI a publicação da definição atualizada no SGU.',
+      );
+    }
+
+    const codigosCarteirinha =
+      this.situacaoCodigoCarteirinha === 'TODOS'
+        ? [...new Set(this.selectedCompanies.flatMap((company) => company.codigosCarteirinha))]
+        : codigosCarteirinhaPorSituacao(this.selectedCompanies, this.situacaoCodigoCarteirinha);
+
+    // O SGU interpola filtros NUMBER no bloco PL/SQL. Enviar "2152,2154" produz
+    // uma expressão inválida; cada código precisa seguir em uma combinação própria.
+    const valores = codigosCarteirinha.length
+      ? codigosCarteirinha.map((codigo) => Number(codigo))
+      : [0];
+
+    return this.parameterCombinations(report, { codigos }).flatMap((combination) =>
+      valores.map((codigo) => ({
+        ...combination,
+        [filtroCarteirinha.nomeFiltro]: codigo,
+      })),
+    );
   }
 
   private parameterCombinations(
     report: ComercialReport,
-    company: EmpresaCatalogo,
+    company: Pick<EmpresaCatalogo, 'codigos'>,
   ): Record<string, unknown>[] {
     const definition = report.definition;
     if (!definition) return [{}];

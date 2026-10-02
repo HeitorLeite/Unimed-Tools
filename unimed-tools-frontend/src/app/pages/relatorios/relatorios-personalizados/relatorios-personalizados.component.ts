@@ -16,6 +16,8 @@ import {
   Output,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ToolHelpComponent } from '../../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../../shared/constants/tool-help.constants';
 import { FiltrosRelatorioComponent } from './filtros-relatorio.component';
 import { ColunasRelatorioComponent } from './colunas-relatorio.component';
 import { finalize } from 'rxjs';
@@ -60,13 +62,20 @@ type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
 @Component({
   selector: 'app-relatorios-personalizados',
   standalone: true,
-  imports: [CommonModule, FormsModule, FiltrosRelatorioComponent, ColunasRelatorioComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    FiltrosRelatorioComponent,
+    ColunasRelatorioComponent,
+    ToolHelpComponent,
+  ],
   templateUrl: './relatorios-personalizados.component.html',
   styleUrls: ['./relatorios-personalizados.component.scss'],
 })
 export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
   @Output() voltar = new EventEmitter<void>();
 
+  readonly help = TOOL_HELP_CONTENT.assistencial;
   configuracao: RelatorioPersonalizadoConfiguracao | null = null;
   gruposFiltros: Grupo<RelatorioPersonalizadoFiltro>[] = [];
   gruposColunas: Grupo<RelatorioPersonalizadoColuna>[] = [];

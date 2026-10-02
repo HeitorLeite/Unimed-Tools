@@ -4,6 +4,8 @@
 import { Component, signal } from '@angular/core';
 import { NgFor, NgIf } from '@angular/common';
 import { FileUploadComponent } from '../../../shared/components/file-upload/file-upload.component';
+import { ToolHelpComponent } from '../../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../../shared/constants/tool-help.constants';
 import { ApiService } from '../../../shared/services/api.service';
 import { HttpEventType } from '@angular/common/http';
 
@@ -17,11 +19,12 @@ interface LogEntry {
 @Component({
   selector: 'app-corretor-fechamento',
   standalone: true,
-  imports: [NgIf, NgFor, FileUploadComponent],
+  imports: [NgIf, NgFor, FileUploadComponent, ToolHelpComponent],
   templateUrl: './corretor-fechamento.component.html',
   styleUrls: ['./corretor-fechamento.component.scss'],
 })
 export class CorretorFechamentoComponent {
+  readonly help = TOOL_HELP_CONTENT.fechamento;
   estado = signal<Estado>('idle');
   arquivo: File | null = null;
   progresso = signal(0);

@@ -3,23 +3,43 @@
     <span class="eyebrow">Administração da plataforma</span>
     <h1>TI</h1>
     <p>Consulte dados, organize relatórios e gerencie as ferramentas da plataforma.</p>
+    <app-tool-help [content]="help" />
   </header>
 
   <nav class="admin-nav" aria-label="Seções da ferramenta TI">
-    <button type="button" [class.active]="tab === 'apis'" [attr.aria-current]="tab === 'apis' ? 'page' : null" (click)="select('apis')">
+    <button
+      type="button"
+      [class.active]="tab === 'apis'"
+      [attr.aria-current]="tab === 'apis' ? 'page' : null"
+      (click)="select('apis')"
+    >
       <strong>Relatórios e APIs</strong><span>Consultar, importar e exportar</span>
     </button>
-    <button type="button" [class.active]="tab === 'grupos'" [attr.aria-current]="tab === 'grupos' ? 'page' : null" (click)="select('grupos')">
+    <button
+      type="button"
+      [class.active]="tab === 'grupos'"
+      [attr.aria-current]="tab === 'grupos' ? 'page' : null"
+      (click)="select('grupos')"
+    >
       <strong>Grupos de relatórios</strong><span>Organizar e gerar em lote</span>
     </button>
-    <button type="button" [class.active]="tab === 'ferramentas'" [attr.aria-current]="tab === 'ferramentas' ? 'page' : null" (click)="select('ferramentas')">
+    <button
+      type="button"
+      [class.active]="tab === 'ferramentas'"
+      [attr.aria-current]="tab === 'ferramentas' ? 'page' : null"
+      (click)="select('ferramentas')"
+    >
       <strong>Páginas e ferramentas</strong><span>Personalizar e publicar</span>
     </button>
   </nav>
 
   <section class="admin-workspace">
     <app-relatorios-manual *ngIf="tab === 'apis'" [embedded]="true" />
-    <app-relatorios-automaticos *ngIf="tab === 'grupos'" [embedded]="true" [relatorios]="relatorios" />
+    <app-relatorios-automaticos
+      *ngIf="tab === 'grupos'"
+      [embedded]="true"
+      [relatorios]="relatorios"
+    />
     <app-tool-manager *ngIf="tab === 'ferramentas'" />
   </section>
 </section>

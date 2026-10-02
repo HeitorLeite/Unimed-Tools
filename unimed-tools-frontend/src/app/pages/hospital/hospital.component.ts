@@ -5,17 +5,20 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ReportPreviewComponent } from '../../shared/components/report-preview/report-preview.component';
+import { ToolHelpComponent } from '../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../shared/constants/tool-help.constants';
 import { HospitalConfiguration } from '../../shared/models/hospital.model';
 import { RelatorioService } from '../../shared/services/relatorio.service';
 
 @Component({
   selector: 'app-hospital',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReportPreviewComponent],
+  imports: [CommonModule, FormsModule, ReportPreviewComponent, ToolHelpComponent],
   templateUrl: './hospital.component.html',
   styleUrl: './hospital.component.scss',
 })
 export class HospitalComponent implements OnInit {
+  readonly help = TOOL_HELP_CONTENT.hospital;
   formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'xlsx';
   config: HospitalConfiguration | null = null;
   values: Record<string, string> = {};
@@ -102,7 +105,6 @@ export class HospitalComponent implements OnInit {
           const parsed = Number(totalValue);
 
           this.total = Number.isFinite(parsed) ? parsed : null;
-
         },
         error: (error: any) =>
           (this.error = error?.error?.message || 'Não foi possível consultar as autorizações.'),
@@ -133,7 +135,8 @@ export class HospitalComponent implements OnInit {
             this.save(event.body, `hospital_autorizacoes.${formato}`);
         },
         error: (error: any) =>
-          (this.error = error?.error?.message || error?.message || 'Não foi possível baixar o relatório.'),
+          (this.error =
+            error?.error?.message || error?.message || 'Não foi possível baixar o relatório.'),
       });
   }
 

@@ -1,6 +1,8 @@
 package com.unimedlorena.tools.auth;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
@@ -63,8 +65,9 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
   public void run(ApplicationArguments args) {
     removerFusexSpaLegado();
 
+    Set<String> permissoesCriadas = new HashSet<>();
     for (Permissao permissao : PERMISSOES) {
-      jdbc.update(
+      int inseridas = jdbc.update(
         """
         INSERT INTO permissao (codigo, modulo, descricao, ativo)
         SELECT ?, ?, ?, TRUE
@@ -75,6 +78,7 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
         permissao.descricao(),
         permissao.codigo()
       );
+      if (inseridas > 0) permissoesCriadas.add(permissao.codigo());
       jdbc.update(
         "UPDATE permissao SET modulo = ?, descricao = ?, ativo = TRUE WHERE codigo = ?",
         permissao.modulo(),
@@ -105,9 +109,13 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
       "ASSISTENCIAL_ACESSAR",
       "HOSPITAL_ACESSAR",
       "GESTAO_RISCO_ACESSAR"
-    ));
-    migrarPermissao("XML_ACESSAR", List.of("REVISAO_CONTAS_ACESSAR"));
-    migrarPermissao("ANS_ACESSAR", List.of("UNICA_ACESSAR"));
+    ), permissoesCriadas);
+    migrarPermissao(
+      "XML_ACESSAR",
+      List.of("REVISAO_CONTAS_ACESSAR"),
+      permissoesCriadas
+    );
+    migrarPermissao("ANS_ACESSAR", List.of("UNICA_ACESSAR"), permissoesCriadas);
   }
 
   private void removerFusexSpaLegado() {
@@ -118,8 +126,15 @@ public class PermissaoFerramentasBootstrapService implements ApplicationRunner {
     jdbc.update("DELETE FROM permissao WHERE codigo = ?", "FUSEX_SPA_VALORIZAR");
   }
 
-  private void migrarPermissao(String antiga, List<String> novas) {
+  private void migrarPermissao(
+    String antiga,
+    List<String> novas,
+    Set<String> permissoesCriadas
+  ) {
     for (String nova : novas) {
+      // A permissão técnica continua necessária para os endpoints. Ela só
+      // representa uma concessão legada quando a permissão operacional nasce.
+      if (!permissoesCriadas.contains(nova)) continue;
       jdbc.update(
         """
         INSERT IGNORE INTO usuario_permissao (usuario_id, permissao_id, concedida_por)

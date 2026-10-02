@@ -1,4 +1,8 @@
-import { EMPRESAS_RELATORIOS } from './empresa-catalogo';
+import {
+  codigoCarteirinhaInativo,
+  codigosCarteirinhaPorSituacao,
+  EMPRESAS_RELATORIOS,
+} from './empresa-catalogo';
 
 describe('EMPRESAS_RELATORIOS', () => {
   it('mantém os nomes e códigos usados nos relatórios automáticos de empresas', () => {
@@ -23,5 +27,42 @@ describe('EMPRESAS_RELATORIOS', () => {
       ICE: '2234145',
       'Faculdade Serra Dourada': '2227006,2214653',
     });
+  });
+
+  it('mantém os códigos de carteirinha separados dos identificadores das empresas', () => {
+    expect(
+      Object.fromEntries(
+        EMPRESAS_RELATORIOS.map((empresa) => [empresa.id, empresa.codigosCarteirinha.join(',')]),
+      ),
+    ).toEqual({
+      yakult: '2128,9128',
+      'cancao-nova': '2152,2154,2156,2158,2160,2162,9152',
+      orica: '422,5002',
+      'saint-gobain': '99',
+      'grupo-biondi': '2173,2174,2175,2176,2177,2178,2179,2180,9173',
+      biemme: '45,5045',
+      'grupo-liceu': '364,365,366,367,369,2190,5364,5365',
+      apollo: '156,2260,5156',
+      'comunidade-cancao-nova': '2191',
+      'grupo-eppo': '2416,2417',
+      akg: '2401',
+      'instituto-santa-teresa': '92,5092',
+      aeci: '2022,2303',
+      ice: '2142',
+      'faculdade-serra-dourada': '2311,2314',
+    });
+  });
+
+  it('classifica como inativos somente códigos de quatro posições iniciados por 5 ou 9', () => {
+    expect(codigoCarteirinhaInativo('9128')).toBe(true);
+    expect(codigoCarteirinhaInativo('5045')).toBe(true);
+    expect(codigoCarteirinhaInativo('2128')).toBe(false);
+    expect(codigoCarteirinhaInativo('45')).toBe(false);
+
+    const yakultEOrica = EMPRESAS_RELATORIOS.filter((empresa) =>
+      ['yakult', 'orica'].includes(empresa.id),
+    );
+    expect(codigosCarteirinhaPorSituacao(yakultEOrica, 'ATIVOS')).toEqual(['2128', '422']);
+    expect(codigosCarteirinhaPorSituacao(yakultEOrica, 'INATIVOS')).toEqual(['9128', '5002']);
   });
 });

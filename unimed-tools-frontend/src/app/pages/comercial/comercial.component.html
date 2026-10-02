@@ -5,9 +5,10 @@
       <h1>Comercial</h1>
       <p>
         Selecione uma ou várias empresas, confira uma amostra da primeira e gere os arquivos
-        completos. A faixa etária reúne todas as empresas escolhidas em uma única tabela;
-        os demais relatórios são separados por empresa.
+        completos. A faixa etária reúne todas as empresas escolhidas em uma única tabela; os demais
+        relatórios são separados por empresa.
       </p>
+      <app-tool-help [content]="help" />
     </div>
 
     <div class="batch-action">
@@ -160,6 +161,24 @@
         />
       </div>
 
+      <div class="field">
+        <label for="commercial-card-status">Códigos da faixa etária</label>
+        <select
+          id="commercial-card-status"
+          [ngModel]="situacaoCodigoCarteirinha"
+          (ngModelChange)="onSituacaoCodigoCarteirinhaChange($event)"
+          [disabled]="!ageRangeSelected || generating || downloadingAll"
+        >
+          <option value="TODOS">Todos os códigos</option>
+          <option value="ATIVOS">Somente códigos ativos</option>
+          <option value="INATIVOS">Somente códigos inativos</option>
+        </select>
+        <small>
+          Afeta somente a faixa etária. Códigos de quatro posições iniciados por 5 ou 9 são
+          inativos.
+        </small>
+      </div>
+
       <div class="step reports-step">
         <span>3</span>
         <div>
@@ -213,7 +232,10 @@
           <span>4</span>
           <div>
             <strong>Conferência</strong>
-            <small>Faixa etária: consolidado completo. Demais relatórios: amostra da primeira empresa.</small>
+            <small
+              >Faixa etária: consolidado completo. Demais relatórios: amostra da primeira
+              empresa.</small
+            >
           </div>
         </div>
 
@@ -226,8 +248,8 @@
       <div class="preview-notice" *ngIf="selectedCompanies.length > 1">
         <strong>Prévia resumida</strong>
         <p>
-          Na faixa etária, a tabela soma todas as empresas selecionadas. Nos demais relatórios,
-          a tela mostra somente
+          Na faixa etária, a tabela soma todas as empresas selecionadas. Nos demais relatórios, a
+          tela mostra somente
           <b>{{ previewCompany?.nome }}</b
           >. Os arquivos baixados incluem os dados de todas as
           {{ selectedCompanies.length }} empresas selecionadas.
@@ -246,9 +268,9 @@
                 ? 'Preparando…'
                 : isAgeRange(report)
                   ? 'Baixar consolidado ' + formatoSelecionado.toUpperCase()
-                : selectedCompanies.length > 1
-                  ? 'Baixar todas as empresas'
-                  : 'Baixar ' + formatoSelecionado.toUpperCase()
+                  : selectedCompanies.length > 1
+                    ? 'Baixar todas as empresas'
+                    : 'Baixar ' + formatoSelecionado.toUpperCase()
             }}
           </button>
         </header>
@@ -273,7 +295,8 @@
       <div class="start-state" *ngIf="!hasPreview">
         <strong>Selecione as empresas e gere uma prévia.</strong>
         <span>
-          A faixa etária consolida todas as empresas. Os demais relatórios usam a primeira como amostra.
+          A faixa etária consolida todas as empresas. Os demais relatórios usam a primeira como
+          amostra.
         </span>
       </div>
     </main>

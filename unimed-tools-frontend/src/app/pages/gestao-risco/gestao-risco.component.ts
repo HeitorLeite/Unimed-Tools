@@ -5,6 +5,8 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, finalize, forkJoin, of } from 'rxjs';
 import { ReportPreviewComponent } from '../../shared/components/report-preview/report-preview.component';
+import { ToolHelpComponent } from '../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../shared/constants/tool-help.constants';
 import { SguApiDefinicao, SguResultado } from '../../shared/models/relatorio.model';
 import { RelatorioService } from '../../shared/services/relatorio.service';
 
@@ -26,11 +28,12 @@ interface RiskReport {
 @Component({
   selector: 'app-gestao-risco',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReportPreviewComponent],
+  imports: [CommonModule, FormsModule, ReportPreviewComponent, ToolHelpComponent],
   templateUrl: './gestao-risco.component.html',
   styleUrl: './gestao-risco.component.scss',
 })
 export class GestaoRiscoComponent implements OnInit {
+  readonly help = TOOL_HELP_CONTENT.gestaoRisco;
   formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'csv';
   competence = this.previousCompetence();
   additionalValues: Record<string, string> = {};
@@ -283,7 +286,8 @@ export class GestaoRiscoComponent implements OnInit {
         next: (response) => {
           if (response.body) this.save(response.body, `${request.nomeArquivo}.zip`);
           if (Number(response.headers.get('X-Relatorios-Erros')) > 0)
-            this.error = 'O pacote contém falhas. Confira o resumo de geração dentro do ZIP antes de usar os relatórios.';
+            this.error =
+              'O pacote contém falhas. Confira o resumo de geração dentro do ZIP antes de usar os relatórios.';
         },
         error: () => (this.error = 'Não foi possível gerar o pacote de relatórios.'),
       });

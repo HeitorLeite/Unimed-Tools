@@ -4,6 +4,8 @@
 import { Component, signal } from '@angular/core';
 import { NgIf, NgFor } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ToolHelpComponent } from '../../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../../shared/constants/tool-help.constants';
 import { XmlService, ArquivoResultado } from '../../../shared/services/xml.service';
 
 type Estado = 'idle' | 'pronto' | 'analisando' | 'resultado' | 'baixando';
@@ -13,11 +15,12 @@ type TipoNomeDownload = 'numerico' | 'corrigido' | 'personalizado';
 @Component({
   selector: 'app-xml-tools',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule],
+  imports: [NgIf, NgFor, FormsModule, ToolHelpComponent],
   templateUrl: './xml-tools.component.html',
   styleUrls: ['./xml-tools.component.scss'],
 })
 export class XmlToolsComponent {
+  readonly help = TOOL_HELP_CONTENT.revisaoContas;
   estado = signal<Estado>('idle');
   arquivos: File[] = [];
   operacao: Operacao = 'ambos';
@@ -263,7 +266,10 @@ export class XmlToolsComponent {
   }
 
   get totalLotes() {
-    return this.resultados.reduce((total, resultado) => total + resultado.lotesRenumerados.length, 0);
+    return this.resultados.reduce(
+      (total, resultado) => total + resultado.lotesRenumerados.length,
+      0,
+    );
   }
 
   get tudoOk() {
@@ -271,7 +277,8 @@ export class XmlToolsComponent {
       this.totalPrefixos === 0 &&
       this.totalBlocos === 0 &&
       this.totalOutrasDespesasVazias === 0 &&
-      this.totalGuias === 0 && this.totalLotes === 0
+      this.totalGuias === 0 &&
+      this.totalLotes === 0
     );
   }
 

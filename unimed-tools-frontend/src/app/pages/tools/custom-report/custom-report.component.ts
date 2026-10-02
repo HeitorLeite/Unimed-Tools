@@ -6,6 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize, switchMap } from 'rxjs';
 import { ReportPreviewComponent } from '../../../shared/components/report-preview/report-preview.component';
+import { ToolHelpComponent } from '../../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../../shared/constants/tool-help.constants';
 import { SguApiDefinicao, SguFiltro } from '../../../shared/models/relatorio.model';
 import { CustomReportTool } from '../../../shared/models/tool.model';
 import { RelatorioService } from '../../../shared/services/relatorio.service';
@@ -14,11 +16,12 @@ import { ToolRegistryService } from '../../../shared/services/tool-registry.serv
 @Component({
   selector: 'app-custom-report',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReportPreviewComponent],
+  imports: [CommonModule, FormsModule, ReportPreviewComponent, ToolHelpComponent],
   templateUrl: './custom-report.component.html',
   styleUrl: './custom-report.component.scss',
 })
 export class CustomReportComponent implements OnInit {
+  readonly help = TOOL_HELP_CONTENT.customReport;
   formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'xlsx';
   tool: CustomReportTool | null = null;
   definition: SguApiDefinicao | null = null;
@@ -137,7 +140,8 @@ export class CustomReportComponent implements OnInit {
           }
         },
         error: (error: any) =>
-          (this.error = error?.error?.message || error?.message || 'Não foi possível baixar o relatório.'),
+          (this.error =
+            error?.error?.message || error?.message || 'Não foi possível baixar o relatório.'),
       });
   }
 

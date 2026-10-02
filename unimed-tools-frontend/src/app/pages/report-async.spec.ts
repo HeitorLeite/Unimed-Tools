@@ -43,7 +43,25 @@ describe.each([
 
   async function loadDefinitions(): Promise<void> {
     for (const request of http.match('/api/relatorios/sgu/listar')) {
-      request.flush({ content: [{ nome: request.request.body.nome, filtros: [] }] });
+      const ageRange = request.request.body.nome === '0090-faixa-etaria';
+      request.flush({
+        content: [
+          {
+            nome: request.request.body.nome,
+            filtros: ageRange
+              ? [
+                  {
+                    nomeFiltro: 'codigoscarteirinha',
+                    conteudoFiltro: '',
+                    tipoDadoFiltro: 'NUMBER',
+                    mascaraFiltro: '',
+                    obrigatorioFiltro: 'S',
+                  },
+                ]
+              : [],
+          },
+        ],
+      });
     }
     await fixture.whenStable();
     if (fixture.componentInstance instanceof ComercialComponent) {
@@ -137,17 +155,33 @@ describe('Comercial — arquivos separados por empresa', () => {
     fixture = TestBed.createComponent(ComercialComponent);
     await fixture.whenStable();
     for (const request of http.match('/api/relatorios/sgu/listar')) {
+      const ageRange = request.request.body.nome === '0090-faixa-etaria';
       request.flush({
-        content: [{
-          nome: request.request.body.nome,
-          filtros: [{
-            nomeFiltro: 'empresas',
-            conteudoFiltro: '',
-            tipoDadoFiltro: 'VARCHAR',
-            mascaraFiltro: '',
-            obrigatorioFiltro: 'S',
-          }],
-        }],
+        content: [
+          {
+            nome: request.request.body.nome,
+            filtros: [
+              {
+                nomeFiltro: 'empresas',
+                conteudoFiltro: '',
+                tipoDadoFiltro: 'VARCHAR',
+                mascaraFiltro: '',
+                obrigatorioFiltro: 'S',
+              },
+              ...(ageRange
+                ? [
+                    {
+                      nomeFiltro: 'codigoscarteirinha',
+                      conteudoFiltro: '',
+                      tipoDadoFiltro: 'NUMBER',
+                      mascaraFiltro: '',
+                      obrigatorioFiltro: 'S',
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ],
       });
     }
     await fixture.whenStable();
@@ -176,11 +210,26 @@ describe('Comercial — arquivos separados por empresa', () => {
     expect(itens).toHaveLength(7);
     expect(itens.filter((item) => item.nomeArquivo.startsWith('yakult_'))).toHaveLength(3);
     expect(itens.filter((item) => item.nomeArquivo.startsWith('saint_gobain_'))).toHaveLength(3);
-    expect(itens.filter((item) => item.nomeArquivo.includes('faixa_etaria'))).toEqual([{
-      apiNome: '0090-faixa-etaria',
-      nomeArquivo: '2_empresas_faixa_etaria_202608',
-      combinacoesFiltros: [{ empresas: '2232751,2234452,2052097' }],
-    }]);
+    expect(itens.filter((item) => item.nomeArquivo.includes('faixa_etaria'))).toEqual([
+      {
+        apiNome: '0090-faixa-etaria',
+        nomeArquivo: '2_empresas_faixa_etaria_202608',
+        combinacoesFiltros: [
+          {
+            empresas: '2232751,2234452,2052097',
+            codigoscarteirinha: 2128,
+          },
+          {
+            empresas: '2232751,2234452,2052097',
+            codigoscarteirinha: 9128,
+          },
+          {
+            empresas: '2232751,2234452,2052097',
+            codigoscarteirinha: 99,
+          },
+        ],
+      },
+    ]);
     expect(
       itens.find((item) => item.nomeArquivo === 'yakult_despesas_202608')?.combinacoesFiltros,
     ).toEqual([{ empresas: '2232751,2234452' }]);
@@ -199,16 +248,46 @@ describe('Comercial — arquivos separados por empresa', () => {
     const pending = component.generatePreview();
     const preview = http.expectOne('/api/relatorios/sgu/executar/0090-faixa-etaria');
     expect(preview.request.body).toEqual({
-      combinacoesFiltros: [{ empresas: '2232751,2234452,2052097' }], page: 1, size: 20,
+      combinacoesFiltros: [
+        {
+          empresas: '2232751,2234452,2052097',
+          codigoscarteirinha: 2128,
+        },
+        {
+          empresas: '2232751,2234452,2052097',
+          codigoscarteirinha: 9128,
+        },
+        {
+          empresas: '2232751,2234452,2052097',
+          codigoscarteirinha: 99,
+        },
+      ],
+      page: 1,
+      size: 20,
     });
-    preview.flush({ content: [{ FAIXA_ETARIA: '0 a 18', DEP: 4, TIT: 2, FEM: 3, MASC: 3, TOTAL: 6 }] });
+    preview.flush({
+      content: [{ FAIXA_ETARIA: '0 a 18', DEP: 4, TIT: 2, FEM: 3, MASC: 3, TOTAL: 6 }],
+    });
     await pending;
     const report = component.selectedReports[0];
     expect(report.columns).toEqual(['FAIXA_ETARIA', 'DEP', 'TIT', 'FEM', 'MASC', 'TOTAL']);
     component.download(report);
     const download = http.expectOne('/api/relatorios/sgu/exportar/0090-faixa-etaria?formato=csv');
     expect(download.request.body.filtros).toEqual({
-      combinacoesFiltros: [{ empresas: '2232751,2234452,2052097' }],
+      combinacoesFiltros: [
+        {
+          empresas: '2232751,2234452,2052097',
+          codigoscarteirinha: 2128,
+        },
+        {
+          empresas: '2232751,2234452,2052097',
+          codigoscarteirinha: 9128,
+        },
+        {
+          empresas: '2232751,2234452,2052097',
+          codigoscarteirinha: 99,
+        },
+      ],
     });
     http.expectNone('/api/relatorios/sgu/exportar-lote');
     download.flush(new Blob(), { status: 503, statusText: 'Unavailable' });
@@ -220,6 +299,9 @@ describe('Comercial — arquivos separados por empresa', () => {
     const referenceDate = fixture.nativeElement.querySelector(
       '#commercial-reference',
     ) as HTMLInputElement;
+    const cardStatus = fixture.nativeElement.querySelector(
+      '#commercial-card-status',
+    ) as HTMLSelectElement;
     const ageRangeIndex = fixture.componentInstance.reports.findIndex(
       (report) => report.api === '0090-faixa-etaria',
     );
@@ -228,9 +310,11 @@ describe('Comercial — arquivos separados por empresa', () => {
     )[ageRangeIndex] as HTMLInputElement;
 
     expect(referenceDate.disabled).toBe(false);
+    expect(cardStatus.disabled).toBe(false);
     ageRangeCheckbox.click();
     await fixture.whenStable();
     expect(referenceDate.disabled).toBe(true);
+    expect(cardStatus.disabled).toBe(true);
   });
 });
 
@@ -261,7 +345,15 @@ describe('Hospital — atualização assíncrona', () => {
   it('exibe prestador e envia o filtro na prévia e no download', async () => {
     http.expectOne('/api/relatorios/hospital/configuracao').flush({
       colunas: ['PRESTADOR'],
-      filtros: [{ id: 'prestador', rotulo: 'Prestador', tipo: 'text', placeholder: 'Digite parte do nome do prestador', opcoes: [] }],
+      filtros: [
+        {
+          id: 'prestador',
+          rotulo: 'Prestador',
+          tipo: 'text',
+          placeholder: 'Digite parte do nome do prestador',
+          opcoes: [],
+        },
+      ],
     });
     await fixture.whenStable();
     const input = fixture.nativeElement.querySelector('.fields input') as HTMLInputElement;
@@ -274,7 +366,9 @@ describe('Hospital — atualização assíncrona', () => {
     expect(previa.request.body.filtros).toEqual({ prestador: 'prestador teste' });
     previa.flush({ content: [{ prestador: 'Prestador teste sintético' }], last: true });
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('table').textContent).toContain('Prestador teste sintético');
+    expect(fixture.nativeElement.querySelector('table').textContent).toContain(
+      'Prestador teste sintético',
+    );
     (fixture.nativeElement.querySelector('.download') as HTMLButtonElement).click();
     await fixture.whenStable();
     const download = http.expectOne('/api/relatorios/hospital/exportar?formato=xlsx');

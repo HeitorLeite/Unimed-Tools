@@ -23,32 +23,70 @@ class FaixaEtariaExportacaoTest {
   private static final String API = FaixaEtariaConsolidator.API;
 
   private LinkedHashMap<String, Object> faixa(int depMasc, int depFem, int titMasc, int titFem) {
+    return faixa(depMasc, depFem, titMasc, titFem, 0, 0);
+  }
+
+  private LinkedHashMap<String, Object> faixa(
+    int depMasc, int depFem, int titMasc, int titFem, int agrMasc, int agrFem
+  ) {
     var linha = new LinkedHashMap<String, Object>();
     linha.put("faixa_etaria", "0 a 18");
     linha.put("dep_masc", String.valueOf(depMasc));
     linha.put("dep_fem", depFem);
     linha.put("tit_masc", titMasc);
     linha.put("tit_fem", titFem);
-    linha.put("agr_masc", 100);
-    linha.put("agr_fem", 200);
-    linha.put("total", 300 + depMasc + depFem + titMasc + titFem);
+    linha.put("agr_masc", agrMasc);
+    linha.put("agr_fem", agrFem);
+    linha.put("total", agrMasc + agrFem + depMasc + depFem + titMasc + titFem);
     return linha;
   }
 
   @Test
-  void consolidaContratosIgnorandoSubtotaisEAgregadosEOrdenaAsDezFaixas() {
+  void consolidaContratosComAgregadosIgnoraSubtotaisEOrdenaAsDezFaixas() {
     var consolidado = new FaixaEtariaConsolidator();
-    consolidado.aceitar(List.of(faixa(2, 3, 5, 7), faixa(2, 3, 5, 7),
+    consolidado.aceitar(List.of(faixa(2, 3, 5, 7), faixa(2, 3, 5, 7, 11, 13),
       new LinkedHashMap<>(Map.of("FAIXA_ETARIA", "CONTRATO 100")),
       new LinkedHashMap<>(Map.of("FAIXA_ETARIA", "TOTAL GERAL", "TOTAL", 634))));
     var linhas = consolidado.resultado();
     assertThat(linhas).hasSize(11);
-    assertThat(linhas.get(0).keySet()).containsExactly("FAIXA_ETARIA", "DEP", "TIT", "FEM", "MASC", "TOTAL");
+    assertThat(linhas.get(0).keySet()).containsExactly("FAIXA_ETARIA", "DEP", "TIT", "AGR", "FEM", "MASC", "TOTAL");
     assertThat(linhas).extracting(linha -> linha.get("FAIXA_ETARIA")).doesNotContain("GERAL");
-    assertThat(linhas.get(0)).containsEntry("FAIXA_ETARIA", "0 a 18").containsEntry("DEP", 10L).containsEntry("TIT", 24L)
-      .containsEntry("FEM", 20L).containsEntry("MASC", 14L).containsEntry("TOTAL", 34L);
+    assertThat(linhas.get(0)).containsEntry("FAIXA_ETARIA", "0 a 18").containsEntry("DEP", 10L)
+      .containsEntry("TIT", 24L).containsEntry("AGR", 24L).containsEntry("FEM", 33L)
+      .containsEntry("MASC", 25L).containsEntry("TOTAL", 58L);
     assertThat(linhas.get(9)).containsEntry("FAIXA_ETARIA", "59 a 999").containsEntry("TOTAL", 0L);
-    assertThat(linhas.get(10)).containsEntry("FAIXA_ETARIA", "TOTAL GERAL").containsEntry("TOTAL", 34L);
+    assertThat(linhas.get(10)).containsEntry("FAIXA_ETARIA", "TOTAL GERAL")
+      .containsEntry("AGR", 24L).containsEntry("TOTAL", 58L);
+  }
+
+  @Test
+  void omiteColunaAgrQuandoTodasAsContagensSaoZero() {
+    var consolidado = new FaixaEtariaConsolidator();
+    consolidado.aceitar(List.of(faixa(1, 2, 3, 4)));
+    var linhas = consolidado.resultado();
+    assertThat(linhas).allSatisfy(linha -> assertThat(linha).doesNotContainKey("AGR"));
+    assertThat(linhas.get(0)).containsEntry("FEM", 6L).containsEntry("MASC", 4L)
+      .containsEntry("TOTAL", 10L);
+  }
+
+  @Test
+  void incluiColunaAgrNosArquivosQuandoExisteAgregado() throws Exception {
+    var consolidado = new FaixaEtariaConsolidator();
+    consolidado.aceitar(List.of(faixa(1, 2, 3, 4, 5, 6)));
+    var service = new ExportacaoRelatorioService(mock(SguRelatorioService.class), 100, 0);
+
+    var csv = service.gerarArquivoFaixaEtaria("csv", consolidado.resultado());
+    assertThat(new String(csv.conteudo(), StandardCharsets.UTF_8))
+      .startsWith("\uFEFFFAIXA_ETARIA;DEP;TIT;AGR;FEM;MASC;TOTAL\r\n")
+      .contains("0 a 18;3;7;11;12;9;21\r\n");
+
+    var xlsx = service.gerarArquivoFaixaEtaria("xlsx", consolidado.resultado());
+    try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(xlsx.conteudo()))) {
+      var sheet = workbook.getSheet("Geral");
+      assertThat(sheet.getRow(0).getCell(3).getStringCellValue()).isEqualTo("AGR");
+      assertThat(sheet.getRow(1).getCell(3).getNumericCellValue()).isEqualTo(11);
+      assertThat(sheet.getRow(1).getCell(6).getNumericCellValue()).isEqualTo(21);
+    }
   }
 
   @ParameterizedTest

@@ -20,7 +20,7 @@
   color: var(--brand-green);
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: .11em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
 }
 
@@ -28,7 +28,7 @@
   margin: 5px 0 7px;
   font-size: 38px;
   line-height: 1.08;
-  letter-spacing: -.04em;
+  letter-spacing: -0.04em;
 }
 
 .page-heading p {
@@ -64,7 +64,7 @@
   place-items: center;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, 0.18);
   font-size: 11px;
 }
 
@@ -141,7 +141,8 @@
 }
 
 .company-search input,
-.field input {
+.field input,
+.field select {
   width: 100%;
   min-height: 42px;
   padding: 9px 11px;
@@ -155,9 +156,10 @@
 }
 
 .company-search input:focus,
-.field input:focus {
+.field input:focus,
+.field select:focus {
   border-color: var(--brand-green);
-  box-shadow: 0 0 0 3px rgba(0, 133, 87, .08);
+  box-shadow: 0 0 0 3px rgba(0, 133, 87, 0.08);
 }
 
 .company-toolbar {
@@ -182,7 +184,7 @@
 }
 
 .company-toolbar button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -204,7 +206,7 @@
   border-radius: 9px;
   background: #fff;
   cursor: pointer;
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 .company-option:hover {
@@ -301,6 +303,12 @@
   margin-top: 14px;
 }
 
+.field small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .report-options {
   display: flex;
   flex-direction: column;
@@ -325,7 +333,7 @@
 }
 
 .report-options label.unavailable {
-  opacity: .55;
+  opacity: 0.55;
 }
 
 .report-options input {
@@ -370,7 +378,7 @@
 }
 
 .primary:disabled {
-  opacity: .5;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -410,7 +418,7 @@
   color: var(--text-muted);
   font-size: 9px;
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -481,7 +489,7 @@
 }
 
 .report-result header button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -584,5 +592,16 @@
   }
 }
 
-.export-format { display: flex; gap: .5rem; align-items: center; font-size: .875rem; }
-.export-format select { padding: .5rem; border: 1px solid #cbd5e1; border-radius: .5rem; background: white; color: #1e293b; }
+.export-format {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.875rem;
+}
+.export-format select {
+  padding: 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: white;
+  color: #1e293b;
+}

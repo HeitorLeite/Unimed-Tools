@@ -7,13 +7,17 @@
         Consulte os cinco relatórios da rotina em uma única tela, confira as prévias e faça o
         download individual ou em pacote.
       </p>
+      <app-tool-help [content]="help" />
     </div>
     <div class="batch-action">
-    <label class="export-format">Formato do arquivo
-      <select [(ngModel)]="formatoSelecionado" aria-label="Formato do arquivo">
-        <option value="xlsx">XLSX</option><option value="csv">CSV</option><option value="txt">TXT</option>
-      </select>
-    </label>
+      <label class="export-format"
+        >Formato do arquivo
+        <select [(ngModel)]="formatoSelecionado" aria-label="Formato do arquivo">
+          <option value="xlsx">XLSX</option>
+          <option value="csv">CSV</option>
+          <option value="txt">TXT</option>
+        </select>
+      </label>
 
       <button
         type="button"
@@ -123,11 +127,7 @@
       <article *ngIf="report.previewed || report.loading || report.error">
         <header>
           <h2>{{ report.nome }}</h2>
-          <button
-            type="button"
-            [disabled]="!canDownloadReport(report)"
-            (click)="download(report)"
-          >
+          <button type="button" [disabled]="!canDownloadReport(report)" (click)="download(report)">
             {{ report.downloading ? 'Preparando…' : 'Baixar ' + formatoSelecionado.toUpperCase() }}
           </button>
         </header>

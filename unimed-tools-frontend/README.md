@@ -15,7 +15,8 @@ npm ci
 npm start
 ```
 
-O `npm start` usa o proxy local de `/api` para `http://localhost:8080`.
+O `npm start` usa o proxy local de `/api` para `http://localhost:8081`, a porta
+reservada pelo script de desenvolvimento. O backend de produção local usa 8080.
 
 ## Validação
 
@@ -49,6 +50,10 @@ A navegação das ferramentas nativas é centralizada em
 `shared/constants/tools.constants.ts`. Home e menu Ferramentas devem consumir
 essa mesma fonte; não duplique manualmente nomes, rotas ou permissões em vários componentes.
 
+A ajuda em contexto usa `shared/components/tool-help/`; o texto das ferramentas
+fica em `shared/constants/tool-help.constants.ts`. Quando uma entrada, etapa,
+saída ou limitação mudar, atualize o conteúdo central e o guia do usuário.
+
 ## Ferramentas principais
 
 - Comercial;
@@ -64,7 +69,6 @@ pela área TI. Elas são carregadas do backend pelo `ToolRegistryService`.
 
 ## Estado local
 
-<<<<<<< HEAD
 ### Atualização da interface — Atual
 
 O Angular 21 usa detecção de mudanças sem Zone.js. Estados assíncronos precisam
@@ -85,6 +89,9 @@ e `fixture.whenStable()` sem forçar `detectChanges()` depois da resposta.
   que se adaptam à largura disponível, preservando as cores institucionais.
 - Comercial e Gestão de Risco exibem prévias apenas depois de iniciar a consulta;
   resultado vazio e erro não são apresentados como estado inicial.
+- Na faixa etária do Comercial, `empresa-catalogo.ts` separa os códigos de
+  carteirinha dos identificadores de empresa. A tela envia uma combinação por
+  código ativo/inativo pelo filtro numérico SGU `codigoscarteirinha`.
 - “Baixar todos selecionados” é a ação principal, informa a quantidade selecionada
   e mantém o formato ZIP com arquivos XLSX. Durante a geração do pacote, o botão
   mostra o carregamento e impede envios duplicados.
@@ -101,8 +108,6 @@ a revisão visual em navegador não foram executadas nesta alteração.
 
 ### Persistência no navegador
 
-=======
->>>>>>> 7a10fbdb854a7ebb88a1acd410328f2bb29ac0f8
 O navegador pode manter:
 
 - modelos estruturais do Assistencial, sem valores de filtros;
@@ -126,3 +131,10 @@ O frontend **não** persiste token de sessão em `localStorage` ou `sessionStora
 - o processamento XML principal continua no navegador;
 - rotas antigas são redirecionadas para as novas áreas para preservar favoritos;
 - BI e Fechamento permanecem no código por compatibilidade, mas não fazem parte dos cards principais da Home.
+
+## Documentação relacionada
+
+- [Guia do usuário](../docs/GUIA_DO_USUARIO.md);
+- [Mapa do código](../docs/MAPA_DO_CODIGO.md);
+- [Guia de desenvolvimento](../docs/DESENVOLVIMENTO.md);
+- [Arquitetura](../docs/ARQUITETURA.md).

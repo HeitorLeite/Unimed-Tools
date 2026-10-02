@@ -94,17 +94,16 @@ public class ComercialRelatorioFinalService {
       List<LinkedHashMap<String, Object>> despesa = carregar(
         API_DESPESA, filtrosMes(request, API_DESPESA, mes)
       );
-      dados.add(agregarMes(mes, receita, despesa));
+      List<LinkedHashMap<String, Object>> beneficiarios = carregar(
+        API_BENEFICIARIOS, filtrosMes(request, API_BENEFICIARIOS, mes)
+      );
+      dados.add(agregarMes(mes, receita, despesa, contarBeneficiarios(beneficiarios)));
     }
 
-    List<LinkedHashMap<String, Object>> beneficiarios = carregar(
-      API_BENEFICIARIOS, filtrosMes(request, API_BENEFICIARIOS, alvo)
-    );
-    List<LinkedHashMap<String, Object>> beneficiariosAnterior = carregar(
-      API_BENEFICIARIOS, filtrosMes(request, API_BENEFICIARIOS, alvo.minusMonths(1))
-    );
-    ContagemBeneficiarios contagem = contarBeneficiarios(beneficiarios);
-    ContagemBeneficiarios anterior = contarBeneficiarios(beneficiariosAnterior);
+    ContagemBeneficiarios contagem = dados.getLast().beneficiarios;
+    ContagemBeneficiarios anterior = dados.size() > 1
+      ? dados.get(dados.size() - 2).beneficiarios
+      : new ContagemBeneficiarios(0, 0);
 
     List<LinkedHashMap<String, Object>> faixa = exportacao.carregarFaixaEtaria(
       filtrosObrigatorios(request, API_FAIXA)
@@ -207,7 +206,8 @@ public class ComercialRelatorioFinalService {
   private MesDados agregarMes(
     YearMonth mes,
     List<LinkedHashMap<String, Object>> receitaLinhas,
-    List<LinkedHashMap<String, Object>> despesaLinhas
+    List<LinkedHashMap<String, Object>> despesaLinhas,
+    ContagemBeneficiarios beneficiarios
   ) {
     BigDecimal receita = ZERO;
     BigDecimal copart = ZERO;
@@ -256,7 +256,7 @@ public class ComercialRelatorioFinalService {
 
     return new MesDados(
       mes, receita, copart, sinistro, tipoGuia, grupo, receitaRegiao,
-      despesaRegiao, vidas, despesaLinhas
+      despesaRegiao, vidas, beneficiarios, despesaLinhas
     );
   }
 
@@ -339,13 +339,13 @@ public class ComercialRelatorioFinalService {
       numero(sheet, r, 1, m.receita, e.moeda);
       numero(sheet, r, 2, m.sinistro, e.moeda);
       numero(sheet, r, 3, m.copart, e.moeda);
-      if (i == 11) {
-        // O valor atual é preenchido pela tabela-resumo; os meses anteriores ficam
-        // em branco quando a API de beneficiários não é consultada historicamente.
-        formula(sheet, r, 4, "B18", e.inteiro);
-      }
-      if (i > 0 && cellTemValor(sheet, r - 1, 4) && cellTemValor(sheet, r, 4)) {
-        formula(sheet, r, 5, "E" + (r + 1) + "/E" + r + "-1", e.percentual);
+      inteiro(sheet, r, 4, m.beneficiarios.ativos, e.inteiro);
+      if (i > 0 && meses.get(i - 1).beneficiarios.ativos > 0) {
+        numero(sheet, r, 5,
+          BigDecimal.valueOf(m.beneficiarios.ativos)
+            .divide(BigDecimal.valueOf(meses.get(i - 1).beneficiarios.ativos), 8, RoundingMode.HALF_UP)
+            .subtract(BigDecimal.ONE),
+          e.percentual);
       }
       formula(sheet, r, 6, "C" + (r + 1) + "/(B" + (r + 1) + "+D" + (r + 1) + ")", e.percentual);
     }
@@ -708,7 +708,7 @@ public class ComercialRelatorioFinalService {
     eixoValor.setCrosses(org.apache.poi.xddf.usermodel.chart.AxisCrosses.AUTO_ZERO);
     XDDFChartData data = chart.createData(ChartTypes.BAR, eixoCategoria, eixoValor);
     if (data instanceof XDDFBarChartData barras) barras.setBarDirection(BarDirection.COL);
-    XDDFDataSource<String> categoriasData = XDDFDataSourcesFactory.fromStringCellRange(sheet, categorias);
+    XDDFDataSource<?> categoriasData = fonteCategorias(sheet, categorias);
     for (Serie serie : series) {
       XDDFNumericalDataSource<Double> valores =
         XDDFDataSourcesFactory.fromNumericCellRange(sheet, serie.valores);
@@ -732,11 +732,22 @@ public class ComercialRelatorioFinalService {
     XDDFCategoryAxis eixoCategoria = chart.createCategoryAxis(AxisPosition.BOTTOM);
     XDDFValueAxis eixoValor = chart.createValueAxis(AxisPosition.LEFT);
     XDDFLineChartData data = (XDDFLineChartData) chart.createData(ChartTypes.LINE, eixoCategoria, eixoValor);
-    XDDFDataSource<String> categoriasData = XDDFDataSourcesFactory.fromStringCellRange(sheet, categorias);
+    XDDFDataSource<?> categoriasData = fonteCategorias(sheet, categorias);
     XDDFNumericalDataSource<Double> valores =
       XDDFDataSourcesFactory.fromNumericCellRange(sheet, serie.valores);
     data.addSeries(categoriasData, valores).setTitle(serie.nome, null);
     chart.plot(data);
+  }
+
+  private XDDFDataSource<?> fonteCategorias(
+    org.apache.poi.xssf.usermodel.XSSFSheet sheet,
+    CellRangeAddress range
+  ) {
+    Cell primeira = sheet.getRow(range.getFirstRow()).getCell(range.getFirstColumn());
+    if (primeira != null && primeira.getCellType() == org.apache.poi.ss.usermodel.CellType.STRING) {
+      return XDDFDataSourcesFactory.fromStringCellRange(sheet, range);
+    }
+    return XDDFDataSourcesFactory.fromNumericCellRange(sheet, range);
   }
 
   private List<Ranking> ranking(
@@ -894,6 +905,7 @@ public class ComercialRelatorioFinalService {
     Map<String, BigDecimal> receitaRegiao,
     Map<String, BigDecimal> despesaRegiao,
     Map<String, Integer> vidasRegiao,
+    ContagemBeneficiarios beneficiarios,
     List<LinkedHashMap<String, Object>> despesaLinhas
   ) {}
 

@@ -99,10 +99,14 @@ describe('ComercialComponent', () => {
               { nomeFiltro: 'empresa', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
               { nomeFiltro: 'datareferencia', tipoDadoFiltro: 'DATE', mascaraFiltro: 'DD/MM/YYYY', conteudoFiltro: '', obrigatorioFiltro: 'S' },
             ]
-          : [
-              { nomeFiltro: 'empresa', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
-              { nomeFiltro: 'competencia', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
-            ],
+          : report.api === '0090-beneficiario-empresa'
+            ? [
+                { nomeFiltro: 'empresa', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+              ]
+            : [
+                { nomeFiltro: 'empresa', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+                { nomeFiltro: 'competencia', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+              ],
       };
       report.previewed = false;
     });
@@ -115,8 +119,32 @@ describe('ComercialComponent', () => {
     expect(Object.keys(request.filtrosPorApi).sort()).toEqual(
       component.reports.map((report) => report.api).sort(),
     );
+    expect(request.filtrosPorApi['0090-beneficiario-empresa'][0].competencia).toBeUndefined();
     expect(request.filtrosPorApi['0090-receita-empresa-com-grupo'][0].competencia).toBe(202608);
     expect(request.filtrosPorApi['0090-faixa-etaria'][0].datareferencia).toBe('31/08/2026');
+  });
+
+  it('bloqueia o relatório final quando um dos quatro relatórios está desmarcado', () => {
+    const exportarComercialFinal = vi.fn();
+    const component = new ComercialComponent(
+      { exportarComercialFinal } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    component.loadingDefinitions = false;
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [] };
+      report.selected = true;
+    });
+    component.reports[0].selected = false;
+
+    expect(component.canGenerateFinal).toBe(false);
+
+    component.downloadFinal();
+
+    expect(exportarComercialFinal).not.toHaveBeenCalled();
+    expect(component.error).toBe('Selecione os quatro relatórios para gerar o relatório final.');
   });
 
   it('libera o download individual apenas após a prévia do relatório', () => {

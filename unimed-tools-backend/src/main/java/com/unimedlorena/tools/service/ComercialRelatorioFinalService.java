@@ -96,8 +96,10 @@ public class ComercialRelatorioFinalService {
       dados.add(agregarMes(mes, receita, despesa));
     }
 
+    // Beneficiários é uma fotografia da empresa e não exige competência.
+    // O histórico mensal de vidas já vem das mensalidades da Receita.
     List<LinkedHashMap<String, Object>> beneficiarios = carregar(
-      API_BENEFICIARIOS, filtrosMes(request, API_BENEFICIARIOS, alvo)
+      API_BENEFICIARIOS, filtrosObrigatorios(request, API_BENEFICIARIOS)
     );
     ContagemBeneficiarios contagem = contarBeneficiarios(beneficiarios);
     long ativosAnterior = dados.size() > 1

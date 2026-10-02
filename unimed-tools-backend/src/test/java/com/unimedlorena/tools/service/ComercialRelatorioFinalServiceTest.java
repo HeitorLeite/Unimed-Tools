@@ -118,7 +118,7 @@ class ComercialRelatorioFinalServiceTest {
   }
 
   @Test
-  void rejeitaApiSemFiltroDeCompetencia() {
+  void rejeitaReceitaEDespesaSemFiltroDeCompetencia() {
     Map<String, List<Map<String, Object>>> filtros = new LinkedHashMap<>();
     filtros.put(ComercialRelatorioFinalService.API_BENEFICIARIOS, List.of(Map.of("empresa", 1)));
     filtros.put(ComercialRelatorioFinalService.API_RECEITA, List.of(Map.of("empresa", 1)));
@@ -136,7 +136,7 @@ class ComercialRelatorioFinalServiceTest {
     Map<String, List<Map<String, Object>>> filtros = new LinkedHashMap<>();
     filtros.put(
       ComercialRelatorioFinalService.API_BENEFICIARIOS,
-      List.of(Map.of("empresa", 1, "competencia", Integer.valueOf(competencia)))
+      List.of(Map.of("empresa", 1))
     );
     filtros.put(
       ComercialRelatorioFinalService.API_RECEITA,

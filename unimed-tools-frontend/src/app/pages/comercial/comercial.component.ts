@@ -423,7 +423,7 @@ export class ComercialComponent implements OnInit {
 
     for (const report of this.reports) {
       filtrosPorApi[report.api] = this.isAgeRange(report)
-        ? this.ageRangeCombinations(report)
+        ? this.ageRangeCombinationsFinal(report)
         : this.parameterCombinations(report, company);
     }
 
@@ -520,6 +520,18 @@ export class ComercialComponent implements OnInit {
   }
 
   private ageRangeCombinations(report: ComercialReport): Record<string, unknown>[] {
+    return this.ageRangeCombinationsPorSituacao(report, this.situacaoCodigoCarteirinha);
+  }
+
+  private ageRangeCombinationsFinal(report: ComercialReport): Record<string, unknown>[] {
+    // O relatório executivo sempre representa o total da empresa: ativos + inativos.
+    return this.ageRangeCombinationsPorSituacao(report, 'TODOS');
+  }
+
+  private ageRangeCombinationsPorSituacao(
+    report: ComercialReport,
+    situacao: SituacaoCodigoCarteirinha,
+  ): Record<string, unknown>[] {
     // Um código compartilhado por entradas do catálogo deve ser consultado só uma vez.
     const codigos = [...new Set(this.selectedCompanies.flatMap((company) => [...company.codigos]))];
     const filtroCarteirinha = this.ageRangeCardFilter(report);
@@ -530,9 +542,9 @@ export class ComercialComponent implements OnInit {
     }
 
     const codigosCarteirinha =
-      this.situacaoCodigoCarteirinha === 'TODOS'
+      situacao === 'TODOS'
         ? [...new Set(this.selectedCompanies.flatMap((company) => company.codigosCarteirinha))]
-        : codigosCarteirinhaPorSituacao(this.selectedCompanies, this.situacaoCodigoCarteirinha);
+        : codigosCarteirinhaPorSituacao(this.selectedCompanies, situacao);
 
     // O SGU interpola filtros NUMBER no bloco PL/SQL. Enviar "2152,2154" produz
     // uma expressão inválida; cada código precisa seguir em uma combinação própria.

@@ -47,6 +47,28 @@
         {{ downloadingAll ? 'Preparando ZIP…' : 'Baixar todos os relatórios' }}
         <span class="batch-count">{{ selectedCompanies.length }}</span>
       </button>
+      <button
+        class="btn final-report-download"
+        type="button"
+        [disabled]="!canGenerateFinal"
+        [attr.aria-busy]="generatingFinal"
+        (click)="downloadFinal()"
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M6 3h9l3 3v15H6V3Zm3 6h6M9 13h6M9 17h4"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        {{ generatingFinal ? 'Montando relatório final…' : 'Gerar relatório final (XLSX)' }}
+      </button>
+      <small class="final-report-hint">
+        Relatório executivo completo · 1 empresa e os 4 relatórios selecionados
+      </small>
+
       <small>
         {{ selectedCompanies.length || 0 }} empresa(s) · {{ selectedReports.length }} relatório(s)
       </small>
@@ -68,7 +90,7 @@
         <input
           type="search"
           [(ngModel)]="companySearch"
-          [disabled]="generating || downloadingAll"
+          [disabled]="generating || downloadingAll || generatingFinal"
           placeholder="Ex.: Canção Nova"
         />
       </label>
@@ -76,14 +98,14 @@
       <div class="company-toolbar">
         <button
           type="button"
-          [disabled]="generating || downloadingAll || !filteredCompanies.length"
+          [disabled]="generating || downloadingAll || generatingFinal || !filteredCompanies.length"
           (click)="selectVisibleCompanies()"
         >
           Selecionar exibidas
         </button>
         <button
           type="button"
-          [disabled]="generating || downloadingAll || !selectedCompanies.length"
+          [disabled]="generating || downloadingAll || generatingFinal || !selectedCompanies.length"
           (click)="clearCompanies()"
         >
           Limpar
@@ -99,7 +121,7 @@
           <input
             type="checkbox"
             [checked]="isCompanySelected(company.id)"
-            [disabled]="generating || downloadingAll"
+            [disabled]="generating || downloadingAll || generatingFinal"
             (change)="toggleCompany(company.id)"
           />
           <span>
@@ -119,7 +141,7 @@
           <button
             type="button"
             *ngFor="let company of selectedCompanies"
-            [disabled]="generating || downloadingAll"
+            [disabled]="generating || downloadingAll || generatingFinal"
             (click)="removeCompany(company.id)"
             [attr.aria-label]="'Remover ' + company.nome"
           >
@@ -145,7 +167,7 @@
           inputmode="numeric"
           [ngModel]="competence"
           (ngModelChange)="onCompetenceChange($event)"
-          [disabled]="generating || downloadingAll"
+          [disabled]="generating || downloadingAll || generatingFinal"
           placeholder="AAAAMM"
         />
       </div>
@@ -157,7 +179,7 @@
           type="date"
           [ngModel]="referenceDate"
           (ngModelChange)="onReferenceDateChange($event)"
-          [disabled]="!ageRangeSelected || generating || downloadingAll"
+          [disabled]="!ageRangeSelected || generating || downloadingAll || generatingFinal"
         />
       </div>
 
@@ -167,7 +189,7 @@
           id="commercial-card-status"
           [ngModel]="situacaoCodigoCarteirinha"
           (ngModelChange)="onSituacaoCodigoCarteirinhaChange($event)"
-          [disabled]="!ageRangeSelected || generating || downloadingAll"
+          [disabled]="!ageRangeSelected || generating || downloadingAll || generatingFinal"
         >
           <option value="TODOS">Todos os códigos</option>
           <option value="ATIVOS">Somente códigos ativos</option>
@@ -195,7 +217,13 @@
           <input
             type="checkbox"
             [checked]="report.selected"
-            [disabled]="!report.definition || loadingDefinitions || generating || downloadingAll"
+            [disabled]="
+              !report.definition ||
+              loadingDefinitions ||
+              generating ||
+              downloadingAll ||
+              generatingFinal
+            "
             (change)="toggleReport(report)"
           />
           <span>

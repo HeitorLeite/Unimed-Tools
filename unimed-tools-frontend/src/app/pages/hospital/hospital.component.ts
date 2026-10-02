@@ -19,6 +19,7 @@ import { RelatorioService } from '../../shared/services/relatorio.service';
 })
 export class HospitalComponent implements OnInit {
   readonly help = TOOL_HELP_CONTENT.hospital;
+
   formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'xlsx';
   config: HospitalConfiguration | null = null;
   values: Record<string, string> = {};

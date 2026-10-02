@@ -4,9 +4,9 @@
 import { Component, signal } from '@angular/core';
 import { NgIf, NgFor } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { XmlService, ArquivoResultado } from '../../../shared/services/xml.service';
 import { ToolHelpComponent } from '../../../shared/components/tool-help/tool-help.component';
 import { TOOL_HELP_CONTENT } from '../../../shared/constants/tool-help.constants';
-import { XmlService, ArquivoResultado } from '../../../shared/services/xml.service';
 
 type Estado = 'idle' | 'pronto' | 'analisando' | 'resultado' | 'baixando';
 type Operacao = 'corretor' | 'removedor' | 'ambos';
@@ -21,6 +21,7 @@ type TipoNomeDownload = 'numerico' | 'corrigido' | 'personalizado';
 })
 export class XmlToolsComponent {
   readonly help = TOOL_HELP_CONTENT.revisaoContas;
+
   estado = signal<Estado>('idle');
   arquivos: File[] = [];
   operacao: Operacao = 'ambos';

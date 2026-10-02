@@ -19,11 +19,10 @@ class FaixaEtariaControllerTest {
     var sgu = mock(SguRelatorioService.class);
     when(sgu.executar(eq("0090-faixa-etaria"), anyMap())).thenReturn(Map.of(
       "content", List.of(Map.of("FAIXA_ETARIA", "19 a 23", "DEP_MASC", 2,
-        "DEP_FEM", 3, "TIT_MASC", 5, "TIT_FEM", 7, "AGR_MASC", 0, "AGR_FEM", 0)),
-      "last", true));
+        "DEP_FEM", 3, "TIT_MASC", 5, "TIT_FEM", 7)), "last", true));
     var exportacao = new ExportacaoRelatorioService(sgu, 100, 0);
     var controller = new RelatorioController(sgu, exportacao,
-      new ExportacaoLoteRelatorioService(exportacao), mock(RelatorioPersonalizadoService.class),
+      new ExportacaoLoteRelatorioService(exportacao), mock(ComercialRelatorioFinalService.class), mock(RelatorioPersonalizadoService.class),
       mock(HospitalRelatorioService.class));
     var mvc = MockMvcBuilders.standaloneSetup(controller)
       .setControllerAdvice(new GlobalExceptionHandler()).build();

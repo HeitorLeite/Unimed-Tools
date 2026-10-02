@@ -3,10 +3,12 @@
  */
 package com.unimedlorena.tools.controller;
 
+import com.unimedlorena.tools.dto.ComercialRelatorioFinalRequest;
 import com.unimedlorena.tools.dto.RelatorioExportacaoRequest;
 import com.unimedlorena.tools.dto.RelatorioLoteRequest;
 import com.unimedlorena.tools.dto.HospitalRelatorioRequest;
 import com.unimedlorena.tools.dto.RelatorioPersonalizadoRequest;
+import com.unimedlorena.tools.service.ComercialRelatorioFinalService;
 import com.unimedlorena.tools.service.ExportacaoLoteRelatorioService;
 import com.unimedlorena.tools.service.ExportacaoRelatorioService;
 import com.unimedlorena.tools.service.RelatorioPersonalizadoService;
@@ -39,6 +41,7 @@ public class RelatorioController {
   private final SguRelatorioService sgu;
   private final ExportacaoRelatorioService exportacao;
   private final ExportacaoLoteRelatorioService exportacaoLote;
+  private final ComercialRelatorioFinalService comercialRelatorioFinal;
   private final RelatorioPersonalizadoService relatorioPersonalizado;
   private final HospitalRelatorioService hospitalRelatorio;
 
@@ -46,12 +49,14 @@ public class RelatorioController {
     SguRelatorioService sgu,
     ExportacaoRelatorioService exportacao,
     ExportacaoLoteRelatorioService exportacaoLote,
+    ComercialRelatorioFinalService comercialRelatorioFinal,
     RelatorioPersonalizadoService relatorioPersonalizado,
     HospitalRelatorioService hospitalRelatorio
   ) {
     this.sgu = sgu;
     this.exportacao = exportacao;
     this.exportacaoLote = exportacaoLote;
+    this.comercialRelatorioFinal = comercialRelatorioFinal;
     this.relatorioPersonalizado = relatorioPersonalizado;
     this.hospitalRelatorio = hospitalRelatorio;
   }
@@ -208,6 +213,35 @@ public class RelatorioController {
       }
     };
     return ResponseEntity.ok().body(corpo);
+  }
+
+  /**
+   * Consolida as quatro bases do Comercial em um único XLSX executivo.
+   * A resposta só é entregue após a planilha estar totalmente montada.
+   */
+  @PostMapping("/comercial/relatorio-final")
+  public ResponseEntity<byte[]> exportarRelatorioFinalComercial(
+    @RequestBody ComercialRelatorioFinalRequest request
+  ) throws Exception {
+    byte[] conteudo = comercialRelatorioFinal.gerar(request);
+    String empresa = request == null ? "empresa" : request.empresa();
+    String competencia = request == null ? "" : request.competencia();
+    String nome = sanitizarNome("sinistralidade_" + empresa + "_" + competencia);
+
+    return ResponseEntity.ok()
+      .contentType(MediaType.parseMediaType(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ))
+      .header(HttpHeaders.CACHE_CONTROL, "no-store")
+      .header(
+        HttpHeaders.CONTENT_DISPOSITION,
+        ContentDisposition.attachment()
+          .filename(nome + ".xlsx", StandardCharsets.UTF_8)
+          .build()
+          .toString()
+      )
+      .contentLength(conteudo.length)
+      .body(conteudo);
   }
 
   /**

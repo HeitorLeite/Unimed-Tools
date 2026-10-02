@@ -73,9 +73,10 @@ type SecaoRelatorio = 'filtros' | 'colunas' | 'resultado';
   styleUrls: ['./relatorios-personalizados.component.scss'],
 })
 export class RelatoriosPersonalizadosComponent implements OnInit, OnDestroy {
+  readonly help = TOOL_HELP_CONTENT.assistencial;
+
   @Output() voltar = new EventEmitter<void>();
 
-  readonly help = TOOL_HELP_CONTENT.assistencial;
   configuracao: RelatorioPersonalizadoConfiguracao | null = null;
   gruposFiltros: Grupo<RelatorioPersonalizadoFiltro>[] = [];
   gruposColunas: Grupo<RelatorioPersonalizadoColuna>[] = [];

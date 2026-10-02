@@ -34,6 +34,7 @@ interface RiskReport {
 })
 export class GestaoRiscoComponent implements OnInit {
   readonly help = TOOL_HELP_CONTENT.gestaoRisco;
+
   formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'csv';
   competence = this.previousCompetence();
   additionalValues: Record<string, string> = {};

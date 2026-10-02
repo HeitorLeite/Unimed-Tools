@@ -28,24 +28,14 @@ export const EMPRESAS_RELATORIOS: readonly EmpresaCatalogo[] = [
     codigos: ['2010038', '2011533', '2011372'],
     codigosCarteirinha: ['422', '5002'],
   },
-  {
-    id: 'saint-gobain',
-    nome: 'Saint-Gobain',
-    codigos: ['2052097'],
-    codigosCarteirinha: ['99'],
-  },
+  { id: 'saint-gobain', nome: 'Saint-Gobain', codigos: ['2052097'], codigosCarteirinha: ['99'] },
   {
     id: 'grupo-biondi',
     nome: 'Grupo Biondi',
     codigos: ['2236880', '2236881', '2236882', '2236883', '2236884', '2236886', '2236887'],
     codigosCarteirinha: ['2173', '2174', '2175', '2176', '2177', '2178', '2179', '2180', '9173'],
   },
-  {
-    id: 'biemme',
-    nome: 'Biemme',
-    codigos: ['2010497'],
-    codigosCarteirinha: ['45', '5045'],
-  },
+  { id: 'biemme', nome: 'Biemme', codigos: ['2010497'], codigosCarteirinha: ['45', '5045'] },
   {
     id: 'grupo-liceu',
     nome: 'Grupo Liceu',
@@ -77,12 +67,7 @@ export const EMPRESAS_RELATORIOS: readonly EmpresaCatalogo[] = [
     codigos: ['2046655'],
     codigosCarteirinha: ['92', '5092'],
   },
-  {
-    id: 'aeci',
-    nome: 'AECI',
-    codigos: ['2227713'],
-    codigosCarteirinha: ['2022', '2303'],
-  },
+  { id: 'aeci', nome: 'AECI', codigos: ['2227713'], codigosCarteirinha: ['2022', '2303'] },
   { id: 'ice', nome: 'ICE', codigos: ['2234145'], codigosCarteirinha: ['2142'] },
   {
     id: 'faculdade-serra-dourada',

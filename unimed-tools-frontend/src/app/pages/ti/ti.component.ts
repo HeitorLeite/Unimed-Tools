@@ -25,6 +25,7 @@ type TiTab = 'apis' | 'grupos' | 'ferramentas';
 })
 export class TiComponent implements OnInit {
   readonly help = TOOL_HELP_CONTENT.ti;
+
   tab: TiTab = 'apis';
   relatorios: RelatorioCatalogo[] = [];
 

@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class RelatorioDownloadTest {
   private MockMvc mvc(SguRelatorioService sgu) {
     return MockMvcBuilders.standaloneSetup(new RelatorioController(sgu,
-      new ExportacaoRelatorioService(sgu, 2, 10), mock(ExportacaoLoteRelatorioService.class),
+      new ExportacaoRelatorioService(sgu, 2, 10), mock(ExportacaoLoteRelatorioService.class), mock(ComercialRelatorioFinalService.class),
       mock(RelatorioPersonalizadoService.class), mock(HospitalRelatorioService.class)))
       .setControllerAdvice(new GlobalExceptionHandler()).build();
   }

@@ -4,10 +4,10 @@
 import { Component, signal, ViewChild, ElementRef } from '@angular/core';
 import { NgIf, NgFor, NgClass } from '@angular/common';
 import { ApiService } from '../../../shared/services/api.service';
-import { ToolHelpComponent } from '../../../shared/components/tool-help/tool-help.component';
-import { TOOL_HELP_CONTENT } from '../../../shared/constants/tool-help.constants';
 import { baixarBlob, formatarTamanhoArquivo } from '../../../shared/utils/file.utils';
 import { HttpEventType } from '@angular/common/http';
+import { ToolHelpComponent } from '../../../shared/components/tool-help/tool-help.component';
+import { TOOL_HELP_CONTENT } from '../../../shared/constants/tool-help.constants';
 
 type Estado = 'idle' | 'pronto' | 'processando' | 'sucesso' | 'erro';
 type Modo = 'xlsx' | 'csv';
@@ -36,9 +36,10 @@ interface CsvSlot {
   styleUrls: ['./corretor-rede.component.scss'],
 })
 export class CorretorRedeComponent {
+  readonly help = TOOL_HELP_CONTENT.unica;
+
   @ViewChild('logBox') logBoxRef!: ElementRef<HTMLDivElement>;
 
-  readonly help = TOOL_HELP_CONTENT.unica;
   estado = signal<Estado>('idle');
   modo: Modo = 'xlsx';
 

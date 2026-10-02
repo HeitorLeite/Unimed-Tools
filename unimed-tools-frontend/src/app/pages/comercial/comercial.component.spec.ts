@@ -67,60 +67,11 @@ describe('ComercialComponent', () => {
   });
 
   it.each([
-    ['ATIVOS', [2128, 422]],
-    ['INATIVOS', [9128, 5002]],
-  ] as const)(
-    'filtra a faixa etária por códigos %s das empresas selecionadas',
-    async (situacao, codigos) => {
-      const executar = vi.fn().mockReturnValue(of({ content: [] }));
-      const component = new ComercialComponent(
-        { executar } as unknown as RelatorioService,
-        { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
-      );
-      component.selectedCompanyIds = ['yakult', 'orica'];
-      component.situacaoCodigoCarteirinha = situacao;
-      const report = component.reports.find((item) => component.isAgeRange(item))!;
-      component.reports.forEach((item) => (item.selected = item === report));
-      report.definition = {
-        nome: report.api,
-        consultaSQL: '',
-        ordenacao: '',
-        filtros: [
-          {
-            nomeFiltro: 'empresas',
-            tipoDadoFiltro: 'VARCHAR',
-            mascaraFiltro: '',
-            conteudoFiltro: '',
-            obrigatorioFiltro: 'S',
-          },
-          {
-            nomeFiltro: 'codigoscarteirinha',
-            tipoDadoFiltro: 'NUMBER',
-            mascaraFiltro: '',
-            conteudoFiltro: '',
-            obrigatorioFiltro: 'S',
-          },
-        ],
-      };
-
-      await component.generatePreview();
-
-      expect(executar).toHaveBeenCalledWith(report.api, {
-        combinacoesFiltros: codigos.map((codigo) => ({
-          empresas: '2232751,2234452,2010038,2011533,2011372',
-          codigoscarteirinha: codigo,
-        })),
-        page: 1,
-        size: 20,
-      });
-    },
-  );
-
-  it.each([
     ['ATIVOS', [2152, 2154, 2156, 2158, 2160, 2162]],
+    ['INATIVOS', [9152]],
     ['TODOS', [2152, 2154, 2156, 2158, 2160, 2162, 9152]],
   ] as const)(
-    'envia a Canção Nova com a situação %s sem lista textual no filtro numérico',
+    'envia a Canção Nova com a situação %s em combinações numéricas separadas',
     async (situacao, codigos) => {
       const executar = vi.fn().mockReturnValue(of({ content: [] }));
       const component = new ComercialComponent(
@@ -165,7 +116,46 @@ describe('ComercialComponent', () => {
     },
   );
 
-  it('interrompe a faixa etária quando a definição do SGU ainda não possui o novo filtro', async () => {
+  it('envia o código ativo 422 da Órica como número', async () => {
+    const executar = vi.fn().mockReturnValue(of({ content: [] }));
+    const component = new ComercialComponent(
+      { executar } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.selectedCompanyIds = ['orica'];
+    component.situacaoCodigoCarteirinha = 'ATIVOS';
+    const report = component.reports.find((item) => component.isAgeRange(item))!;
+    component.reports.forEach((item) => (item.selected = item === report));
+    report.definition = {
+      nome: report.api,
+      consultaSQL: '',
+      ordenacao: '',
+      filtros: [
+        {
+          nomeFiltro: 'empresas',
+          tipoDadoFiltro: 'VARCHAR',
+          mascaraFiltro: '',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+        {
+          nomeFiltro: 'codigoscarteirinha',
+          tipoDadoFiltro: 'NUMBER',
+          mascaraFiltro: '',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+      ],
+    };
+
+    await component.generatePreview();
+
+    expect(executar.mock.calls[0][1].combinacoesFiltros).toEqual([
+      { empresas: '2010038,2011533,2011372', codigoscarteirinha: 422 },
+    ]);
+  });
+
+  it('interrompe a faixa etária quando a definição do SGU não possui o filtro de carteirinha', async () => {
     const executar = vi.fn();
     const component = new ComercialComponent(
       { executar } as unknown as RelatorioService,
@@ -220,6 +210,113 @@ describe('ComercialComponent', () => {
 
     expect(component.previewsGenerated).toBe(false);
     expect(exportarLote).not.toHaveBeenCalled();
+  });
+
+  it('gera o relatório final sem exigir prévias e envia as quatro APIs', () => {
+    const exportarComercialFinal = vi.fn().mockReturnValue(of({ type: 0 }));
+    const component = new ComercialComponent(
+      { exportarComercialFinal } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    component.loadingDefinitions = false;
+    component.competence = '202608';
+    component.referenceDate = '2026-08-31';
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = {
+        nome: report.api,
+        consultaSQL: '',
+        ordenacao: '',
+        filtros:
+          report.api === '0090-faixa-etaria'
+            ? [
+                {
+                  nomeFiltro: 'empresa',
+                  tipoDadoFiltro: 'NUMBER',
+                  mascaraFiltro: '',
+                  conteudoFiltro: '',
+                  obrigatorioFiltro: 'S',
+                },
+                {
+                  nomeFiltro: 'datareferencia',
+                  tipoDadoFiltro: 'DATE',
+                  mascaraFiltro: 'DD/MM/YYYY',
+                  conteudoFiltro: '',
+                  obrigatorioFiltro: 'S',
+                },
+                {
+                  nomeFiltro: 'codigoscarteirinha',
+                  tipoDadoFiltro: 'NUMBER',
+                  mascaraFiltro: '',
+                  conteudoFiltro: '',
+                  obrigatorioFiltro: 'S',
+                },
+              ]
+            : report.api === '0090-beneficiario-empresa'
+              ? [
+                  {
+                    nomeFiltro: 'empresa',
+                    tipoDadoFiltro: 'NUMBER',
+                    mascaraFiltro: '',
+                    conteudoFiltro: '',
+                    obrigatorioFiltro: 'S',
+                  },
+                ]
+              : [
+                  {
+                    nomeFiltro: 'empresa',
+                    tipoDadoFiltro: 'NUMBER',
+                    mascaraFiltro: '',
+                    conteudoFiltro: '',
+                    obrigatorioFiltro: 'S',
+                  },
+                  {
+                    nomeFiltro: 'competencia',
+                    tipoDadoFiltro: 'NUMBER',
+                    mascaraFiltro: '',
+                    conteudoFiltro: '',
+                    obrigatorioFiltro: 'S',
+                  },
+                ],
+      };
+      report.previewed = false;
+    });
+
+    component.downloadFinal();
+
+    expect(exportarComercialFinal).toHaveBeenCalledTimes(1);
+    const request = exportarComercialFinal.mock.calls[0][0];
+    expect(request.competencia).toBe('202608');
+    expect(Object.keys(request.filtrosPorApi).sort()).toEqual(
+      component.reports.map((report) => report.api).sort(),
+    );
+    expect(request.filtrosPorApi['0090-beneficiario-empresa'][0].competencia).toBeUndefined();
+    expect(request.filtrosPorApi['0090-receita-empresa-com-grupo'][0].competencia).toBe(202608);
+    expect(request.filtrosPorApi['0090-faixa-etaria'][0].datareferencia).toBe('31/08/2026');
+  });
+
+  it('bloqueia o relatório final quando um dos quatro relatórios está desmarcado', () => {
+    const exportarComercialFinal = vi.fn();
+    const component = new ComercialComponent(
+      { exportarComercialFinal } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    component.loadingDefinitions = false;
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [] };
+      report.selected = true;
+    });
+    component.reports[0].selected = false;
+
+    expect(component.canGenerateFinal).toBe(false);
+
+    component.downloadFinal();
+
+    expect(exportarComercialFinal).not.toHaveBeenCalled();
+    expect(component.error).toBe('Selecione os quatro relatórios para gerar o relatório final.');
   });
 
   it('libera o download individual apenas após a prévia do relatório', () => {

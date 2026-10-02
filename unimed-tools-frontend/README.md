@@ -15,8 +15,7 @@ npm ci
 npm start
 ```
 
-O `npm start` usa o proxy local de `/api` para `http://localhost:8081`, a porta
-reservada pelo script de desenvolvimento. O backend de produção local usa 8080.
+O `npm start` usa o proxy local de `/api` para `http://localhost:8080`.
 
 ## Validação
 
@@ -49,10 +48,6 @@ src/app/
 A navegação das ferramentas nativas é centralizada em
 `shared/constants/tools.constants.ts`. Home e menu Ferramentas devem consumir
 essa mesma fonte; não duplique manualmente nomes, rotas ou permissões em vários componentes.
-
-A ajuda em contexto usa `shared/components/tool-help/`; o texto das ferramentas
-fica em `shared/constants/tool-help.constants.ts`. Quando uma entrada, etapa,
-saída ou limitação mudar, atualize o conteúdo central e o guia do usuário.
 
 ## Ferramentas principais
 
@@ -131,10 +126,3 @@ O frontend **não** persiste token de sessão em `localStorage` ou `sessionStora
 - o processamento XML principal continua no navegador;
 - rotas antigas são redirecionadas para as novas áreas para preservar favoritos;
 - BI e Fechamento permanecem no código por compatibilidade, mas não fazem parte dos cards principais da Home.
-
-## Documentação relacionada
-
-- [Guia do usuário](../docs/GUIA_DO_USUARIO.md);
-- [Mapa do código](../docs/MAPA_DO_CODIGO.md);
-- [Guia de desenvolvimento](../docs/DESENVOLVIMENTO.md);
-- [Arquitetura](../docs/ARQUITETURA.md).

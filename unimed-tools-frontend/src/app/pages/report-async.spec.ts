@@ -215,18 +215,9 @@ describe('Comercial — arquivos separados por empresa', () => {
         apiNome: '0090-faixa-etaria',
         nomeArquivo: '2_empresas_faixa_etaria_202608',
         combinacoesFiltros: [
-          {
-            empresas: '2232751,2234452,2052097',
-            codigoscarteirinha: 2128,
-          },
-          {
-            empresas: '2232751,2234452,2052097',
-            codigoscarteirinha: 9128,
-          },
-          {
-            empresas: '2232751,2234452,2052097',
-            codigoscarteirinha: 99,
-          },
+          { empresas: '2232751,2234452,2052097', codigoscarteirinha: 2128 },
+          { empresas: '2232751,2234452,2052097', codigoscarteirinha: 9128 },
+          { empresas: '2232751,2234452,2052097', codigoscarteirinha: 99 },
         ],
       },
     ]);
@@ -249,18 +240,9 @@ describe('Comercial — arquivos separados por empresa', () => {
     const preview = http.expectOne('/api/relatorios/sgu/executar/0090-faixa-etaria');
     expect(preview.request.body).toEqual({
       combinacoesFiltros: [
-        {
-          empresas: '2232751,2234452,2052097',
-          codigoscarteirinha: 2128,
-        },
-        {
-          empresas: '2232751,2234452,2052097',
-          codigoscarteirinha: 9128,
-        },
-        {
-          empresas: '2232751,2234452,2052097',
-          codigoscarteirinha: 99,
-        },
+        { empresas: '2232751,2234452,2052097', codigoscarteirinha: 2128 },
+        { empresas: '2232751,2234452,2052097', codigoscarteirinha: 9128 },
+        { empresas: '2232751,2234452,2052097', codigoscarteirinha: 99 },
       ],
       page: 1,
       size: 20,
@@ -275,18 +257,9 @@ describe('Comercial — arquivos separados por empresa', () => {
     const download = http.expectOne('/api/relatorios/sgu/exportar/0090-faixa-etaria?formato=csv');
     expect(download.request.body.filtros).toEqual({
       combinacoesFiltros: [
-        {
-          empresas: '2232751,2234452,2052097',
-          codigoscarteirinha: 2128,
-        },
-        {
-          empresas: '2232751,2234452,2052097',
-          codigoscarteirinha: 9128,
-        },
-        {
-          empresas: '2232751,2234452,2052097',
-          codigoscarteirinha: 99,
-        },
+        { empresas: '2232751,2234452,2052097', codigoscarteirinha: 2128 },
+        { empresas: '2232751,2234452,2052097', codigoscarteirinha: 9128 },
+        { empresas: '2232751,2234452,2052097', codigoscarteirinha: 99 },
       ],
     });
     http.expectNone('/api/relatorios/sgu/exportar-lote');

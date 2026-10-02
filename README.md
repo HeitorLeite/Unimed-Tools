@@ -4,19 +4,6 @@ Aplicação interna da Unimed Lorena para centralizar relatórios, correções d
 
 A interface foi reorganizada por **área de trabalho** em vez de por tecnologia. O usuário encontra a rotina pelo nome do setor ou da atividade, enquanto detalhes como API SGU, XML TISS e arquivos posicionais ficam em segundo plano.
 
-## Documentação
-
-- [Índice da documentação](docs/README.md);
-- [Guia do usuário](docs/GUIA_DO_USUARIO.md);
-- [Arquitetura](docs/ARQUITETURA.md);
-- [Mapa do código](docs/MAPA_DO_CODIGO.md);
-- [Desenvolvimento e operação local](docs/DESENVOLVIMENTO.md);
-- [Política de segurança](SEGURANCA.md);
-- [Banco de dados e migrações](database/README.md).
-
-As páginas operacionais possuem um botão **Ajuda** com instruções específicas,
-pré-requisitos, resultado esperado e limitações da ferramenta atual.
-
 ## Ferramentas principais
 
 | Ferramenta | Rota | Finalidade | Permissão |
@@ -60,18 +47,16 @@ Quando mais de uma empresa é selecionada, as prévias de beneficiários, receit
 
 **Atual — faixa etária:** prévia e download consolidam todas as empresas selecionadas
 em uma tabela com `FAIXA_ETARIA`, `DEP`, `TIT`, `FEM`, `MASC` e `TOTAL`, seguindo
-o modelo GERAL. Quando há agregados, a tabela inclui `AGR`, soma os agregados em
-`FEM`, `MASC` e `TOTAL`; quando todos são zero, a coluna `AGR` é omitida. O arquivo contém as dez faixas
+o modelo GERAL. Agregados não entram nas somas. O arquivo contém as dez faixas
 e TOTAL GERAL, sem linha de identificação GERAL nem blocos por contrato. O download individual
 gera um único CSV/TXT/XLSX (aba Geral no XLSX), mesmo com várias empresas.
 O pacote completo inclui apenas um arquivo de faixa etária consolidado.
 
 O usuário escolhe se a faixa etária considera **todos**, somente códigos
 **ativos** ou somente códigos **inativos** de `BNF_COD_CNTRAT_CART`. A opção
-inicial é **Todos**, incluindo todos os códigos catalogados. Códigos normalizados com
-quatro posições que começam por `5` ou `9` são inativos; os demais são ativos.
-Os códigos de carteirinha ficam separados dos identificadores internos de empresa
-em `empresa-catalogo.ts`.
+inicial é **Todos**, incluindo todos os códigos catalogados. Para classificar a
+situação, o código é considerado com quatro posições: os iniciados por `5` ou
+`9` são inativos; os demais são ativos.
 
 **Atual:** a competência sugerida é o mês anterior ao mês corrente. A data de
 referência acompanha essa competência com o último dia do respectivo mês e só
@@ -89,6 +74,27 @@ Fluxo:
 5. seleção dos relatórios;
 6. prévia da primeira empresa nos demais relatórios e consolidado completo da faixa etária;
 7. download completo individual ou pacote ZIP.
+
+### Relatório final de sinistralidade
+
+O Comercial também oferece **Gerar relatório final (XLSX)** para uma empresa por vez.
+Essa opção é independente das prévias e dos downloads separados e consolida as quatro
+APIs do Comercial em uma planilha executiva formatada.
+
+A geração usa uma janela móvel de 12 competências para Receita e Despesa, obtendo:
+
+- receita, coparticipação, sinistro e sinistralidade;
+- vidas históricas pelas linhas de Receita cujo tipo contém `MENSALIDADE`;
+- ativos e inativos do mês atual pela base de Beneficiários;
+- faixa etária consolidada do mês atual;
+- despesas por tipo de guia e grupo de prestador;
+- análises por região;
+- maiores custos por beneficiário e especialidade, no mês e em 12 meses;
+- análises acumuladas de PA/PS, SADT e Sessões Multi;
+- fórmulas e gráficos no próprio XLSX.
+
+A exportação final é um endpoint separado. Uma falha nessa consolidação não altera o
+comportamento dos quatro relatórios individuais nem do ZIP já existente.
 
 ## Assistencial
 
@@ -230,7 +236,7 @@ Para instalações existentes, aplique somente as migrações ainda não executa
 4. `005_configuracao_ferramentas_nativas.sql`;
 5. `006_permissoes_ferramentas_atuais.sql`.
 
-O backend também sincroniza de forma idempotente o catálogo de permissões das ferramentas atuais ao iniciar, para que instalações existentes passem a exibir Comercial, Assistencial, Revisão de Contas, Única, Hospital e Gestão de Risco no gerenciamento de acessos. A migração de concessões técnicas legadas ocorre somente quando a permissão operacional correspondente é criada; reinicializações posteriores preservam exatamente as escolhas feitas no gerenciamento de usuários.
+O backend também sincroniza de forma idempotente as permissões das ferramentas atuais ao iniciar, para que instalações existentes passem a exibir Comercial, Assistencial, Revisão de Contas, Única, Hospital e Gestão de Risco no gerenciamento de acessos.
 
 Faça backup antes de qualquer migração.
 
@@ -303,14 +309,10 @@ Requisitos:
 - Maven;
 - MariaDB.
 
-```powershell
+```bash
 cd unimed-tools-backend
-$env:PORT = '8081'
 mvn spring-boot:run
 ```
-
-A porta 8081 é usada pelo proxy do frontend de desenvolvimento. O fluxo local
-de produção mantém o backend na porta 8080.
 
 Validação:
 
@@ -395,11 +397,7 @@ database/
   migrations/
 
 docs/
-  README.md
   ARQUITETURA.md
-  GUIA_DO_USUARIO.md
-  MAPA_DO_CODIGO.md
-  DESENVOLVIMENTO.md
 ```
 
 ## CI

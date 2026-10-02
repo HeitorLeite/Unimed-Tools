@@ -22,6 +22,7 @@ import { ToolRegistryService } from '../../../shared/services/tool-registry.serv
 })
 export class CustomReportComponent implements OnInit {
   readonly help = TOOL_HELP_CONTENT.customReport;
+
   formatoSelecionado: 'csv' | 'txt' | 'xlsx' = 'xlsx';
   tool: CustomReportTool | null = null;
   definition: SguApiDefinicao | null = null;

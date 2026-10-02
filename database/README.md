@@ -75,4 +75,4 @@ O gerenciamento operacional trabalha com:
 - `HOSPITAL_ACESSAR`;
 - `GESTAO_RISCO_ACESSAR`;
 
-O backend mantém automaticamente as permissões técnicas necessárias para os endpoints existentes. A conversão dessas permissões técnicas em acessos operacionais é executada somente na criação inicial das permissões atuais; reiniciar o backend não altera as concessões individuais salvas pelo administrador.
+O backend mantém automaticamente as permissões técnicas necessárias para os endpoints existentes.

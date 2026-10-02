@@ -65,6 +65,12 @@ export interface RelatorioLoteRequest {
   itens: RelatorioLoteItemRequest[];
 }
 
+export interface ComercialRelatorioFinalRequest {
+  empresa: string;
+  competencia: string;
+  filtrosPorApi: Record<string, Record<string, unknown>[]>;
+}
+
 export interface SguResultado {
   content: Record<string, unknown>[];
   totalElements?: number | string;

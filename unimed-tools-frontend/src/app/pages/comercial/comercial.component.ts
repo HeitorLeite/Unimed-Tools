@@ -170,7 +170,7 @@ export class ComercialComponent implements OnInit {
       !this.generating &&
       !this.downloadingAll &&
       !this.generatingFinal &&
-      this.reports.every((report) => Boolean(report.definition))
+      this.reports.every((report) => report.selected && Boolean(report.definition))
     );
   }
 
@@ -376,6 +376,10 @@ export class ComercialComponent implements OnInit {
     }
     if (!/^\d{6}$/.test(this.competence)) {
       this.error = 'Informe a competência no formato AAAAMM.';
+      return;
+    }
+    if (!this.reports.every((report) => report.selected)) {
+      this.error = 'Selecione os quatro relatórios para gerar o relatório final.';
       return;
     }
     if (this.loadingDefinitions || this.reports.some((report) => !report.definition)) {

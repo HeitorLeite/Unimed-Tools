@@ -38,7 +38,6 @@ import org.apache.poi.xddf.usermodel.chart.XDDFCategoryAxis;
 import org.apache.poi.xddf.usermodel.chart.XDDFChartData;
 import org.apache.poi.xddf.usermodel.chart.XDDFDataSource;
 import org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory;
-import org.apache.poi.xddf.usermodel.chart.XDDFLegend;
 import org.apache.poi.xddf.usermodel.chart.XDDFLineChartData;
 import org.apache.poi.xddf.usermodel.chart.XDDFNumericalDataSource;
 import org.apache.poi.xddf.usermodel.chart.XDDFValueAxis;
@@ -711,7 +710,7 @@ public class ComercialRelatorioFinalService {
     XSSFChart chart = drawing.createChart(anchor);
     chart.setTitleText(titulo);
     chart.setTitleOverlay(false);
-    XDDFLegend legend = chart.getOrAddLegend();
+    var legend = chart.getOrAddLegend();
     legend.setPosition(LegendPosition.BOTTOM);
     XDDFCategoryAxis eixoCategoria = chart.createCategoryAxis(AxisPosition.BOTTOM);
     XDDFValueAxis eixoValor = chart.createValueAxis(AxisPosition.LEFT);

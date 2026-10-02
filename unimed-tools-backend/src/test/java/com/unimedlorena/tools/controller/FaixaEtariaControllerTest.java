@@ -22,7 +22,7 @@ class FaixaEtariaControllerTest {
         "DEP_FEM", 3, "TIT_MASC", 5, "TIT_FEM", 7)), "last", true));
     var exportacao = new ExportacaoRelatorioService(sgu, 100, 0);
     var controller = new RelatorioController(sgu, exportacao,
-      new ExportacaoLoteRelatorioService(exportacao), mock(RelatorioPersonalizadoService.class),
+      new ExportacaoLoteRelatorioService(exportacao), mock(ComercialRelatorioFinalService.class), mock(RelatorioPersonalizadoService.class),
       mock(HospitalRelatorioService.class));
     var mvc = MockMvcBuilders.standaloneSetup(controller)
       .setControllerAdvice(new GlobalExceptionHandler()).build();

@@ -78,6 +78,47 @@ describe('ComercialComponent', () => {
     expect(exportarLote).not.toHaveBeenCalled();
   });
 
+  it('gera o relatório final sem exigir prévias e envia as quatro APIs', () => {
+    const exportarComercialFinal = vi.fn().mockReturnValue(of({ type: 0 }));
+    const component = new ComercialComponent(
+      { exportarComercialFinal } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    component.loadingDefinitions = false;
+    component.competence = '202608';
+    component.referenceDate = '2026-08-31';
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = {
+        nome: report.api,
+        consultaSQL: '',
+        ordenacao: '',
+        filtros: report.api === '0090-faixa-etaria'
+          ? [
+              { nomeFiltro: 'empresa', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+              { nomeFiltro: 'datareferencia', tipoDadoFiltro: 'DATE', mascaraFiltro: 'DD/MM/YYYY', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+            ]
+          : [
+              { nomeFiltro: 'empresa', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+              { nomeFiltro: 'competencia', tipoDadoFiltro: 'NUMBER', mascaraFiltro: '', conteudoFiltro: '', obrigatorioFiltro: 'S' },
+            ],
+      };
+      report.previewed = false;
+    });
+
+    component.downloadFinal();
+
+    expect(exportarComercialFinal).toHaveBeenCalledTimes(1);
+    const request = exportarComercialFinal.mock.calls[0][0];
+    expect(request.competencia).toBe('202608');
+    expect(Object.keys(request.filtrosPorApi).sort()).toEqual(
+      component.reports.map((report) => report.api).sort(),
+    );
+    expect(request.filtrosPorApi['0090-receita-empresa-com-grupo'][0].competencia).toBe(202608);
+    expect(request.filtrosPorApi['0090-faixa-etaria'][0].datareferencia).toBe('31/08/2026');
+  });
+
   it('libera o download individual apenas após a prévia do relatório', () => {
     const component = createComponent();
     const report = component.reports[0];

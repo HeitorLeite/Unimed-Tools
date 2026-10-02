@@ -9,6 +9,7 @@ import { environment } from '../../../environments/environment';
 import { RELATORIO_STORAGE_KEYS } from '../constants/storage.constants';
 import { HospitalConfiguration, HospitalRequest } from '../models/hospital.model';
 import {
+  ComercialRelatorioFinalRequest,
   FormatoExportacao,
   RelatorioCatalogo,
   RelatorioGrupoAutomatico,
@@ -249,6 +250,14 @@ export class RelatorioService {
       observe: 'response',
       responseType: 'blob',
     }).pipe(this.validarDownload('zip'));
+  }
+
+  exportarComercialFinal(request: ComercialRelatorioFinalRequest): Observable<HttpEvent<Blob>> {
+    return this.http.post(`${this.baseUrl}/comercial/relatorio-final`, request, {
+      observe: 'events',
+      reportProgress: true,
+      responseType: 'blob',
+    }).pipe(this.validarDownload('xlsx'));
   }
 
   private validarDownload<T extends HttpEvent<Blob>>(formato: string) {

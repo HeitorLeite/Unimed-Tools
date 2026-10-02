@@ -96,6 +96,27 @@ A geração usa uma janela móvel de 12 competências para Receita e Despesa, ob
 A exportação final é um endpoint separado. Uma falha nessa consolidação não altera o
 comportamento dos quatro relatórios individuais nem do ZIP já existente.
 
+### Relatório final de sinistralidade
+
+O Comercial também oferece **Gerar relatório final (XLSX)** para uma empresa por vez.
+Essa opção é independente das prévias e dos downloads separados e consolida as quatro
+APIs do Comercial em uma planilha executiva formatada.
+
+A geração usa uma janela móvel de 12 competências para Receita e Despesa, obtendo:
+
+- receita, coparticipação, sinistro e sinistralidade;
+- vidas históricas pelas linhas de Receita cujo tipo contém `MENSALIDADE`;
+- ativos e inativos do mês atual pela base de Beneficiários;
+- faixa etária consolidada do mês atual;
+- despesas por tipo de guia e grupo de prestador;
+- análises por região;
+- maiores custos por beneficiário e especialidade, no mês e em 12 meses;
+- análises acumuladas de PA/PS, SADT e Sessões Multi;
+- fórmulas e gráficos no próprio XLSX.
+
+A exportação final é um endpoint separado. Uma falha nessa consolidação não altera o
+comportamento dos quatro relatórios individuais nem do ZIP já existente.
+
 ## Assistencial
 
 O Assistencial substitui a antiga entrada de relatório personalizado.

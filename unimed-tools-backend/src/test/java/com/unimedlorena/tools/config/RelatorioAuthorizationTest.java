@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.unimedlorena.tools.auth.SessaoService;
 import com.unimedlorena.tools.controller.RelatorioController;
+import com.unimedlorena.tools.service.ComercialRelatorioFinalService;
 import com.unimedlorena.tools.service.ExportacaoLoteRelatorioService;
 import com.unimedlorena.tools.service.ExportacaoRelatorioService;
 import com.unimedlorena.tools.service.RelatorioPersonalizadoService;
@@ -67,6 +68,9 @@ class RelatorioAuthorizationTest {
 
   @MockBean
   private ExportacaoLoteRelatorioService exportacaoLote;
+
+  @MockBean
+  private ComercialRelatorioFinalService comercialRelatorioFinal;
 
   @MockBean
   private RelatorioPersonalizadoService relatorioPersonalizado;

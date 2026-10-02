@@ -332,12 +332,12 @@ public class ComercialRelatorioFinalService {
       wb.setForceFormulaRecalculation(true);
       Estilos e = new Estilos(wb);
 
-      int[] larguras = {14,24,18,18,18,18,18,18,18,18,18,16,16,16,16};
+      int[] larguras = {14,24,14,18,18,18,18,18,18,18,18,16,16,16,16,18};
       for (int i = 0; i < larguras.length; i++) sheet.setColumnWidth(i, larguras[i] * 256);
       sheet.setDisplayGridlines(false);
       sheet.createFreezePane(0, 1);
 
-      titulo(sheet, 0, 0, 14, "RELATÓRIO DE SINISTRALIDADE — " + empresa, e.titulo);
+      titulo(sheet, 0, 0, 15, "RELATÓRIO DE SINISTRALIDADE — " + empresa, e.titulo);
       resumoDozeMeses(sheet, meses, atual, e);
       resumoAtual(sheet, alvo, atual, ativosAnterior, meses.getLast(), e);
       faixaEtaria(sheet, faixa, e);
@@ -611,35 +611,44 @@ public class ComercialRelatorioFinalService {
     BigDecimal total,
     Estilos e
   ) {
-    titulo(sheet, tituloRow, 0, 3, tituloEsquerda, e.secao);
-    titulo(sheet, tituloRow, 5, 8, tituloDireita, e.secao);
-    String[] h = {"Ranking", "Código", "Valor", "% geral"};
-    cabecalho(sheet, tituloRow + 1, h, e);
-    cabecalho(sheet, tituloRow + 1, 5, new String[]{"Ranking", "Especialidade", "Valor", "% geral"}, e);
+    titulo(sheet, tituloRow, 0, 4, tituloEsquerda, e.secao);
+    titulo(sheet, tituloRow, 6, 9, tituloDireita, e.secao);
+    cabecalho(sheet, tituloRow + 1,
+      new String[]{"Ranking", "Código", "Situação", "Valor", "% geral"}, e);
+    cabecalho(sheet, tituloRow + 1, 6,
+      new String[]{"Ranking", "Especialidade", "Valor", "% geral"}, e);
+
     for (int i = 0; i < 10; i++) {
       int r = tituloRow + 2 + i;
       if (i < esquerda.size()) {
         inteiro(sheet, r, 0, i + 1, e.inteiro);
         texto(sheet, r, 1, esquerda.get(i).chave, e.corpo);
-        numero(sheet, r, 2, esquerda.get(i).valor, e.moeda);
-        if (total.signum() != 0) numero(sheet, r, 3,
+        texto(sheet, r, 2, situacaoBeneficiario(esquerda.get(i).chave), e.corpo);
+        numero(sheet, r, 3, esquerda.get(i).valor, e.moeda);
+        if (total.signum() != 0) numero(sheet, r, 4,
           esquerda.get(i).valor.divide(total, 8, RoundingMode.HALF_UP), e.percentual);
       }
       if (i < direita.size()) {
-        inteiro(sheet, r, 5, i + 1, e.inteiro);
-        texto(sheet, r, 6, direita.get(i).chave, e.corpo);
-        numero(sheet, r, 7, direita.get(i).valor, e.moeda);
-        if (total.signum() != 0) numero(sheet, r, 8,
+        inteiro(sheet, r, 6, i + 1, e.inteiro);
+        texto(sheet, r, 7, direita.get(i).chave, e.corpo);
+        numero(sheet, r, 8, direita.get(i).valor, e.moeda);
+        if (total.signum() != 0) numero(sheet, r, 9,
           direita.get(i).valor.divide(total, 8, RoundingMode.HALF_UP), e.percentual);
       }
     }
+
     int subtotal = tituloRow + 12;
     texto(sheet, subtotal, 0, "Sub Total", e.total);
-    formula(sheet, subtotal, 2, "SUM(C" + (tituloRow + 3) + ":C" + (tituloRow + 12) + ")", e.totalMoeda);
-    if (total.signum() != 0) formula(sheet, subtotal, 3, "C" + (subtotal + 1) + "/" + total.toPlainString(), e.totalPercentual);
-    texto(sheet, subtotal, 5, "Sub Total", e.total);
-    formula(sheet, subtotal, 7, "SUM(H" + (tituloRow + 3) + ":H" + (tituloRow + 12) + ")", e.totalMoeda);
-    if (total.signum() != 0) formula(sheet, subtotal, 8, "H" + (subtotal + 1) + "/" + total.toPlainString(), e.totalPercentual);
+    formula(sheet, subtotal, 3,
+      "SUM(D" + (tituloRow + 3) + ":D" + (tituloRow + 12) + ")", e.totalMoeda);
+    if (total.signum() != 0) formula(sheet, subtotal, 4,
+      "D" + (subtotal + 1) + "/" + total.toPlainString(), e.totalPercentual);
+
+    texto(sheet, subtotal, 6, "Sub Total", e.total);
+    formula(sheet, subtotal, 8,
+      "SUM(I" + (tituloRow + 3) + ":I" + (tituloRow + 12) + ")", e.totalMoeda);
+    if (total.signum() != 0) formula(sheet, subtotal, 9,
+      "I" + (subtotal + 1) + "/" + total.toPlainString(), e.totalPercentual);
   }
 
   private void analiseBeneficiarios(
@@ -657,23 +666,27 @@ public class ComercialRelatorioFinalService {
       .filter(filtro).toList();
     List<Ranking> top = ranking(todas, this::identificadorBeneficiario, 30);
 
-    titulo(sheet, tituloRow, 0, 14, titulo, e.secao);
+    titulo(sheet, tituloRow, 0, 15, titulo, e.secao);
     texto(sheet, tituloRow + 1, 0, "Ranking", e.cabecalho);
     texto(sheet, tituloRow + 1, 1, "Código", e.cabecalho);
-    for (int i = 0; i < 12; i++) data(sheet, tituloRow + 1, 2 + i, meses.get(i).mes.atDay(1), e.cabecalhoMes);
-    texto(sheet, tituloRow + 1, 14, "TOTAL", e.cabecalho);
+    texto(sheet, tituloRow + 1, 2, "Situação", e.cabecalho);
+    for (int i = 0; i < 12; i++) {
+      data(sheet, tituloRow + 1, 3 + i, meses.get(i).mes.atDay(1), e.cabecalhoMes);
+    }
+    texto(sheet, tituloRow + 1, 15, "TOTAL", e.cabecalho);
 
     for (int i = 0; i < top.size(); i++) {
       int r = tituloRow + 2 + i;
       Ranking item = top.get(i);
       inteiro(sheet, r, 0, i + 1, e.inteiro);
       texto(sheet, r, 1, item.chave, e.corpo);
+      texto(sheet, r, 2, situacaoBeneficiario(item.chave), e.corpo);
       for (int m = 0; m < 12; m++) {
         BigDecimal valor = somarFiltrado(meses.get(m).despesaLinhas, linha ->
           filtro.test(linha) && item.chave.equals(identificadorBeneficiario(linha)));
-        if (valor.signum() != 0) numero(sheet, r, 2 + m, valor, e.moeda);
+        if (valor.signum() != 0) numero(sheet, r, 3 + m, valor, e.moeda);
       }
-      formula(sheet, r, 14, "SUM(C" + (r + 1) + ":N" + (r + 1) + ")", e.moeda);
+      formula(sheet, r, 15, "SUM(D" + (r + 1) + ":O" + (r + 1) + ")", e.moeda);
     }
   }
 

@@ -881,8 +881,8 @@ public class ComercialRelatorioFinalService {
   }
 
   private String descricaoUtilizacao(Map<String, Object> linha) {
-    return texto(linha, "DESCRICAO_PROCEDIMENTO", "DESCRICAO_ITEM", "PROCEDIMENTO",
-      "DESC_PROCEDIMENTO", "NOME_PROCEDIMENTO", "TIPO_SESSAO");
+    return texto(linha, "DESCRICAO_ITEM", "DESC_ITEM", "DESCRICAO_PROCEDIMENTO",
+      "DESC_PROCEDIMENTO", "PROCEDIMENTO", "NOME_PROCEDIMENTO", "TIPO_SESSAO");
   }
 
   private BigDecimal valorReceita(Map<String, Object> linha) {

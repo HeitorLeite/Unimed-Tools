@@ -48,11 +48,21 @@ class ComercialRelatorioFinalServiceTest {
           "TIPO", "MENSALIDADE",
           "VALOR_TOTAL", BigDecimal.valueOf(1000 + competenciaFiltro % 100),
           "REGIAO", "Vale do Paraiba",
-          "CODIGO_BENEFICIARIO", "B-001"
+          "CODIGO_BENEFICIARIO", "090.2152.000001.00"
+        ),
+        linha(
+          "TIPO", "MENSALIDADE RETROATIVA",
+          "VALOR_TOTAL", BigDecimal.valueOf(200),
+          "REGIAO", "Vale do Paraiba",
+          "CODIGO_BENEFICIARIO", "090.9152.000002.00"
         ),
         linha(
           "TIPO", "COPARTICIPACAO",
           "VALOR_TOTAL", BigDecimal.valueOf(100)
+        ),
+        linha(
+          "TIPO", "TAXA ADMINISTRATIVA",
+          "VALOR_TOTAL", BigDecimal.valueOf(9000)
         )
       );
     });
@@ -63,28 +73,30 @@ class ComercialRelatorioFinalServiceTest {
       linha(
         "DESCRICAO_TIPO_GUIA", "Consulta",
         "GRUPO_PRESTADOR", "Recurso Próprio",
-        "CODIGO_BENEFICIARIO", "B-001",
+        "CODIGO_BENEFICIARIO", "090.2152.000001.00",
         "NOME_ESPECIALIDADE", "CLINICA MEDICA",
         "DESCRICAO_PROCEDIMENTO", "CONSULTA SINTETICA",
         "REGIAO", "Vale do Paraiba",
-        "VALOR_TOTAL", BigDecimal.valueOf(400)
+        "VALOR_TOTAL", BigDecimal.valueOf(400),
+        "VALOR_TOTAL_21", BigDecimal.valueOf(420)
       ),
       linha(
         "DESCRICAO_TIPO_GUIA", "Exame",
         "GRUPO_PRESTADOR", "Sessões Multi",
-        "CODIGO_BENEFICIARIO", "B-002",
+        "CODIGO_BENEFICIARIO", "090.9152.000002.00",
         "NOME_ESPECIALIDADE", "PSICOLOGIA",
-        "DESCRICAO_PROCEDIMENTO", "SESSAO PSICOLOGIA",
+        "DESCRICAO_PROCEDIMENTO", "Sessao de Psicologia/Psicoterapia",
         "REGIAO", "Vale do Paraiba",
-        "VALOR_TOTAL", BigDecimal.valueOf(600)
+        "VALOR_TOTAL", BigDecimal.valueOf(600),
+        "VALOR_TOTAL_21", BigDecimal.valueOf(630)
       )
     ));
 
     when(exportacao.carregarRegistros(
       eq(ComercialRelatorioFinalService.API_BENEFICIARIOS), anyMap()
     )).thenReturn(List.of(
-      linha("CODIGO_BENEFICIARIO", "B-001", "STATUS", "ATIVO"),
-      linha("CODIGO_BENEFICIARIO", "B-002", "STATUS", "INATIVO")
+      linha("CODIGO_BENEFICIARIO", "090.2152.000001.00", "STATUS", "INATIVO"),
+      linha("CODIGO_BENEFICIARIO", "090.9152.000002.00", "STATUS", "ATIVO")
     ));
 
     when(exportacao.carregarFaixaEtaria(org.mockito.ArgumentMatchers.anyList()))
@@ -107,14 +119,51 @@ class ComercialRelatorioFinalServiceTest {
       assertEquals(1d, sheet.getRow(18).getCell(1).getNumericCellValue());
       assertEquals(1d, sheet.getRow(18).getCell(2).getNumericCellValue());
 
-      assertEquals(400d, sheet.getRow(64).getCell(1).getNumericCellValue());
-      assertEquals(600d, sheet.getRow(64).getCell(2).getNumericCellValue());
-      assertEquals("B-002", sheet.getRow(113).getCell(1).getStringCellValue());
-      assertEquals("PSICOLOGIA", sheet.getRow(113).getCell(6).getStringCellValue());
+      // Receita ignora a taxa administrativa e mantém apenas mensalidades.
+      assertEquals(
+        1200d + Integer.parseInt(competencia.substring(4)),
+        sheet.getRow(13).getCell(1).getNumericCellValue()
+      );
+
+      // Sinistro e rankings usam VALOR_TOTAL_21, nunca VALOR_TOTAL.
+      assertEquals(420d, sheet.getRow(64).getCell(1).getNumericCellValue());
+      assertEquals(630d, sheet.getRow(64).getCell(2).getNumericCellValue());
+      assertEquals("090.9152.000002.00", sheet.getRow(113).getCell(1).getStringCellValue());
+      assertEquals("INATIVO", sheet.getRow(113).getCell(2).getStringCellValue());
+      assertEquals(630d, sheet.getRow(113).getCell(3).getNumericCellValue());
+      assertEquals("PSICOLOGIA", sheet.getRow(113).getCell(7).getStringCellValue());
+
+      // A tabela SADT também exibe a situação ao lado do código.
+      assertEquals("090.9152.000002.00", sheet.getRow(176).getCell(1).getStringCellValue());
+      assertEquals("INATIVO", sheet.getRow(176).getCell(2).getStringCellValue());
 
       assertEquals(CellType.FORMULA, sheet.getRow(14).getCell(1).getCellType());
       assertEquals(3, sheet.getDrawingPatriarch().getCharts().size());
     }
+  }
+
+  @Test
+  void falhaSeDespesaNaoTrouxerValorTotal21() {
+    when(exportacao.carregarRegistros(
+      eq(ComercialRelatorioFinalService.API_RECEITA), anyMap()
+    )).thenReturn(List.of(
+      linha(
+        "TIPO", "MENSALIDADE",
+        "VALOR_TOTAL", 100,
+        "CODIGO_BENEFICIARIO", "090.2152.000001.00"
+      )
+    ));
+    when(exportacao.carregarRegistros(
+      eq(ComercialRelatorioFinalService.API_DESPESA), anyMap()
+    )).thenReturn(List.of(
+      linha(
+        "VALOR_TOTAL", 100,
+        "DESCRICAO_TIPO_GUIA", "Consulta",
+        "CODIGO_BENEFICIARIO", "090.2152.000001.00"
+      )
+    ));
+
+    assertThrows(IllegalArgumentException.class, () -> service.gerar(request("202608")));
   }
 
   @Test

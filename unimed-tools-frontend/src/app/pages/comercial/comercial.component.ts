@@ -181,6 +181,7 @@ export class ComercialComponent implements OnInit {
       !report.downloading &&
       !this.generating &&
       !this.downloadingAll &&
+      !this.generatingFinal &&
       Boolean(report.definition) &&
       this.selectedCompanies.length > 0
     );

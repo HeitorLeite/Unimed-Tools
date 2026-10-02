@@ -94,22 +94,22 @@ public class ComercialRelatorioFinalService {
       List<LinkedHashMap<String, Object>> despesa = carregar(
         API_DESPESA, filtrosMes(request, API_DESPESA, mes)
       );
-      List<LinkedHashMap<String, Object>> beneficiarios = carregar(
-        API_BENEFICIARIOS, filtrosMes(request, API_BENEFICIARIOS, mes)
-      );
-      dados.add(agregarMes(mes, receita, despesa, contarBeneficiarios(beneficiarios)));
+      dados.add(agregarMes(mes, receita, despesa));
     }
 
-    ContagemBeneficiarios contagem = dados.getLast().beneficiarios;
-    ContagemBeneficiarios anterior = dados.size() > 1
-      ? dados.get(dados.size() - 2).beneficiarios
-      : new ContagemBeneficiarios(0, 0);
+    List<LinkedHashMap<String, Object>> beneficiarios = carregar(
+      API_BENEFICIARIOS, filtrosMes(request, API_BENEFICIARIOS, alvo)
+    );
+    ContagemBeneficiarios contagem = contarBeneficiarios(beneficiarios);
+    long ativosAnterior = dados.size() > 1
+      ? dados.get(dados.size() - 2).beneficiariosAtivos
+      : 0;
 
     List<LinkedHashMap<String, Object>> faixa = exportacao.carregarFaixaEtaria(
       filtrosObrigatorios(request, API_FAIXA)
     );
 
-    return montarWorkbook(request.empresa(), alvo, dados, contagem, anterior, faixa);
+    return montarWorkbook(request.empresa(), alvo, dados, contagem, ativosAnterior, faixa);
   }
 
   private void validar(ComercialRelatorioFinalRequest request) {
@@ -206,13 +206,13 @@ public class ComercialRelatorioFinalService {
   private MesDados agregarMes(
     YearMonth mes,
     List<LinkedHashMap<String, Object>> receitaLinhas,
-    List<LinkedHashMap<String, Object>> despesaLinhas,
-    ContagemBeneficiarios beneficiarios
+    List<LinkedHashMap<String, Object>> despesaLinhas
   ) {
     BigDecimal receita = ZERO;
     BigDecimal copart = ZERO;
     Map<String, BigDecimal> receitaRegiao = mapaDecimal(REGIOES);
     Map<String, Set<String>> vidasRegiao = new LinkedHashMap<>();
+    Set<String> vidasAtivas = new LinkedHashSet<>();
     REGIOES.forEach(r -> vidasRegiao.put(r, new LinkedHashSet<>()));
 
     for (Map<String, Object> linha : receitaLinhas) {
@@ -225,8 +225,9 @@ public class ComercialRelatorioFinalService {
         String regiao = regiao(linha);
         receitaRegiao.merge(regiao, valor, BigDecimal::add);
         String id = identificadorBeneficiario(linha);
-        if (!id.isBlank()) vidasRegiao.get(regiao).add(id);
-        else vidasRegiao.get(regiao).add("LINHA-" + vidasRegiao.get(regiao).size());
+        if (id.isBlank()) id = "LINHA-" + vidasAtivas.size();
+        vidasAtivas.add(id);
+        vidasRegiao.get(regiao).add(id);
       }
     }
 
@@ -256,7 +257,7 @@ public class ComercialRelatorioFinalService {
 
     return new MesDados(
       mes, receita, copart, sinistro, tipoGuia, grupo, receitaRegiao,
-      despesaRegiao, vidas, beneficiarios, despesaLinhas
+      despesaRegiao, vidas, vidasAtivas.size(), despesaLinhas
     );
   }
 
@@ -292,7 +293,7 @@ public class ComercialRelatorioFinalService {
     YearMonth alvo,
     List<MesDados> meses,
     ContagemBeneficiarios atual,
-    ContagemBeneficiarios anterior,
+    long ativosAnterior,
     List<LinkedHashMap<String, Object>> faixa
   ) throws IOException {
     try (XSSFWorkbook wb = new XSSFWorkbook()) {
@@ -307,8 +308,8 @@ public class ComercialRelatorioFinalService {
       sheet.createFreezePane(0, 1);
 
       titulo(sheet, 0, 0, 14, "RELATÓRIO DE SINISTRALIDADE — " + empresa, e.titulo);
-      resumoDozeMeses(sheet, meses, e);
-      resumoAtual(sheet, alvo, atual, anterior, meses.getLast(), e);
+      resumoDozeMeses(sheet, meses, atual, e);
+      resumoAtual(sheet, alvo, atual, ativosAnterior, meses.getLast(), e);
       faixaEtaria(sheet, faixa, e);
       receitaDozeMeses(sheet, meses, e);
       porTipoGuia(sheet, meses, e);
@@ -329,7 +330,12 @@ public class ComercialRelatorioFinalService {
     }
   }
 
-  private void resumoDozeMeses(org.apache.poi.ss.usermodel.Sheet sheet, List<MesDados> meses, Estilos e) {
+  private void resumoDozeMeses(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    ContagemBeneficiarios atual,
+    Estilos e
+  ) {
     String[] headers = {"Comp", "Receita", "Sinistro", "Co-part", "Benef. Ativo", "Variação Vidas", "Sinistralidade"};
     cabecalho(sheet, 1, headers, e);
     for (int i = 0; i < 12; i++) {
@@ -339,13 +345,17 @@ public class ComercialRelatorioFinalService {
       numero(sheet, r, 1, m.receita, e.moeda);
       numero(sheet, r, 2, m.sinistro, e.moeda);
       numero(sheet, r, 3, m.copart, e.moeda);
-      inteiro(sheet, r, 4, m.beneficiarios.ativos, e.inteiro);
-      if (i > 0 && meses.get(i - 1).beneficiarios.ativos > 0) {
-        numero(sheet, r, 5,
-          BigDecimal.valueOf(m.beneficiarios.ativos)
-            .divide(BigDecimal.valueOf(meses.get(i - 1).beneficiarios.ativos), 8, RoundingMode.HALF_UP)
-            .subtract(BigDecimal.ONE),
-          e.percentual);
+      long ativos = i == 11 ? atual.ativos : m.beneficiariosAtivos;
+      inteiro(sheet, r, 4, ativos, e.inteiro);
+      if (i > 0) {
+        long anteriores = meses.get(i - 1).beneficiariosAtivos;
+        if (anteriores > 0) {
+          numero(sheet, r, 5,
+            BigDecimal.valueOf(ativos)
+              .divide(BigDecimal.valueOf(anteriores), 8, RoundingMode.HALF_UP)
+              .subtract(BigDecimal.ONE),
+            e.percentual);
+        }
       }
       formula(sheet, r, 6, "C" + (r + 1) + "/(B" + (r + 1) + "+D" + (r + 1) + ")", e.percentual);
     }
@@ -362,7 +372,7 @@ public class ComercialRelatorioFinalService {
     org.apache.poi.ss.usermodel.Sheet sheet,
     YearMonth alvo,
     ContagemBeneficiarios atual,
-    ContagemBeneficiarios anterior,
+    long ativosAnterior,
     MesDados mes,
     Estilos e
   ) {
@@ -371,9 +381,9 @@ public class ComercialRelatorioFinalService {
     data(sheet, 18, 0, alvo.atDay(1), e.mes);
     inteiro(sheet, 18, 1, atual.ativos, e.inteiro);
     inteiro(sheet, 18, 2, atual.inativos, e.inteiro);
-    if (anterior.ativos > 0) {
+    if (ativosAnterior > 0) {
       numero(sheet, 18, 3,
-        BigDecimal.valueOf(atual.ativos).divide(BigDecimal.valueOf(anterior.ativos), 8, RoundingMode.HALF_UP)
+        BigDecimal.valueOf(atual.ativos).divide(BigDecimal.valueOf(ativosAnterior), 8, RoundingMode.HALF_UP)
           .subtract(BigDecimal.ONE), e.percentual);
     }
     numero(sheet, 18, 4, mes.receita.add(mes.copart), e.moeda);
@@ -905,7 +915,7 @@ public class ComercialRelatorioFinalService {
     Map<String, BigDecimal> receitaRegiao,
     Map<String, BigDecimal> despesaRegiao,
     Map<String, Integer> vidasRegiao,
-    ContagemBeneficiarios beneficiarios,
+    long beneficiariosAtivos,
     List<LinkedHashMap<String, Object>> despesaLinhas
   ) {}
 

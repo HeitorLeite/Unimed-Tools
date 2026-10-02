@@ -33,8 +33,11 @@ public class GrupoPrestadorComercialNormalizer {
     "CODIGOITEM", "CODITEM", "ITEMCOD", "CODIGOPROCEDIMENTO", "CODPROCEDIMENTO",
     "CODIGOTUSS", "CODTUSS", "CODIGOSERVICO", "CODSERVICO", "CODPROCED"
   );
-  private static final Set<String> COLUNAS_DESCRICAO_ITEM = Set.of(
-    "DESCRICAOITEM", "DESCITEM", "DESCRICAOPROCEDIMENTO", "DESCPROCEDIMENTO",
+  private static final Set<String> COLUNAS_DESCRICAO_ITEM_PRINCIPAL = Set.of(
+    "DESCRICAOITEM", "DESCITEM"
+  );
+  private static final Set<String> COLUNAS_DESCRICAO_ITEM_FALLBACK = Set.of(
+    "DESCRICAOPROCEDIMENTO", "DESCPROCEDIMENTO",
     "NOMEPROCEDIMENTO", "PROCEDIMENTO", "DESCRICAOSERVICO"
   );
   private static final Set<String> FLEXOES_MEDICO = Set.of(
@@ -125,7 +128,10 @@ public class GrupoPrestadorComercialNormalizer {
     }
 
     String colunaCodigo = localizarColuna(registro, COLUNAS_CODIGO_ITEM);
-    String colunaDescricao = localizarColuna(registro, COLUNAS_DESCRICAO_ITEM);
+    String colunaDescricao = localizarColuna(registro, COLUNAS_DESCRICAO_ITEM_PRINCIPAL);
+    if (colunaDescricao == null) {
+      colunaDescricao = localizarColuna(registro, COLUNAS_DESCRICAO_ITEM_FALLBACK);
+    }
     if (colunaCodigo == null || colunaDescricao == null) return false;
 
     String codigo = normalizarCodigoProcedimento(registro.get(colunaCodigo));

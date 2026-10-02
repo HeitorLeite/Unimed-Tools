@@ -222,6 +222,7 @@ describe('ComercialComponent', () => {
     component.loadingDefinitions = false;
     component.competence = '202608';
     component.referenceDate = '2026-08-31';
+    component.situacaoCodigoCarteirinha = 'INATIVOS';
     component.selectedCompanyIds = [component.companies[0].id];
     component.reports.forEach((report) => {
       report.definition = {
@@ -294,6 +295,16 @@ describe('ComercialComponent', () => {
     expect(request.filtrosPorApi['0090-beneficiario-empresa'][0].competencia).toBeUndefined();
     expect(request.filtrosPorApi['0090-receita-empresa-com-grupo'][0].competencia).toBe(202608);
     expect(request.filtrosPorApi['0090-faixa-etaria'][0].datareferencia).toBe('31/08/2026');
+
+    const codigosFaixaFinal = [
+      ...new Set(
+        request.filtrosPorApi['0090-faixa-etaria'].map(
+          (filtro: Record<string, unknown>) => filtro['codigoscarteirinha'],
+        ),
+      ),
+    ].sort();
+    // Mesmo com a tela em "Somente inativos", o relatório final usa ativos + inativos.
+    expect(codigosFaixaFinal).toEqual([2128, 9128]);
   });
 
   it('bloqueia o relatório final quando um dos quatro relatórios está desmarcado', () => {

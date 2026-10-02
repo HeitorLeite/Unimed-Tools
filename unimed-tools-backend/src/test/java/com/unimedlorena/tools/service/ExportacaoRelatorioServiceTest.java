@@ -537,6 +537,51 @@ class ExportacaoRelatorioServiceTest {
   }
 
   @Test
+  void previaECsvDeDespesasDevemSintetizarDescricaoDeSessaoMulti() throws Exception {
+    String api = "0090-despesa-empresas";
+    SguRelatorioService sgu = mock(SguRelatorioService.class);
+
+    LinkedHashMap<String, Object> registro = new LinkedHashMap<>();
+    registro.put("grupo_prestador", "MEDICA NAO COOPERADO");
+    registro.put("nome_prestador", "FISIOCLINICA LTDA");
+    registro.put("tipo_prestador", "CLINICA");
+    registro.put("codigo_item", "50000144");
+    registro.put("descricao_item", "Assistência original");
+
+    when(sgu.executar(anyString(), anyMap())).thenAnswer(ignorada -> Map.of(
+      "content", List.of(new LinkedHashMap<>(registro)),
+      "last", true
+    ));
+    when(sgu.listar(api)).thenReturn(Map.of(
+      "content", List.of(Map.of(
+        "nome", api,
+        "ordenacao", "codigo_item",
+        "consultaSQL",
+        "SELECT grupo_prestador, nome_prestador, tipo_prestador, codigo_item, descricao_item FROM TESTE"
+      ))
+    ));
+
+    var relatorios = new ExportacaoRelatorioService(sgu, 1000, 0);
+
+    Map<String, Object> previa = relatorios.executarPaginaNormalizada(
+      api,
+      Map.of("page", 1, "size", 10)
+    );
+    assertThat((List<?>) previa.get("content")).singleElement().satisfies(item -> {
+      Map<?, ?> linha = (Map<?, ?>) item;
+      assertThat(linha.get("grupo_prestador")).isEqualTo("SESSOES MULTI");
+      assertThat(linha.get("descricao_item")).isEqualTo("Sessao de Fisioterapia");
+    });
+
+    var destino = new ByteArrayOutputStream();
+    relatorios.exportarPara(api, "csv", null, destino);
+    assertThat(destino.toString(StandardCharsets.UTF_8))
+      .contains("SESSOES MULTI")
+      .contains("Sessao de Fisioterapia")
+      .doesNotContain("Assistência original");
+  }
+
+  @Test
   void previaEDownloadDevemUsarAMesmaEspecialidadeResolvidaSemFiltroNoXlsx() throws Exception {
     SguRelatorioService sgu = mock(SguRelatorioService.class);
     LinkedHashMap<String, Object> clinico = registroEspecialidade("PRONTO SOCORRO", "medicamento");

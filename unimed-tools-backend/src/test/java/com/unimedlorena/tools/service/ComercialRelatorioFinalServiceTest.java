@@ -11,6 +11,8 @@ import com.unimedlorena.tools.dto.ComercialRelatorioFinalRequest;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +20,8 @@ import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 class ComercialRelatorioFinalServiceTest {
@@ -31,8 +35,9 @@ class ComercialRelatorioFinalServiceTest {
     service = new ComercialRelatorioFinalService(exportacao);
   }
 
-  @Test
-  void geraXlsxFormatadoComJanelaMovelRankingsEgraficos() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"202606", "202607", "202608"})
+  void geraXlsxFormatadoComJanelaMovelRankingsEgraficos(String competencia) throws Exception {
     when(exportacao.carregarRegistros(
       eq(ComercialRelatorioFinalService.API_RECEITA), anyMap()
     )).thenAnswer(invocacao -> {
@@ -87,15 +92,17 @@ class ComercialRelatorioFinalServiceTest {
         linha("FAIXA_ETARIA", "0 a 18", "DEP", 2, "TIT", 1, "FEM", 2, "MASC", 1, "TOTAL", 3)
       ));
 
-    byte[] arquivo = service.gerar(request("202608"));
+    byte[] arquivo = service.gerar(request(competencia));
+    YearMonth alvo = YearMonth.parse(competencia, DateTimeFormatter.ofPattern("yyyyMM"));
+    String nomeAba = String.format("%02d%04d", alvo.getMonthValue(), alvo.getYear());
 
     try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(arquivo))) {
-      var sheet = workbook.getSheet("082026");
+      var sheet = workbook.getSheet(nomeAba);
       assertNotNull(sheet);
       assertEquals("RELATÓRIO DE SINISTRALIDADE — EMPRESA TESTE", sheet.getRow(0).getCell(0).getStringCellValue());
 
-      assertEquals(LocalDate.of(2025, 9, 1), sheet.getRow(2).getCell(0).getLocalDateTimeCellValue().toLocalDate());
-      assertEquals(LocalDate.of(2026, 8, 1), sheet.getRow(13).getCell(0).getLocalDateTimeCellValue().toLocalDate());
+      assertEquals(alvo.minusMonths(11).atDay(1), sheet.getRow(2).getCell(0).getLocalDateTimeCellValue().toLocalDate());
+      assertEquals(alvo.atDay(1), sheet.getRow(13).getCell(0).getLocalDateTimeCellValue().toLocalDate());
       assertEquals(1d, sheet.getRow(13).getCell(4).getNumericCellValue());
       assertEquals(1d, sheet.getRow(18).getCell(1).getNumericCellValue());
       assertEquals(1d, sheet.getRow(18).getCell(2).getNumericCellValue());

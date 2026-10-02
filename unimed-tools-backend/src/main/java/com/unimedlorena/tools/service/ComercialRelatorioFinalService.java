@@ -18,6 +18,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -63,6 +65,8 @@ public class ComercialRelatorioFinalService {
   public static final String API_FAIXA = "0090-faixa-etaria";
 
   private static final DateTimeFormatter COMPETENCIA = DateTimeFormatter.ofPattern("yyyyMM");
+  private static final Pattern CODIGO_CARTEIRINHA_NO_BENEFICIARIO =
+    Pattern.compile("(?<!\\d)(\\d{4})(?!\\d)");
   private static final List<String> TIPOS_GUIA = List.of("Consultas", "SADT", "Internações", "PA/PS");
   private static final List<String> GRUPOS = List.of(
     "Recurso Próprio", "Médico Cooperado", "Clínica de Imagem", "Intercâmbio",
@@ -217,17 +221,21 @@ public class ComercialRelatorioFinalService {
     REGIOES.forEach(r -> vidasRegiao.put(r, new LinkedHashSet<>()));
 
     for (Map<String, Object> linha : receitaLinhas) {
-      BigDecimal valor = valorFinanceiro(linha);
+      BigDecimal valor = valorReceita(linha);
       String tipo = texto(linha, "TIPO", "TIPO_RECEITA", "DESCRICAO_TIPO");
-      if (normalizar(tipo).contains("COPART")) copart = copart.add(valor);
-      else receita = receita.add(valor);
+      String tipoNormalizado = normalizar(tipo);
+      boolean mensalidade = tipoNormalizado.contains("MENSALIDADE");
 
-      if (normalizar(tipo).contains("MENSALIDADE")) {
+      if (tipoNormalizado.contains("COPART")) copart = copart.add(valor);
+
+      // Receita do relatório final é exclusivamente mensalidade.
+      if (mensalidade) {
+        receita = receita.add(valor);
         String regiao = regiao(linha);
         receitaRegiao.merge(regiao, valor, BigDecimal::add);
         String id = identificadorBeneficiario(linha);
-        if (id.isBlank()) id = "LINHA-" + vidasAtivas.size();
-        vidasAtivas.add(id);
+        if (id.isBlank()) id = "LINHA-" + regiao + "-" + vidasRegiao.get(regiao).size();
+        if (!beneficiarioInativo(linha)) vidasAtivas.add(id);
         vidasRegiao.get(regiao).add(id);
       }
     }
@@ -238,7 +246,7 @@ public class ComercialRelatorioFinalService {
     Map<String, BigDecimal> despesaRegiao = mapaDecimal(REGIOES);
 
     for (Map<String, Object> linha : despesaLinhas) {
-      BigDecimal valor = valorFinanceiro(linha);
+      BigDecimal valor = valorDespesa(linha);
       sinistro = sinistro.add(valor);
 
       String guia = classificarTipoGuia(texto(
@@ -268,25 +276,46 @@ public class ComercialRelatorioFinalService {
     for (Map<String, Object> linha : linhas) {
       String id = identificadorBeneficiario(linha);
       if (id.isBlank()) id = "LINHA-" + fallback++;
-      porBeneficiario.put(id, !inativo(linha));
+      porBeneficiario.put(id, !beneficiarioInativo(linha));
     }
     long ativos = porBeneficiario.values().stream().filter(Boolean::booleanValue).count();
     return new ContagemBeneficiarios(ativos, porBeneficiario.size() - ativos);
   }
 
-  private boolean inativo(Map<String, Object> linha) {
-    String status = texto(
-      linha, "SITUACAO", "STATUS", "SITUACAO_BENEFICIARIO", "STATUS_BENEFICIARIO", "ATIVO"
+  private boolean beneficiarioInativo(Map<String, Object> linha) {
+    String codigoDireto = texto(
+      linha,
+      "BNF_COD_CNTRAT_CART",
+      "COD_CNTRAT_CART",
+      "CODIGO_CARTEIRINHA",
+      "COD_CARTEIRINHA"
     );
-    String n = normalizar(status);
-    if (n.equals("N") || n.equals("NAO") || n.contains("INATIV") ||
-        n.contains("EXCLU") || n.contains("CANCEL") || n.contains("DESLIG")) return true;
+    String origem = codigoDireto.isBlank() ? identificadorBeneficiario(linha) : codigoDireto;
+    return codigoCarteirinhaInativo(origem);
+  }
 
-    String exclusao = texto(
-      linha, "DATA_EXCLUSAO", "DT_EXCLUSAO", "BNF_DAT_EXCL", "DATA_INATIVACAO"
-    ).trim();
-    return !exclusao.isBlank() && !exclusao.startsWith("01/01/0001") &&
-      !exclusao.startsWith("0001-01-01");
+  private boolean codigoCarteirinhaInativo(String valor) {
+    String codigo = extrairCodigoCarteirinha(valor);
+    return codigo.length() == 4 && (codigo.charAt(0) == '5' || codigo.charAt(0) == '9');
+  }
+
+  private String situacaoBeneficiario(String identificador) {
+    return codigoCarteirinhaInativo(identificador) ? "INATIVO" : "ATIVO";
+  }
+
+  private String extrairCodigoCarteirinha(String valor) {
+    if (valor == null || valor.isBlank()) return "";
+
+    Matcher matcher = CODIGO_CARTEIRINHA_NO_BENEFICIARIO.matcher(valor);
+    if (matcher.find()) return matcher.group(1);
+
+    String digitos = valor.replaceAll("[^0-9]", "");
+    if (digitos.isBlank()) return "";
+    if (digitos.length() <= 4) return "0".repeat(4 - digitos.length()) + digitos;
+
+    // Carteirinhas sem pontuação seguem UNI(3) + CONTRATO(4) + beneficiário.
+    if (digitos.length() >= 7) return digitos.substring(3, 7);
+    return "";
   }
 
   private byte[] montarWorkbook(
@@ -387,7 +416,7 @@ public class ComercialRelatorioFinalService {
         BigDecimal.valueOf(atual.ativos).divide(BigDecimal.valueOf(ativosAnterior), 8, RoundingMode.HALF_UP)
           .subtract(BigDecimal.ONE), e.percentual);
     }
-    numero(sheet, 18, 4, mes.receita.add(mes.copart), e.moeda);
+    numero(sheet, 18, 4, mes.receita, e.moeda);
     numero(sheet, 18, 5, mes.sinistro, e.moeda);
     formula(sheet, 18, 6, "F19/E19", e.percentual);
   }
@@ -429,7 +458,7 @@ public class ComercialRelatorioFinalService {
       int r = 37 + i;
       MesDados m = meses.get(i);
       data(sheet, r, 0, m.mes.atDay(1), e.mes);
-      numero(sheet, r, 1, m.receita.add(m.copart), e.moeda);
+      numero(sheet, r, 1, m.receita, e.moeda);
       numero(sheet, r, 2, m.sinistro, e.moeda);
       formula(sheet, r, 3, "C" + (r + 1) + "/B" + (r + 1), e.percentual);
       formula(sheet, r, 4,
@@ -770,7 +799,7 @@ public class ComercialRelatorioFinalService {
     for (Map<String, Object> linha : linhas) {
       String valor = chave.apply(linha);
       if (valor == null || valor.isBlank()) valor = "NÃO INFORMADO";
-      totais.merge(valor.trim(), valorFinanceiro(linha), BigDecimal::add);
+      totais.merge(valor.trim(), valorDespesa(linha), BigDecimal::add);
     }
     return totais.entrySet().stream()
       .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
@@ -783,7 +812,7 @@ public class ComercialRelatorioFinalService {
     List<LinkedHashMap<String, Object>> linhas,
     Predicate<Map<String, Object>> filtro
   ) {
-    return linhas.stream().filter(filtro).map(this::valorFinanceiro).reduce(ZERO, BigDecimal::add);
+    return linhas.stream().filter(filtro).map(this::valorDespesa).reduce(ZERO, BigDecimal::add);
   }
 
   private String classificarTipoGuia(String valor) {
@@ -843,9 +872,20 @@ public class ComercialRelatorioFinalService {
       "DESC_PROCEDIMENTO", "NOME_PROCEDIMENTO", "TIPO_SESSAO");
   }
 
-  private BigDecimal valorFinanceiro(Map<String, Object> linha) {
-    Object valor = valor(linha, "VALOR_TOTAL", "TOTAL", "VALOR_PAGO", "VALOR", "DESPESA",
-      "SINISTRO", "RECEITA", "VALOR_EVENTO", "PAGPD_VAL_LACTO", "VALOR_RECEBER");
+  private BigDecimal valorReceita(Map<String, Object> linha) {
+    Object valor = valor(linha, "VALOR_TOTAL", "TOTAL", "VALOR", "RECEITA",
+      "VALOR_EVENTO", "VALOR_RECEBER");
+    return numero(valor);
+  }
+
+  private BigDecimal valorDespesa(Map<String, Object> linha) {
+    Object valor = valor(linha, "VALOR_TOTAL_21");
+    if (valor == null || String.valueOf(valor).isBlank()) {
+      throw new IllegalArgumentException(
+        "A API de despesas não retornou VALOR_TOTAL_21. " +
+        "O relatório final não pode usar VALOR_TOTAL como substituto."
+      );
+    }
     return numero(valor);
   }
 

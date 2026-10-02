@@ -42,11 +42,11 @@ class ComercialRelatorioFinalServiceTest {
       eq(ComercialRelatorioFinalService.API_RECEITA), anyMap()
     )).thenAnswer(invocacao -> {
       Map<String, Object> filtros = invocacao.getArgument(1);
-      int competencia = ((Number) filtros.get("competencia")).intValue();
+      int competenciaFiltro = ((Number) filtros.get("competencia")).intValue();
       return List.of(
         linha(
           "TIPO", "MENSALIDADE",
-          "VALOR_TOTAL", BigDecimal.valueOf(1000 + competencia % 100),
+          "VALOR_TOTAL", BigDecimal.valueOf(1000 + competenciaFiltro % 100),
           "REGIAO", "Vale do Paraiba",
           "CODIGO_BENEFICIARIO", "B-001"
         ),

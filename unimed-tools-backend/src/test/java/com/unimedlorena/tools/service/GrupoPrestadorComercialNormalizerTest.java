@@ -111,6 +111,21 @@ class GrupoPrestadorComercialNormalizerTest {
   }
 
   @Test
+  void devePriorizarDescricaoItemQuandoHaMaisDeUmaDescricao() {
+    var registro = registro("SESSOES MULTI", "PRESTADOR", "CLINICA");
+    registro.put("codigo_item", "50000470");
+    registro.put("descricao_procedimento", "Descrição geral do procedimento");
+    registro.put("descricao_item", "Descrição original do item");
+    var registros = new ArrayList<>(List.of(registro));
+
+    normalizer.normalizar(API_COMERCIAL, registros);
+
+    assertThat(registros.getFirst())
+      .containsEntry("descricao_item", "Sessao de Psicologia/Psicoterapia")
+      .containsEntry("descricao_procedimento", "Descrição geral do procedimento");
+  }
+
+  @Test
   void deveSintetizarCodigoNumericoDeSessaoMulti() {
     var registro = registro("SESSOES MULTI", "PRESTADOR", "CLINICA");
     registro.put("codigo_item", 50000470L);

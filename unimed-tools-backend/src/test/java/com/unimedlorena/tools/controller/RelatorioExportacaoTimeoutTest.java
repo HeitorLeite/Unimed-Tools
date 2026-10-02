@@ -23,7 +23,7 @@ class RelatorioExportacaoTimeoutTest {
     doThrow(new ApiException(HttpStatus.GATEWAY_TIMEOUT, "SGU_TIMEOUT", "O SGU excedeu o tempo de resposta."))
       .when(exportacao).exportarPara(eq("api-teste"), eq("xlsx"), any(), any());
     var controller = new RelatorioController(mock(SguRelatorioService.class), exportacao,
-      mock(ExportacaoLoteRelatorioService.class), mock(RelatorioPersonalizadoService.class), mock(HospitalRelatorioService.class));
+      mock(ExportacaoLoteRelatorioService.class), mock(ComercialRelatorioFinalService.class), mock(RelatorioPersonalizadoService.class), mock(HospitalRelatorioService.class));
     var mvc = MockMvcBuilders.standaloneSetup(controller)
       .setControllerAdvice(new GlobalExceptionHandler()).build();
     var async = mvc.perform(post("/api/relatorios/sgu/exportar/api-teste")

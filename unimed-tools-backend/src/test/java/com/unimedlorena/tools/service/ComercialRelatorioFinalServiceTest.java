@@ -85,7 +85,8 @@ class ComercialRelatorioFinalServiceTest {
         "GRUPO_PRESTADOR", "Sessões Multi",
         "CODIGO_BENEFICIARIO", "090.9152.000002.00",
         "NOME_ESPECIALIDADE", "PSICOLOGIA",
-        "DESCRICAO_PROCEDIMENTO", "Sessao de Psicologia/Psicoterapia",
+        "DESCRICAO_PROCEDIMENTO", "Descrição original do procedimento",
+        "DESCRICAO_ITEM", "Sessao de Psicologia/Psicoterapia",
         "REGIAO", "Vale do Paraiba",
         "VALOR_TOTAL", BigDecimal.valueOf(600),
         "VALOR_TOTAL_21", BigDecimal.valueOf(630)
@@ -136,6 +137,12 @@ class ComercialRelatorioFinalServiceTest {
       // A tabela SADT também exibe a situação ao lado do código.
       assertEquals("090.9152.000002.00", sheet.getRow(176).getCell(1).getStringCellValue());
       assertEquals("INATIVO", sheet.getRow(176).getCell(2).getStringCellValue());
+
+      // O bloco de Sessões Multi consome a descrição sintetizada do item.
+      assertEquals(
+        "Sessao de Psicologia/Psicoterapia",
+        sheet.getRow(211).getCell(1).getStringCellValue()
+      );
 
       assertEquals(CellType.FORMULA, sheet.getRow(14).getCell(1).getCellType());
       assertEquals(3, sheet.getDrawingPatriarch().getCharts().size());

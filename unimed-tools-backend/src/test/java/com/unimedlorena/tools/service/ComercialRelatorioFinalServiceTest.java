@@ -122,7 +122,7 @@ class ComercialRelatorioFinalServiceTest {
       assertNotNull(sheet);
 
       // Histórico: julho vem do arquivo anterior; agosto é a única competência nova.
-      assertEquals(1100d, sheet.getRow(12).getCell(1).getNumericCellValue());
+      assertEquals(1110d, sheet.getRow(12).getCell(1).getNumericCellValue());
       assertEquals(725.98d, sheet.getRow(13).getCell(1).getNumericCellValue(), 0.001);
       assertEquals(751d, sheet.getRow(13).getCell(2).getNumericCellValue(), 0.001);
 

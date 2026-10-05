@@ -31,7 +31,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
@@ -219,11 +221,20 @@ public class RelatorioController {
    * Consolida as quatro bases do Comercial em um único XLSX executivo.
    * A resposta só é entregue após a planilha estar totalmente montada.
    */
-  @PostMapping("/comercial/relatorio-final")
+  @PostMapping(
+    value = "/comercial/relatorio-final",
+    consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+  )
   public ResponseEntity<byte[]> exportarRelatorioFinalComercial(
-    @RequestBody ComercialRelatorioFinalRequest request
+    @RequestPart("dados") ComercialRelatorioFinalRequest request,
+    @RequestPart("arquivoAnterior") MultipartFile arquivoAnterior
   ) throws Exception {
-    byte[] conteudo = comercialRelatorioFinal.gerar(request);
+    if (arquivoAnterior == null || arquivoAnterior.isEmpty()) {
+      throw new IllegalArgumentException(
+        "Envie o relatório final do mês anterior em formato XLSX."
+      );
+    }
+    byte[] conteudo = comercialRelatorioFinal.gerar(request, arquivoAnterior.getBytes());
     String empresa = request == null ? "empresa" : request.empresa();
     String competencia = request == null ? "" : request.competencia();
     String nome = sanitizarNome("sinistralidade_" + empresa + "_" + competencia);

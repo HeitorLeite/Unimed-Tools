@@ -66,7 +66,7 @@
         {{ generatingFinal ? 'Montando relatório final…' : 'Gerar relatório final (XLSX)' }}
       </button>
       <small class="final-report-hint">
-        Relatório executivo completo · 1 empresa e os 4 relatórios selecionados
+        Relatório executivo completo · 1 empresa · 4 relatórios · XLSX anterior enviado
       </small>
 
       <small>
@@ -199,6 +199,26 @@
           Afeta somente a faixa etária. Códigos de quatro posições iniciados por 5 ou 9 são
           inativos.
         </small>
+      </div>
+
+      <div class="field">
+        <label for="commercial-previous-final">Relatório final do mês anterior</label>
+        <input
+          id="commercial-previous-final"
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          [disabled]="generating || downloadingAll || generatingFinal"
+          (change)="onPreviousFinalReportChange($event)"
+        />
+        <small *ngIf="previousFinalReport; else previousFinalHint">
+          Arquivo selecionado: {{ previousFinalReport.name }}
+        </small>
+        <ng-template #previousFinalHint>
+          <small>
+            Obrigatório para o relatório final. Os meses anteriores serão copiados deste XLSX e
+            somente a competência atual será consultada novamente.
+          </small>
+        </ng-template>
       </div>
 
       <div class="step reports-step">

@@ -264,7 +264,7 @@ public class ComercialRelatorioFinalService {
         receitaRegiao.merge(regiao, valor, BigDecimal::add);
         String id = identificadorBeneficiario(linha);
         if (id.isBlank()) id = "LINHA-" + regiao + "-" + vidasRegiao.get(regiao).size();
-        if (!beneficiarioInativo(linha)) vidasAtivas.add(id);
+        vidasAtivas.add(id);
         vidasRegiao.get(regiao).add(id);
       }
     }
@@ -299,52 +299,111 @@ public class ComercialRelatorioFinalService {
     );
   }
 
-  private ContagemBeneficiarios contarBeneficiarios(List<LinkedHashMap<String, Object>> linhas) {
-    Map<String, Boolean> porBeneficiario = new LinkedHashMap<>();
+  private ContagemBeneficiarios contarBeneficiarios(
+    List<LinkedHashMap<String, Object>> linhas,
+    LocalDate referencia
+  ) {
+    Map<String, SituacaoNaData> porBeneficiario = new LinkedHashMap<>();
     int fallback = 0;
+
     for (Map<String, Object> linha : linhas) {
       String id = identificadorBeneficiario(linha);
       if (id.isBlank()) id = "LINHA-" + fallback++;
-      porBeneficiario.put(id, !beneficiarioInativo(linha));
+
+      LocalDate cadastro = data(linha,
+        "DATA_CADASTRO", "DT_CADASTRO", "DATA_INCLUSAO", "DT_INCLUSAO", "BNF_DAT_INCL");
+      LocalDate exclusao = data(linha,
+        "DATA_EXCLUSAO", "DT_EXCLUSAO", "BNF_DAT_EXCL", "DATA_INATIVACAO");
+
+      if (cadastro != null && cadastro.isAfter(referencia)) {
+        // O beneficiário ainda não existia na competência analisada.
+        continue;
+      }
+
+      boolean ativo;
+      if (cadastro != null || exclusao != null) {
+        ativo = exclusao == null || exclusao.isAfter(referencia);
+      } else {
+        ativo = ativoInformado(linha);
+      }
+      porBeneficiario.put(id, ativo ? SituacaoNaData.ATIVO : SituacaoNaData.INATIVO);
     }
-    long ativos = porBeneficiario.values().stream().filter(Boolean::booleanValue).count();
-    return new ContagemBeneficiarios(ativos, porBeneficiario.size() - ativos);
+
+    long ativos = porBeneficiario.values().stream()
+      .filter(s -> s == SituacaoNaData.ATIVO).count();
+    long inativos = porBeneficiario.values().stream()
+      .filter(s -> s == SituacaoNaData.INATIVO).count();
+    return new ContagemBeneficiarios(ativos, inativos);
   }
 
-  private boolean beneficiarioInativo(Map<String, Object> linha) {
-    String codigoDireto = texto(
-      linha,
-      "BNF_COD_CNTRAT_CART",
-      "COD_CNTRAT_CART",
-      "CODIGO_CARTEIRINHA",
-      "COD_CARTEIRINHA"
-    );
-    String origem = codigoDireto.isBlank() ? identificadorBeneficiario(linha) : codigoDireto;
-    return codigoCarteirinhaInativo(origem);
+  private Map<String, String> situacoesBeneficiarios(
+    List<LinkedHashMap<String, Object>> beneficiarios,
+    List<LinkedHashMap<String, Object>> despesas,
+    LocalDate referencia
+  ) {
+    Map<String, String> situacoes = new LinkedHashMap<>();
+
+    for (Map<String, Object> linha : beneficiarios) {
+      String id = identificadorBeneficiario(linha);
+      if (id.isBlank()) continue;
+      LocalDate cadastro = data(linha,
+        "DATA_CADASTRO", "DT_CADASTRO", "DATA_INCLUSAO", "DT_INCLUSAO", "BNF_DAT_INCL");
+      if (cadastro != null && cadastro.isAfter(referencia)) continue;
+
+      LocalDate exclusao = data(linha,
+        "DATA_EXCLUSAO", "DT_EXCLUSAO", "BNF_DAT_EXCL", "DATA_INATIVACAO");
+      boolean ativo = cadastro != null || exclusao != null
+        ? exclusao == null || exclusao.isAfter(referencia)
+        : ativoInformado(linha);
+      situacoes.put(id, ativo ? "ATIVO" : "INATIVO");
+    }
+
+    for (Map<String, Object> linha : despesas) {
+      String id = identificadorBeneficiario(linha);
+      if (id.isBlank() || situacoes.containsKey(id)) continue;
+      situacoes.put(id, ativoInformado(linha) ? "ATIVO" : "INATIVO");
+    }
+    return situacoes;
   }
 
-  private boolean codigoCarteirinhaInativo(String valor) {
-    String codigo = extrairCodigoCarteirinha(valor);
-    return codigo.length() == 4 && (codigo.charAt(0) == '5' || codigo.charAt(0) == '9');
+  private boolean ativoInformado(Map<String, Object> linha) {
+    String valor = normalizar(texto(
+      linha, "ATIVO", "STATUS", "SITUACAO", "STATUS_BENEFICIARIO", "SITUACAO_BENEFICIARIO"
+    ));
+    if (valor.equals("S") || valor.equals("SIM") || valor.equals("ATIVO")) return true;
+    if (valor.equals("N") || valor.equals("NAO") || valor.contains("INATIV") ||
+        valor.contains("EXCLU") || valor.contains("CANCEL")) return false;
+    return true;
   }
 
-  private String situacaoBeneficiario(String identificador) {
-    return codigoCarteirinhaInativo(identificador) ? "INATIVO" : "ATIVO";
+  private LocalDate data(Map<String, Object> linha, String... aliases) {
+    Object bruto = valor(linha, aliases);
+    if (bruto == null) return null;
+    if (bruto instanceof LocalDate d) return d;
+    if (bruto instanceof java.sql.Date d) return d.toLocalDate();
+
+    String texto = String.valueOf(bruto).trim();
+    if (texto.isBlank() || texto.startsWith("01/01/0001") || texto.startsWith("0001-01-01")) {
+      return null;
+    }
+    for (DateTimeFormatter formato : List.of(
+      DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+      DateTimeFormatter.ISO_LOCAL_DATE
+    )) {
+      try {
+        return LocalDate.parse(texto.substring(0, Math.min(10, texto.length())), formato);
+      } catch (DateTimeParseException ignored) {
+        // tenta o próximo formato
+      }
+    }
+    return null;
   }
 
-  private String extrairCodigoCarteirinha(String valor) {
-    if (valor == null || valor.isBlank()) return "";
-
-    Matcher matcher = CODIGO_CARTEIRINHA_NO_BENEFICIARIO.matcher(valor);
-    if (matcher.find()) return matcher.group(1);
-
-    String digitos = valor.replaceAll("[^0-9]", "");
-    if (digitos.isBlank()) return "";
-    if (digitos.length() <= 4) return "0".repeat(4 - digitos.length()) + digitos;
-
-    // Carteirinhas sem pontuação seguem UNI(3) + CONTRATO(4) + beneficiário.
-    if (digitos.length() >= 7) return digitos.substring(3, 7);
-    return "";
+  private String situacaoBeneficiario(
+    String identificador,
+    Map<String, String> situacoes
+  ) {
+    return situacoes.getOrDefault(identificador, "NÃO INFORMADO");
   }
 
   private byte[] montarWorkbook(
@@ -871,15 +930,19 @@ public class ComercialRelatorioFinalService {
     String n = normalizarPalavras(valor);
     if (n.contains("RECURSO PROPRIO")) return "Recurso Próprio";
     if (n.contains("MEDICO COOPERADO")) return "Médico Cooperado";
+    if (n.contains("SESSOES MULTI") || (n.contains("SESS") && n.contains("MULTI"))) {
+      return "Sessões Multi";
+    }
     if (n.contains("CLINICA DE IMAGEM") || n.contains("IMAGEM")) return "Clínica de Imagem";
     if (n.contains("INTERCAMBIO")) return "Intercâmbio";
-    if (n.contains("SESS") && n.contains("MULTI")) return "Sessões Multi";
     if (n.contains("HOME CARE") || n.contains("HOMECARE")) return "Home-Care";
     return "Outros";
   }
 
   private String regiao(Map<String, Object> linha) {
-    String explicit = texto(linha, "REGIAO", "REGIAO_BENEFICIARIO", "REGIAO_ATENDIMENTO");
+    String explicit = texto(
+      linha, "REGIAO_BENEF", "REGIAO_BENEFICIARIO", "REGIAO", "REGIAO_ATENDIMENTO"
+    );
     String n = normalizarPalavras(explicit);
     if (n.contains("MODULO CORACAO")) return "Módulo Coração";
     if (n.contains("CENTRAL NACIONAL")) return "Central Nacional";

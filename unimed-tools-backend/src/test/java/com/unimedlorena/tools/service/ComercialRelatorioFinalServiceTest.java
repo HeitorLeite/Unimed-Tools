@@ -151,7 +151,14 @@ class ComercialRelatorioFinalServiceTest {
       assertEquals("INATIVO", sheet.getRow(113).getCell(2).getStringCellValue());
 
       assertEquals(CellType.FORMULA, sheet.getRow(14).getCell(1).getCellType());
-      assertEquals(3, sheet.getDrawingPatriarch().getCharts().size());
+
+      // A aba 082026 já existia no arquivo anterior. O gráfico dela deve ser
+      // preservado, sem remover a aba e recriar chart*.xml.
+      assertEquals(1, sheet.getDrawingPatriarch().getCharts().size());
+      assertEquals(
+        1,
+        workbook.getSheet("072026").getDrawingPatriarch().getCharts().size()
+      );
     }
 
     verify(exportacao, times(1)).carregarRegistros(
@@ -185,7 +192,15 @@ class ComercialRelatorioFinalServiceTest {
 
   private byte[] historicoAnterior() throws Exception {
     try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+      // Reproduz o arquivo real: a competência que será recalculada já existe
+      // e possui gráficos, assim como abas históricas posteriores na numeração
+      // interna dos chart*.xml.
+      var agosto26 = wb.createSheet("082026");
+      adicionarGrafico(agosto26, "Gráfico agosto");
+      agosto26.createRow(18).createCell(1).setCellValue(999999d);
+
       var julho = wb.createSheet("072026");
+      adicionarGrafico(julho, "Gráfico julho");
       var agosto25 = wb.createSheet("082025");
 
       LocalDate inicio = LocalDate.of(2025, 8, 1);
@@ -218,6 +233,17 @@ class ComercialRelatorioFinalServiceTest {
       wb.write(out);
       return out.toByteArray();
     }
+  }
+
+  private void adicionarGrafico(
+    org.apache.poi.xssf.usermodel.XSSFSheet sheet,
+    String titulo
+  ) {
+    var drawing = sheet.createDrawingPatriarch();
+    var anchor = drawing.createAnchor(0, 0, 0, 0, 10, 1, 15, 10);
+    var chart = drawing.createChart(anchor);
+    chart.setTitleText(titulo);
+    chart.setTitleOverlay(false);
   }
 
   private void tabelaRegional(

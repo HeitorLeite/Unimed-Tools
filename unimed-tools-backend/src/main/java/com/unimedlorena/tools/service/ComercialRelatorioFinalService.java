@@ -142,7 +142,7 @@ public class ComercialRelatorioFinalService {
 
     return montarWorkbook(
       request.empresa(), alvo, dados, contagem, ativosAnterior, faixa,
-      historico, situacoes
+      historico, situacoes, arquivoAnterior
     );
   }
 
@@ -710,11 +710,17 @@ public class ComercialRelatorioFinalService {
     long ativosAnterior,
     List<LinkedHashMap<String, Object>> faixa,
     HistoricoRelatorio historico,
-    Map<String, String> situacoes
+    Map<String, String> situacoes,
+    byte[] arquivoAnterior
   ) throws IOException {
-    try (XSSFWorkbook wb = new XSSFWorkbook()) {
-      String aba = String.format("%02d%04d", alvo.getMonthValue(), alvo.getYear());
+    // O arquivo anterior vira a base do novo arquivo. Assim as abas históricas,
+    // gráficos, cores e dados já existentes são preservados literalmente.
+    try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(arquivoAnterior))) {
+      String aba = nomeAba(alvo);
+      int indiceExistente = wb.getSheetIndex(aba);
+      if (indiceExistente >= 0) wb.removeSheetAt(indiceExistente);
       var sheet = wb.createSheet(aba);
+      wb.setSheetOrder(aba, 0);
       wb.setForceFormulaRecalculation(true);
       Estilos e = new Estilos(wb);
 

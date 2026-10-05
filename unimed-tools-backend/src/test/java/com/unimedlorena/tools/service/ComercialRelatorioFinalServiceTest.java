@@ -129,10 +129,9 @@ class ComercialRelatorioFinalServiceTest {
       assertEquals(725.98d, sheet.getRow(13).getCell(1).getNumericCellValue(), 0.001);
       assertEquals(751d, sheet.getRow(13).getCell(2).getNumericCellValue(), 0.001);
 
-      // Beneficiários são reconstruídos na data da competência:
-      // um ativo, um já excluído e um cadastro futuro ignorado.
-      assertEquals(1d, sheet.getRow(18).getCell(1).getNumericCellValue());
-      assertEquals(1d, sheet.getRow(18).getCell(2).getNumericCellValue());
+      // A situação vem do código, independentemente das datas e do campo ATIVO.
+      assertEquals(3d, sheet.getRow(18).getCell(1).getNumericCellValue());
+      assertEquals(0d, sheet.getRow(18).getCell(2).getNumericCellValue());
 
       // Vale do Paraíba e Sudeste ficam separados.
       assertEquals(1d, sheet.getRow(89).getCell(1).getNumericCellValue());
@@ -146,9 +145,9 @@ class ComercialRelatorioFinalServiceTest {
       // Sessões Multi não podem migrar para Outros.
       assertEquals(630d, sheet.getRow(80).getCell(5).getNumericCellValue(), 0.001);
 
-      // Ranking usa a situação proveniente da base do beneficiário.
+      // Código 2152 permanece ativo mesmo com exclusão informada na base.
       assertEquals("090.2152.000002.00", sheet.getRow(113).getCell(1).getStringCellValue());
-      assertEquals("INATIVO", sheet.getRow(113).getCell(2).getStringCellValue());
+      assertEquals("ATIVO", sheet.getRow(113).getCell(2).getStringCellValue());
 
       assertEquals(CellType.FORMULA, sheet.getRow(14).getCell(1).getCellType());
 
@@ -179,6 +178,71 @@ class ComercialRelatorioFinalServiceTest {
   void exigeArquivoAnterior() {
     assertThrows(IllegalArgumentException.class, () -> service.gerar(request()));
     assertThrows(IllegalArgumentException.class, () -> service.gerar(request(), new byte[0]));
+  }
+
+  @Test
+  void reconheceCodigoCartaoEDeduplicaVidasDaReceita() throws Exception {
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_RECEITA), anyMap()))
+      .thenReturn(List.of(
+        linha("tipo", "Mensalidade", "valor_total", "10,25", "regiao_benef", "Vale do Paraiba",
+          "codigo_cartao", "090.2152.000001.00", "codigo", ""),
+        linha("tipo", "Mensalidade", "valor_total", "20,50", "regiao_benef", "Vale do Paraiba",
+          "codigo_cartao", "090.2152.000001.00", "codigo", "")
+      ));
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(service.gerar(request(), historicoAnterior())))) {
+      var sheet = wb.getSheet("082026");
+      assertEquals(30.75, sheet.getRow(13).getCell(1).getNumericCellValue(), 0.001);
+      assertEquals(1, sheet.getRow(94).getCell(1).getNumericCellValue());
+    }
+  }
+
+  @Test
+  void rejeitaErroEmValorHistoricoSemSubstituirPorZero() throws Exception {
+    byte[] historico;
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(historicoAnterior()));
+         var out = new ByteArrayOutputStream()) {
+      var cell = wb.getSheet("072026").getRow(12).getCell(1);
+      cell.setCellFormula("1/0");
+      wb.getCreationHelper().createFormulaEvaluator().evaluateFormulaCell(cell);
+      wb.write(out);
+      historico = out.toByteArray();
+    }
+    var erro = assertThrows(IllegalArgumentException.class, () -> service.gerar(request(), historico));
+    org.junit.jupiter.api.Assertions.assertTrue(erro.getMessage().contains("072026!B13"));
+  }
+
+  @Test
+  void exigeValorTotal21DaDespesa() throws Exception {
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_DESPESA), anyMap()))
+      .thenReturn(List.of(linha("valor_total", "123,45")));
+    var erro = assertThrows(IllegalArgumentException.class, () -> service.gerar(request(), historicoAnterior()));
+    org.junit.jupiter.api.Assertions.assertTrue(erro.getMessage().contains("VALOR_TOTAL_21"));
+  }
+
+  @Test
+  void classificaPeloCodigoComZerosEIgnoraDatasEStatus() throws Exception {
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_DESPESA), anyMap()))
+      .thenReturn(List.of(linha("cod_beneficiario", "090.9152.000002.00", "ativo", "S",
+        "valor_total_21", "10,25", "descricao_tipo_guia", "CONSULTA")));
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_BENEFICIARIOS), anyMap()))
+      .thenReturn(List.of(
+        linha("cod_beneficiario", "090.0045.000001.00", "ativo", "N", "data_exclusao", "01/01/2020"),
+        linha("cod_beneficiario", "090.0045.000001.00", "ativo", "N"),
+        linha("cod_beneficiario", "090.5045.000001.00", "ativo", "S"),
+        linha("cod_beneficiario", "090.9152.000001.00", "ativo", "S", "data_cadastro", "01/01/2027")
+      ));
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(service.gerar(request(), historicoAnterior())))) {
+      assertEquals(1, wb.getSheet("082026").getRow(18).getCell(1).getNumericCellValue());
+      assertEquals(2, wb.getSheet("082026").getRow(18).getCell(2).getNumericCellValue());
+      assertEquals("INATIVO", wb.getSheet("082026").getRow(113).getCell(2).getStringCellValue());
+    }
+  }
+
+  @Test
+  void rejeitaBeneficiarioSemCodigoClassificavel() throws Exception {
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_BENEFICIARIOS), anyMap()))
+      .thenReturn(List.of(linha("cod_beneficiario", "")));
+    assertThrows(IllegalArgumentException.class, () -> service.gerar(request(), historicoAnterior()));
   }
 
   @Test
@@ -229,6 +293,12 @@ class ComercialRelatorioFinalServiceTest {
       tabelaRegional(julho, 86, 10, 20);
       tabelaRegional(julho, 99, 120, 240);
       tabelaRegional(agosto25, 86, 10, 20);
+
+      // Indicador sem receita, como nas abas do modelo legado. A busca por
+      // títulos deve atravessar a fórmula com erro sem tentar lê-la como número.
+      var indicador = julho.getRow(95).createCell(10);
+      indicador.setCellFormula("1/0");
+      wb.getCreationHelper().createFormulaEvaluator().evaluateFormulaCell(indicador);
 
       wb.write(out);
       return out.toByteArray();

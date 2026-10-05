@@ -86,12 +86,15 @@ competências e aplica regras próprias de negócio:
 - **Sinistro/despesa:** sempre `VALOR_TOTAL_21`; a geração falha se essa coluna não vier da API;
 - **Vidas históricas e região:** beneficiários presentes nas mensalidades;
 - **Ativo/inativo no resumo final e rankings:** código de carteirinha com quatro
-  posições iniciado por `5` ou `9` é inativo; os demais são ativos. Datas de
-  cadastro/exclusão e o campo `ATIVO` não alteram essa classificação;
+  posições iniciado por `5` ou `9` é inativo; os demais são ativos. A população é reconstruída pelas datas de
+  cadastro/exclusão no último dia da competência; `ATIVO` só serve de fallback
+  sem essas datas. A situação dessa população e dos rankings segue a carteirinha;
   identificadores repetidos contam uma vez;
 - **Situação dos códigos na faixa etária:** código de carteirinha com quatro posições
   iniciado por `5` ou `9` é inativo; os demais são ativos;
 - rankings e análises de PA/SADT exibem a situação ao lado do código do beneficiário;
+- despesas regionais seguem `REGIAO_PREST`, com Central Nacional e Módulo Coração
+  separados por prestador; vidas e receita seguem a região do beneficiário;
 - despesas por tipo de guia, grupo de prestador, região, maiores custos e análises
   acumuladas de PA/PS, SADT e Sessões Multi;
 - fórmulas e gráficos no próprio XLSX.

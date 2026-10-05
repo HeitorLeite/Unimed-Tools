@@ -901,21 +901,40 @@ public class ComercialRelatorioFinalService {
     numero(sheet, 82, 8, BigDecimal.ONE, e.totalPercentual);
   }
 
-  private void regioes(org.apache.poi.ss.usermodel.Sheet sheet, List<MesDados> meses, Estilos e) {
+  private void regioes(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    HistoricoRelatorio historico,
+    Estilos e
+  ) {
     MesDados atual = meses.getLast();
     Map<String, BigDecimal> sinistro12 = mapaDecimal(REGIOES);
     Map<String, BigDecimal> receita12 = mapaDecimal(REGIOES);
-    for (MesDados mes : meses) {
-      REGIOES.forEach(r -> {
-        sinistro12.merge(r, mes.despesaRegiao.get(r), BigDecimal::add);
-        receita12.merge(r, mes.receitaRegiao.get(r), BigDecimal::add);
-      });
+
+    for (String regiao : REGIOES) {
+      sinistro12.put(
+        regiao,
+        historico.regiaoSinistro12Anterior().getOrDefault(regiao, ZERO)
+          .subtract(historico.regiaoSinistroMesExcluido().getOrDefault(regiao, ZERO))
+          .add(atual.despesaRegiao.getOrDefault(regiao, ZERO))
+      );
+      receita12.put(
+        regiao,
+        historico.regiaoReceita12Anterior().getOrDefault(regiao, ZERO)
+          .subtract(historico.regiaoReceitaMesExcluido().getOrDefault(regiao, ZERO))
+          .add(atual.receitaRegiao.getOrDefault(regiao, ZERO))
+      );
     }
+
     regiaoBloco(sheet, 85, atual.sinistro, "Mês", atual.vidasRegiao, atual.despesaRegiao,
       atual.receitaRegiao, atual.grupoPrestador.get("Home-Care"), e);
+
     BigDecimal total12 = meses.stream().map(MesDados::sinistro).reduce(ZERO, BigDecimal::add);
+    BigDecimal homeCare12 = meses.stream()
+      .map(m -> m.grupoPrestador.getOrDefault("Home-Care", ZERO))
+      .reduce(ZERO, BigDecimal::add);
     regiaoBloco(sheet, 98, total12, "12 meses", atual.vidasRegiao, sinistro12,
-      receita12, meses.stream().map(m -> m.grupoPrestador.get("Home-Care")).reduce(ZERO, BigDecimal::add), e);
+      receita12, homeCare12, e);
   }
 
   private void regiaoBloco(

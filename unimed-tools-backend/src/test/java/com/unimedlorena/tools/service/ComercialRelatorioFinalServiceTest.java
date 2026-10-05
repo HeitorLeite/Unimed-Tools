@@ -120,6 +120,9 @@ class ComercialRelatorioFinalServiceTest {
     try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(arquivo))) {
       var sheet = workbook.getSheet("082026");
       assertNotNull(sheet);
+      assertNotNull(workbook.getSheet("072026"));
+      assertNotNull(workbook.getSheet("082025"));
+      assertEquals("082026", workbook.getSheetAt(0).getSheetName());
 
       // Histórico: julho vem do arquivo anterior; agosto é a única competência nova.
       assertEquals(1110d, sheet.getRow(12).getCell(1).getNumericCellValue());

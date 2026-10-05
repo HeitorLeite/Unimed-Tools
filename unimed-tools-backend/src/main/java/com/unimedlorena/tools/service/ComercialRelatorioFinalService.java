@@ -412,7 +412,9 @@ public class ComercialRelatorioFinalService {
     List<MesDados> meses,
     ContagemBeneficiarios atual,
     long ativosAnterior,
-    List<LinkedHashMap<String, Object>> faixa
+    List<LinkedHashMap<String, Object>> faixa,
+    HistoricoRelatorio historico,
+    Map<String, String> situacoes
   ) throws IOException {
     try (XSSFWorkbook wb = new XSSFWorkbook()) {
       String aba = String.format("%02d%04d", alvo.getMonthValue(), alvo.getYear());
@@ -432,13 +434,15 @@ public class ComercialRelatorioFinalService {
       receitaDozeMeses(sheet, meses, e);
       porTipoGuia(sheet, meses, e);
       porGrupoPrestador(sheet, meses, e);
-      regioes(sheet, meses, e);
-      rankings(sheet, meses, e);
+      regioes(sheet, meses, historico, e);
+      rankings(sheet, meses, historico, situacoes, e);
       analiseBeneficiarios(sheet, meses, "PA/PS", 139,
-        "Análise Sintética dos 30+ Sinistro de Beneficiários em PA – Acumulado (12 meses)", e);
+        "Análise Sintética dos 30+ Sinistro de Beneficiários em PA – Acumulado (12 meses)",
+        historico.pa(), situacoes, e);
       analiseBeneficiarios(sheet, meses, "SADT", 174,
-        "Análise Sintética dos 30+ Sinistro de Beneficiários em SADT – Acumulado (12 meses)", e);
-      analiseSessoes(sheet, meses, 209, e);
+        "Análise Sintética dos 30+ Sinistro de Beneficiários em SADT – Acumulado (12 meses)",
+        historico.sadt(), situacoes, e);
+      analiseSessoes(sheet, meses, 209, historico.sessoes(), e);
       graficos(sheet);
 
       sheet.setZoom(80);

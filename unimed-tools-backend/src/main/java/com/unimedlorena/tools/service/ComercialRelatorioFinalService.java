@@ -1631,7 +1631,7 @@ public class ComercialRelatorioFinalService {
   }
 
   private static void data(org.apache.poi.ss.usermodel.Sheet s, int r, int c, LocalDate valor, CellStyle estilo) {
-    Cell cell = linha(s, r).createCell(c);
+    Cell cell = celula(s, r, c);
     cell.setCellValue(valor);
     cell.setCellStyle(estilo);
   }

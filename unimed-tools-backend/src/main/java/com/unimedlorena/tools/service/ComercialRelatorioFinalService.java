@@ -1335,6 +1335,12 @@ public class ComercialRelatorioFinalService {
     return mapa;
   }
 
+  private Map<String, Integer> mapaInteiroZero(List<String> chaves) {
+    Map<String, Integer> mapa = new LinkedHashMap<>();
+    chaves.forEach(c -> mapa.put(c, 0));
+    return mapa;
+  }
+
   private String normalizar(String valor) {
     return Normalizer.normalize(valor == null ? "" : valor, Normalizer.Form.NFD)
       .replaceAll("\\p{M}", "")
@@ -1367,6 +1373,21 @@ public class ComercialRelatorioFinalService {
   ) {}
 
   private record ContagemBeneficiarios(long ativos, long inativos) {}
+  private enum SituacaoNaData { ATIVO, INATIVO }
+  private record HistoricoRelatorio(
+    List<MesDados> meses,
+    Map<String, BigDecimal> regiaoSinistro12Anterior,
+    Map<String, BigDecimal> regiaoReceita12Anterior,
+    Map<String, BigDecimal> regiaoSinistroMesExcluido,
+    Map<String, BigDecimal> regiaoReceitaMesExcluido,
+    Map<String, BigDecimal> beneficiariosAcumuladoAnterior,
+    Map<String, BigDecimal> especialidadesAcumuladoAnterior,
+    Map<String, BigDecimal> beneficiariosMesExcluido,
+    Map<String, BigDecimal> especialidadesMesExcluido,
+    Map<String, Map<YearMonth, BigDecimal>> pa,
+    Map<String, Map<YearMonth, BigDecimal>> sadt,
+    Map<String, Map<YearMonth, BigDecimal>> sessoes
+  ) {}
   private record Ranking(String chave, BigDecimal valor) {}
   private record Serie(String nome, CellRangeAddress valores) {}
 

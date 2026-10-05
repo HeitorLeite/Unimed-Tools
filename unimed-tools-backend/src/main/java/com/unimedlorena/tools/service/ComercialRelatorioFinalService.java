@@ -718,8 +718,25 @@ public class ComercialRelatorioFinalService {
     try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(arquivoAnterior))) {
       String aba = nomeAba(alvo);
       int indiceExistente = wb.getSheetIndex(aba);
-      if (indiceExistente >= 0) wb.removeSheetAt(indiceExistente);
-      var sheet = wb.createSheet(aba);
+      boolean abaJaExistia = indiceExistente >= 0;
+
+      org.apache.poi.xssf.usermodel.XSSFSheet sheet;
+      boolean possuiGraficosExistentes = false;
+
+      if (abaJaExistia) {
+        // Não removemos a aba existente. Arquivos históricos reais possuem
+        // dezenas de chart*.xml; remover uma aba com gráficos cria lacunas na
+        // numeração interna do OOXML e o Apache POI pode tentar reutilizar um
+        // nome ainda existente, provocando PartAlreadyExistsException/HTTP 500.
+        sheet = wb.getSheetAt(indiceExistente);
+        XSSFDrawing desenhoExistente = sheet.getDrawingPatriarch();
+        possuiGraficosExistentes =
+          desenhoExistente != null && !desenhoExistente.getCharts().isEmpty();
+        limparConteudoRelatorio(sheet);
+      } else {
+        sheet = wb.createSheet(aba);
+      }
+
       wb.setSheetOrder(aba, 0);
       wb.setForceFormulaRecalculation(true);
       Estilos e = new Estilos(wb);
@@ -745,12 +762,33 @@ public class ComercialRelatorioFinalService {
         "Análise Sintética dos 30+ Sinistro de Beneficiários em SADT – Acumulado (12 meses)",
         historico.sadt(), situacoes, e);
       analiseSessoes(sheet, meses, 209, historico.sessoes(), e);
-      graficos(sheet);
+
+      // Quando o XLSX já traz a aba da competência, os gráficos dessa aba são
+      // preservados e continuam apontando para as mesmas faixas de células.
+      // Uma aba realmente nova recebe os gráficos gerados pela aplicação.
+      if (!possuiGraficosExistentes) {
+        graficos(sheet);
+      }
 
       sheet.setZoom(80);
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       wb.write(out);
       return out.toByteArray();
+    }
+  }
+
+  private void limparConteudoRelatorio(
+    org.apache.poi.xssf.usermodel.XSSFSheet sheet
+  ) {
+    int ultimaLinha = Math.min(220, sheet.getLastRowNum());
+    for (int r = 0; r <= ultimaLinha; r++) {
+      Row row = sheet.getRow(r);
+      if (row == null) continue;
+      int ultimaColuna = Math.min(15, Math.max(0, row.getLastCellNum() - 1));
+      for (int col = 0; col <= ultimaColuna; col++) {
+        Cell cell = row.getCell(col);
+        if (cell != null) cell.setBlank();
+      }
     }
   }
 
@@ -1551,11 +1589,19 @@ public class ComercialRelatorioFinalService {
   private record Serie(String nome, CellRangeAddress valores) {}
 
   private static void titulo(org.apache.poi.ss.usermodel.Sheet s, int r, int c1, int c2, String valor, CellStyle estilo) {
-    Row row = linha(s, r);
-    Cell cell = row.createCell(c1);
+    Cell cell = celula(s, r, c1);
     cell.setCellValue(valor);
     cell.setCellStyle(estilo);
-    if (c2 > c1) s.addMergedRegion(new CellRangeAddress(r, r, c1, c2));
+    if (c2 > c1) {
+      CellRangeAddress nova = new CellRangeAddress(r, r, c1, c2);
+      boolean conflita = s.getMergedRegions().stream().anyMatch(atual ->
+        atual.getFirstRow() <= nova.getLastRow() &&
+        atual.getLastRow() >= nova.getFirstRow() &&
+        atual.getFirstColumn() <= nova.getLastColumn() &&
+        atual.getLastColumn() >= nova.getFirstColumn()
+      );
+      if (!conflita) s.addMergedRegion(nova);
+    }
   }
 
   private static void cabecalho(org.apache.poi.ss.usermodel.Sheet s, int r, String[] valores, Estilos e) {
@@ -1567,31 +1613,31 @@ public class ComercialRelatorioFinalService {
   }
 
   private static void texto(org.apache.poi.ss.usermodel.Sheet s, int r, int c, String valor, CellStyle estilo) {
-    Cell cell = linha(s, r).createCell(c);
+    Cell cell = celula(s, r, c);
     cell.setCellValue(valor == null ? "" : valor);
     cell.setCellStyle(estilo);
   }
 
   private static void numero(org.apache.poi.ss.usermodel.Sheet s, int r, int c, BigDecimal valor, CellStyle estilo) {
-    Cell cell = linha(s, r).createCell(c);
+    Cell cell = celula(s, r, c);
     cell.setCellValue(valor == null ? 0d : valor.doubleValue());
     cell.setCellStyle(estilo);
   }
 
   private static void inteiro(org.apache.poi.ss.usermodel.Sheet s, int r, int c, long valor, CellStyle estilo) {
-    Cell cell = linha(s, r).createCell(c);
+    Cell cell = celula(s, r, c);
     cell.setCellValue(valor);
     cell.setCellStyle(estilo);
   }
 
   private static void data(org.apache.poi.ss.usermodel.Sheet s, int r, int c, LocalDate valor, CellStyle estilo) {
-    Cell cell = linha(s, r).createCell(c);
+    Cell cell = celula(s, r, c);
     cell.setCellValue(valor);
     cell.setCellStyle(estilo);
   }
 
   private static void formula(org.apache.poi.ss.usermodel.Sheet s, int r, int c, String formula, CellStyle estilo) {
-    Cell cell = linha(s, r).createCell(c);
+    Cell cell = celula(s, r, c);
     cell.setCellFormula(formula);
     cell.setCellStyle(estilo);
   }
@@ -1599,6 +1645,12 @@ public class ComercialRelatorioFinalService {
   private static Row linha(org.apache.poi.ss.usermodel.Sheet s, int r) {
     Row row = s.getRow(r);
     return row == null ? s.createRow(r) : row;
+  }
+
+  private static Cell celula(org.apache.poi.ss.usermodel.Sheet s, int r, int c) {
+    Row row = linha(s, r);
+    Cell cell = row.getCell(c);
+    return cell == null ? row.createCell(c) : cell;
   }
 
   private static String coluna(int zeroBased) {

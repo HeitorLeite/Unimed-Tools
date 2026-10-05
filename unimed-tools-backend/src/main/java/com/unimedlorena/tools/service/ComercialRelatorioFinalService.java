@@ -406,6 +406,303 @@ public class ComercialRelatorioFinalService {
     return situacoes.getOrDefault(identificador, "NÃO INFORMADO");
   }
 
+  private HistoricoRelatorio carregarHistorico(
+    byte[] arquivoAnterior,
+    YearMonth alvo
+  ) throws IOException {
+    try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(arquivoAnterior))) {
+      YearMonth anteriorMes = alvo.minusMonths(1);
+      Sheet anterior = wb.getSheet(nomeAba(anteriorMes));
+      if (anterior == null) {
+        throw new IllegalArgumentException(
+          "O XLSX enviado não possui a aba " + nomeAba(anteriorMes) +
+          ", correspondente ao mês anterior."
+        );
+      }
+
+      Map<YearMonth, BigDecimal> receitas = new LinkedHashMap<>();
+      Map<YearMonth, BigDecimal> sinistros = new LinkedHashMap<>();
+      Map<YearMonth, BigDecimal> coparts = new LinkedHashMap<>();
+      Map<YearMonth, Long> ativos = new LinkedHashMap<>();
+      for (int r = 2; r <= 13; r++) {
+        YearMonth mes = mesCelula(anterior.getRow(r) == null ? null : anterior.getRow(r).getCell(0));
+        if (mes == null) continue;
+        receitas.put(mes, numeroCelula(anterior, r, 1));
+        sinistros.put(mes, numeroCelula(anterior, r, 2));
+        coparts.put(mes, numeroCelula(anterior, r, 3));
+        ativos.put(mes, numeroCelula(anterior, r, 4).longValue());
+      }
+
+      Map<YearMonth, Map<String, BigDecimal>> tipos = lerTabelaMensal(
+        anterior, 53, 64, TIPOS_GUIA, 1
+      );
+      Map<YearMonth, Map<String, BigDecimal>> grupos = lerTabelaMensal(
+        anterior, 69, 80, GRUPOS, 1
+      );
+
+      List<MesDados> meses = new ArrayList<>();
+      for (int i = 11; i >= 1; i--) {
+        YearMonth mes = alvo.minusMonths(i);
+        if (!receitas.containsKey(mes) || !sinistros.containsKey(mes) ||
+            !tipos.containsKey(mes) || !grupos.containsKey(mes)) {
+          throw new IllegalArgumentException(
+            "O XLSX anterior não contém os dados históricos de " + mes.format(COMPETENCIA) + "."
+          );
+        }
+        meses.add(new MesDados(
+          mes,
+          receitas.get(mes),
+          coparts.getOrDefault(mes, ZERO),
+          sinistros.get(mes),
+          tipos.get(mes),
+          grupos.get(mes),
+          mapaDecimal(REGIOES),
+          mapaDecimal(REGIOES),
+          mapaInteiroZero(REGIOES),
+          ativos.getOrDefault(mes, 0L),
+          List.of()
+        ));
+      }
+
+      YearMonth excluido = alvo.minusMonths(12);
+      Sheet abaExcluida = wb.getSheet(nomeAba(excluido));
+      if (abaExcluida == null) {
+        throw new IllegalArgumentException(
+          "O XLSX anterior não possui a aba " + nomeAba(excluido) +
+          ", necessária para atualizar os acumulados de 12 meses."
+        );
+      }
+
+      return new HistoricoRelatorio(
+        meses,
+        lerRegiao(anterior, 2, false),
+        lerRegiao(anterior, 2, true),
+        lerRegiao(abaExcluida, 1, false),
+        lerRegiao(abaExcluida, 1, true),
+        lerRanking(anterior, "BENEFICIARIOS COM MAIORES CUSTOS ACUMULADO", "CODIGO"),
+        lerRanking(anterior, "ESPECIALIDADE COM MAIORES CUSTOS ACUMULADO", "ESPECIALIDADE"),
+        lerRanking(abaExcluida, "BENEFICIARIOS COM MAIORES CUSTOS DO MES", "CODIGO"),
+        lerRanking(abaExcluida, "ESPECIALIDADE COM MAIORES CUSTOS DO MES", "ESPECIALIDADE"),
+        lerSerie(anterior, "BENEFICIARIOS EM PA", 30),
+        lerSerie(anterior, "BENEFICIARIOS EM SADT", 30),
+        lerSerie(anterior, "PRINCIPAIS UTILIZACOES EM SESSOES MULTI", 10)
+      );
+    } catch (org.apache.poi.openxml4j.exceptions.OLE2NotOfficeXmlFileException |
+             org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException ex) {
+      throw new IllegalArgumentException(
+        "O relatório anterior enviado não é um arquivo XLSX válido.", ex
+      );
+    }
+  }
+
+  private Map<YearMonth, Map<String, BigDecimal>> lerTabelaMensal(
+    Sheet sheet,
+    int inicio,
+    int fim,
+    List<String> chaves,
+    int primeiraColuna
+  ) {
+    Map<YearMonth, Map<String, BigDecimal>> resultado = new LinkedHashMap<>();
+    for (int r = inicio; r <= fim; r++) {
+      Row row = sheet.getRow(r);
+      YearMonth mes = mesCelula(row == null ? null : row.getCell(0));
+      if (mes == null) continue;
+      Map<String, BigDecimal> valores = mapaDecimal(chaves);
+      for (int i = 0; i < chaves.size(); i++) {
+        valores.put(chaves.get(i), numeroCelula(sheet, r, primeiraColuna + i));
+      }
+      resultado.put(mes, valores);
+    }
+    return resultado;
+  }
+
+  private Map<String, BigDecimal> lerRegiao(
+    Sheet sheet,
+    int ocorrencia,
+    boolean receita
+  ) {
+    int cabecalho = encontrarLinha(sheet, "REGIAO", ocorrencia);
+    if (cabecalho < 0) {
+      throw new IllegalArgumentException(
+        "O XLSX anterior não possui a tabela regional esperada."
+      );
+    }
+    Map<String, BigDecimal> mapa = mapaDecimal(REGIOES);
+    for (int i = 0; i < REGIOES.size(); i++) {
+      int r = cabecalho + 1 + i;
+      String rotulo = textoCelula(sheet, r, 0);
+      String regiao = normalizarRegiaoHistorica(rotulo);
+      if (regiao == null) continue;
+      mapa.put(regiao, numeroCelula(sheet, r, receita ? 5 : 3));
+    }
+    return mapa;
+  }
+
+  private String normalizarRegiaoHistorica(String valor) {
+    String n = normalizarPalavras(valor);
+    if (n.contains("MODULO CORACAO")) return "Módulo Coração";
+    if (n.contains("CENTRAL NACIONAL")) return "Central Nacional";
+    if (n.contains("VALE")) return "Vale do Paraiba";
+    if (n.contains("SUDESTE")) return "Sudeste (Fora Vale)";
+    if (n.contains("CENTRO OESTE")) return "Centro Oeste";
+    if (n.contains("NORDESTE")) return "Nordeste";
+    if (n.equals("NORTE")) return "Norte";
+    if (n.equals("SUL")) return "Sul";
+    if (n.equals("LOCAL")) return "Local";
+    return null;
+  }
+
+  private Map<String, BigDecimal> lerRanking(
+    Sheet sheet,
+    String titulo,
+    String cabecalhoChave
+  ) {
+    int linhaTitulo = encontrarLinha(sheet, titulo, 1);
+    if (linhaTitulo < 0) return Map.of();
+    Row header = sheet.getRow(linhaTitulo + 1);
+    if (header == null) return Map.of();
+
+    int colunaChave = -1;
+    int colunaValor = -1;
+    for (int c = 0; c < Math.max(16, header.getLastCellNum()); c++) {
+      String h = normalizar(textoCelula(sheet, linhaTitulo + 1, c));
+      if (colunaChave < 0 && h.equals(normalizar(cabecalhoChave))) {
+        colunaChave = c;
+      } else if (colunaChave >= 0 && c > colunaChave && h.contains("VALOR")) {
+        colunaValor = c;
+        break;
+      }
+    }
+    if (colunaChave < 0 || colunaValor < 0) return Map.of();
+
+    Map<String, BigDecimal> resultado = new LinkedHashMap<>();
+    for (int r = linhaTitulo + 2; r < linhaTitulo + 12; r++) {
+      String chave = textoCelula(sheet, r, colunaChave).trim();
+      if (chave.isBlank()) continue;
+      resultado.put(chave, numeroCelula(sheet, r, colunaValor));
+    }
+    return resultado;
+  }
+
+  private Map<String, Map<YearMonth, BigDecimal>> lerSerie(
+    Sheet sheet,
+    String titulo,
+    int limite
+  ) {
+    int linhaTitulo = encontrarLinha(sheet, titulo, 1);
+    if (linhaTitulo < 0) return Map.of();
+    int headerRow = linhaTitulo + 1;
+    Row header = sheet.getRow(headerRow);
+    if (header == null) return Map.of();
+
+    int primeiraCompetencia = -1;
+    List<YearMonth> meses = new ArrayList<>();
+    for (int c = 2; c < Math.max(18, header.getLastCellNum()); c++) {
+      YearMonth mes = mesCelula(header.getCell(c));
+      if (mes != null) {
+        if (primeiraCompetencia < 0) primeiraCompetencia = c;
+        meses.add(mes);
+        if (meses.size() == 12) break;
+      }
+    }
+    if (primeiraCompetencia < 0 || meses.isEmpty()) return Map.of();
+
+    Map<String, Map<YearMonth, BigDecimal>> resultado = new LinkedHashMap<>();
+    for (int r = linhaTitulo + 2; r < linhaTitulo + 2 + limite; r++) {
+      String chave = textoCelula(sheet, r, 1).trim();
+      if (chave.isBlank()) continue;
+      Map<YearMonth, BigDecimal> valores = new LinkedHashMap<>();
+      for (int i = 0; i < meses.size(); i++) {
+        valores.put(meses.get(i), numeroCelula(sheet, r, primeiraCompetencia + i));
+      }
+      resultado.put(chave, valores);
+    }
+    return resultado;
+  }
+
+  private int encontrarLinha(Sheet sheet, String texto, int ocorrencia) {
+    String alvo = normalizar(texto);
+    int encontrada = 0;
+    for (int r = 0; r <= sheet.getLastRowNum(); r++) {
+      Row row = sheet.getRow(r);
+      if (row == null) continue;
+      for (Cell cell : row) {
+        if (normalizar(textoCelula(cell)).contains(alvo)) {
+          encontrada++;
+          if (encontrada == ocorrencia) return r;
+          break;
+        }
+      }
+    }
+    return -1;
+  }
+
+  private YearMonth mesCelula(Cell cell) {
+    if (cell == null) return null;
+    try {
+      if (cell.getCellType() == CellType.NUMERIC) {
+        if (DateUtil.isCellDateFormatted(cell)) {
+          return YearMonth.from(cell.getLocalDateTimeCellValue());
+        }
+        return YearMonth.from(DateUtil.getLocalDateTime(cell.getNumericCellValue()));
+      }
+      if (cell.getCellType() == CellType.FORMULA &&
+          cell.getCachedFormulaResultType() == CellType.NUMERIC) {
+        return YearMonth.from(DateUtil.getLocalDateTime(cell.getNumericCellValue()));
+      }
+      String texto = textoCelula(cell).trim();
+      for (DateTimeFormatter formato : List.of(
+        DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+        DateTimeFormatter.ISO_LOCAL_DATE
+      )) {
+        try {
+          return YearMonth.from(LocalDate.parse(texto, formato));
+        } catch (DateTimeParseException ignored) {
+          // tenta o próximo
+        }
+      }
+    } catch (RuntimeException ignored) {
+      return null;
+    }
+    return null;
+  }
+
+  private BigDecimal numeroCelula(Sheet sheet, int row, int col) {
+    Row linha = sheet.getRow(row);
+    return linha == null ? ZERO : numeroCelula(linha.getCell(col));
+  }
+
+  private BigDecimal numeroCelula(Cell cell) {
+    if (cell == null) return ZERO;
+    if (cell.getCellType() == CellType.NUMERIC ||
+        (cell.getCellType() == CellType.FORMULA &&
+         cell.getCachedFormulaResultType() == CellType.NUMERIC)) {
+      return BigDecimal.valueOf(cell.getNumericCellValue());
+    }
+    return numero(textoCelula(cell));
+  }
+
+  private String textoCelula(Sheet sheet, int row, int col) {
+    Row linha = sheet.getRow(row);
+    return linha == null ? "" : textoCelula(linha.getCell(col));
+  }
+
+  private String textoCelula(Cell cell) {
+    if (cell == null) return "";
+    if (cell.getCellType() == CellType.STRING) return cell.getStringCellValue();
+    if (cell.getCellType() == CellType.NUMERIC) return String.valueOf(cell.getNumericCellValue());
+    if (cell.getCellType() == CellType.FORMULA) {
+      return cell.getCachedFormulaResultType() == CellType.STRING
+        ? cell.getStringCellValue()
+        : String.valueOf(cell.getNumericCellValue());
+    }
+    return "";
+  }
+
+  private String nomeAba(YearMonth mes) {
+    return String.format("%02d%04d", mes.getMonthValue(), mes.getYear());
+  }
+
   private byte[] montarWorkbook(
     String empresa,
     YearMonth alvo,

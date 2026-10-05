@@ -194,6 +194,33 @@ idêntico ao CSV. Dados reais não fazem parte dos testes ou do repositório.
 
 ## Pendente / limites de validação
 
+### Relatório final do Comercial — leitura do histórico (Atual)
+
+Na busca por títulos e tabelas do XLSX anterior, fórmulas com resultado em erro
+(por exemplo, sinistralidade de uma região sem receita) não são lidas como
+números. Isso permite carregar o modelo legado sem falhar ao procurar rankings.
+Erros em células numéricas efetivamente usadas como receita, sinistro ou outro
+valor histórico continuam impedindo a geração, com identificação da aba e célula;
+não são substituídos silenciosamente por zero.
+
+A coluna `CODIGO_CARTAO` da receita é reconhecida como identificador do
+beneficiário. Vidas por região são contadas por identificador único nas
+mensalidades, incluindo mensalidades repetidas sem multiplicar a quantidade de
+vidas. A soma financeira mantém todas as linhas legítimas.
+
+**Atual:** por definição funcional, o resumo de ativos/inativos e a situação nos
+rankings usam o código de carteirinha de quatro posições: iniciado por 5 ou 9 é
+inativo, os demais são ativos. A contagem deduplica por identificador e considera
+todos os beneficiários da base enviada, independentemente de cadastro/exclusão
+ou do campo ATIVO. Identificador sem código classificável impede a geração, sem
+exibir o dado pessoal na mensagem. Vidas nas mensalidades são uma população
+diferente, usada nas tabelas regionais. Histórico anterior permanece preservado.
+
+**Pendente:** a faixa etária exige sua própria consulta; os CSVs de beneficiários,
+receita e despesas, isoladamente, não comprovam suas contagens DEP/TIT.
+Conferência offline dos CSVs comprova a consolidação, mas não valida o acesso ao
+SGU nem a publicação da alteração no ambiente em uso.
+
 SGU não fornece um snapshot transacional compartilhado entre chamadas: a
 ordenação estabiliza dados que não mudam durante a exportação. Alterações
 simultâneas com a mesma contagem total ainda exigem suporte da origem para

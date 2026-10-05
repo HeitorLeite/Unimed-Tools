@@ -129,10 +129,9 @@ public class ComercialRelatorioFinalService {
     List<LinkedHashMap<String, Object>> beneficiarios = carregar(
       API_BENEFICIARIOS, filtrosObrigatorios(request, API_BENEFICIARIOS)
     );
-    LocalDate referencia = alvo.atEndOfMonth();
-    ContagemBeneficiarios contagem = contarBeneficiarios(beneficiarios, referencia);
+    ContagemBeneficiarios contagem = contarBeneficiarios(beneficiarios);
     Map<String, String> situacoes = situacoesBeneficiarios(
-      beneficiarios, despesaAtual, referencia
+      beneficiarios, despesaAtual
     );
     long ativosAnterior = historico.meses().getLast().beneficiariosAtivos;
 
@@ -300,103 +299,41 @@ public class ComercialRelatorioFinalService {
   }
 
   private ContagemBeneficiarios contarBeneficiarios(
-    List<LinkedHashMap<String, Object>> linhas,
-    LocalDate referencia
+    List<LinkedHashMap<String, Object>> linhas
   ) {
-    Map<String, SituacaoNaData> porBeneficiario = new LinkedHashMap<>();
-    int fallback = 0;
-
+    Map<String, Boolean> porBeneficiario = new LinkedHashMap<>();
     for (Map<String, Object> linha : linhas) {
       String id = identificadorBeneficiario(linha);
-      if (id.isBlank()) id = "LINHA-" + fallback++;
-
-      LocalDate cadastro = data(linha,
-        "DATA_CADASTRO", "DT_CADASTRO", "DATA_INCLUSAO", "DT_INCLUSAO", "BNF_DAT_INCL");
-      LocalDate exclusao = data(linha,
-        "DATA_EXCLUSAO", "DT_EXCLUSAO", "BNF_DAT_EXCL", "DATA_INATIVACAO");
-
-      if (cadastro != null && cadastro.isAfter(referencia)) {
-        // O beneficiário ainda não existia na competência analisada.
-        continue;
-      }
-
-      boolean ativo;
-      if (cadastro != null || exclusao != null) {
-        ativo = exclusao == null || exclusao.isAfter(referencia);
-      } else {
-        ativo = ativoInformado(linha);
-      }
-      porBeneficiario.put(id, ativo ? SituacaoNaData.ATIVO : SituacaoNaData.INATIVO);
+      porBeneficiario.put(id, ativoPorCodigo(id));
     }
-
-    long ativos = porBeneficiario.values().stream()
-      .filter(s -> s == SituacaoNaData.ATIVO).count();
-    long inativos = porBeneficiario.values().stream()
-      .filter(s -> s == SituacaoNaData.INATIVO).count();
-    return new ContagemBeneficiarios(ativos, inativos);
+    long ativos = porBeneficiario.values().stream().filter(Boolean::booleanValue).count();
+    return new ContagemBeneficiarios(ativos, porBeneficiario.size() - ativos);
   }
 
   private Map<String, String> situacoesBeneficiarios(
     List<LinkedHashMap<String, Object>> beneficiarios,
-    List<LinkedHashMap<String, Object>> despesas,
-    LocalDate referencia
+    List<LinkedHashMap<String, Object>> despesas
   ) {
     Map<String, String> situacoes = new LinkedHashMap<>();
-
-    for (Map<String, Object> linha : beneficiarios) {
-      String id = identificadorBeneficiario(linha);
-      if (id.isBlank()) continue;
-      LocalDate cadastro = data(linha,
-        "DATA_CADASTRO", "DT_CADASTRO", "DATA_INCLUSAO", "DT_INCLUSAO", "BNF_DAT_INCL");
-      if (cadastro != null && cadastro.isAfter(referencia)) continue;
-
-      LocalDate exclusao = data(linha,
-        "DATA_EXCLUSAO", "DT_EXCLUSAO", "BNF_DAT_EXCL", "DATA_INATIVACAO");
-      boolean ativo = cadastro != null || exclusao != null
-        ? exclusao == null || exclusao.isAfter(referencia)
-        : ativoInformado(linha);
-      situacoes.put(id, ativo ? "ATIVO" : "INATIVO");
-    }
-
-    for (Map<String, Object> linha : despesas) {
-      String id = identificadorBeneficiario(linha);
-      if (id.isBlank() || situacoes.containsKey(id)) continue;
-      situacoes.put(id, ativoInformado(linha) ? "ATIVO" : "INATIVO");
+    for (List<LinkedHashMap<String, Object>> base : List.of(beneficiarios, despesas)) {
+      for (Map<String, Object> linha : base) {
+        String id = identificadorBeneficiario(linha);
+        if (id.isBlank()) continue;
+        situacoes.put(id, ativoPorCodigo(id) ? "ATIVO" : "INATIVO");
+      }
     }
     return situacoes;
   }
 
-  private boolean ativoInformado(Map<String, Object> linha) {
-    String valor = normalizar(texto(
-      linha, "ATIVO", "STATUS", "SITUACAO", "STATUS_BENEFICIARIO", "SITUACAO_BENEFICIARIO"
-    ));
-    if (valor.equals("S") || valor.equals("SIM") || valor.equals("ATIVO")) return true;
-    if (valor.equals("N") || valor.equals("NAO") || valor.contains("INATIV") ||
-        valor.contains("EXCLU") || valor.contains("CANCEL")) return false;
-    return true;
-  }
-
-  private LocalDate data(Map<String, Object> linha, String... aliases) {
-    Object bruto = valor(linha, aliases);
-    if (bruto == null) return null;
-    if (bruto instanceof LocalDate d) return d;
-    if (bruto instanceof java.sql.Date d) return d.toLocalDate();
-
-    String texto = String.valueOf(bruto).trim();
-    if (texto.isBlank() || texto.startsWith("01/01/0001") || texto.startsWith("0001-01-01")) {
-      return null;
+  private boolean ativoPorCodigo(String identificador) {
+    Matcher matcher = CODIGO_CARTEIRINHA_NO_BENEFICIARIO.matcher(identificador);
+    if (!matcher.find()) {
+      throw new IllegalArgumentException(
+        "Não foi possível identificar o código de carteirinha para classificar o beneficiário."
+      );
     }
-    for (DateTimeFormatter formato : List.of(
-      DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-      DateTimeFormatter.ISO_LOCAL_DATE
-    )) {
-      try {
-        return LocalDate.parse(texto.substring(0, Math.min(10, texto.length())), formato);
-      } catch (DateTimeParseException ignored) {
-        // tenta o próximo formato
-      }
-    }
-    return null;
+    char inicio = matcher.group(1).charAt(0);
+    return inicio != '5' && inicio != '9';
   }
 
   private String situacaoBeneficiario(
@@ -673,6 +610,14 @@ public class ComercialRelatorioFinalService {
 
   private BigDecimal numeroCelula(Cell cell) {
     if (cell == null) return ZERO;
+    if (cell.getCellType() == CellType.ERROR ||
+        (cell.getCellType() == CellType.FORMULA &&
+         cell.getCachedFormulaResultType() == CellType.ERROR)) {
+      throw new IllegalArgumentException(
+        "O histórico contém erro de fórmula em " + cell.getSheet().getSheetName() +
+        "!" + cell.getAddress().formatAsString() + ". Corrija esse valor antes de gerar o relatório."
+      );
+    }
     if (cell.getCellType() == CellType.NUMERIC ||
         (cell.getCellType() == CellType.FORMULA &&
          cell.getCachedFormulaResultType() == CellType.NUMERIC)) {
@@ -691,9 +636,13 @@ public class ComercialRelatorioFinalService {
     if (cell.getCellType() == CellType.STRING) return cell.getStringCellValue();
     if (cell.getCellType() == CellType.NUMERIC) return String.valueOf(cell.getNumericCellValue());
     if (cell.getCellType() == CellType.FORMULA) {
-      return cell.getCachedFormulaResultType() == CellType.STRING
-        ? cell.getStringCellValue()
-        : String.valueOf(cell.getNumericCellValue());
+      // A busca por títulos percorre também fórmulas de indicadores. Um erro
+      // nesses indicadores não impede ler os valores históricos das bases.
+      return switch (cell.getCachedFormulaResultType()) {
+        case STRING -> cell.getStringCellValue();
+        case NUMERIC -> String.valueOf(cell.getNumericCellValue());
+        default -> "";
+      };
     }
     return "";
   }
@@ -1458,7 +1407,7 @@ public class ComercialRelatorioFinalService {
 
   private String identificadorBeneficiario(Map<String, Object> linha) {
     return texto(linha, "CODIGO_BENEFICIARIO", "COD_BENEFICIARIO", "BENEFICIARIO",
-      "CARTEIRINHA", "CARTEIRA", "MATRICULA", "CODIGO");
+      "CODIGO_CARTAO", "CARTEIRINHA", "CARTEIRA", "MATRICULA", "CODIGO");
   }
 
   private String especialidade(Map<String, Object> linha) {
@@ -1565,7 +1514,6 @@ public class ComercialRelatorioFinalService {
   ) {}
 
   private record ContagemBeneficiarios(long ativos, long inativos) {}
-  private enum SituacaoNaData { ATIVO, INATIVO }
   private record HistoricoRelatorio(
     List<MesDados> meses,
     Map<String, BigDecimal> regiaoSinistro12Anterior,

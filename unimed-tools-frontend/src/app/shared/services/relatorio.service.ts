@@ -252,8 +252,19 @@ export class RelatorioService {
     }).pipe(this.validarDownload('zip'));
   }
 
-  exportarComercialFinal(request: ComercialRelatorioFinalRequest): Observable<HttpEvent<Blob>> {
-    return this.http.post(`${this.baseUrl}/comercial/relatorio-final`, request, {
+  exportarComercialFinal(
+    request: ComercialRelatorioFinalRequest,
+    arquivoAnterior: File,
+  ): Observable<HttpEvent<Blob>> {
+    const formulario = new FormData();
+    formulario.append(
+      'dados',
+      new Blob([JSON.stringify(request)], { type: 'application/json' }),
+      'dados.json',
+    );
+    formulario.append('arquivoAnterior', arquivoAnterior, arquivoAnterior.name);
+
+    return this.http.post(`${this.baseUrl}/comercial/relatorio-final`, formulario, {
       observe: 'events',
       reportProgress: true,
       responseType: 'blob',

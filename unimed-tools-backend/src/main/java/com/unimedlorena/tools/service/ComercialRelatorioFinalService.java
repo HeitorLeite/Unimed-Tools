@@ -990,23 +990,52 @@ public class ComercialRelatorioFinalService {
     formula(sheet, totalRow, 5, "SUM(F" + (inicio + 5) + ":F" + (inicio + 11) + ")", e.totalMoeda);
   }
 
-  private void rankings(org.apache.poi.ss.usermodel.Sheet sheet, List<MesDados> meses, Estilos e) {
+  private void rankings(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    HistoricoRelatorio historico,
+    Map<String, String> situacoes,
+    Estilos e
+  ) {
     MesDados atual = meses.getLast();
-    List<LinkedHashMap<String, Object>> todas = meses.stream()
-      .flatMap(m -> m.despesaLinhas.stream()).toList();
+
+    List<Ranking> beneficiariosMes = ranking(
+      atual.despesaLinhas, this::identificadorBeneficiario, 10
+    );
+    List<Ranking> especialidadesMes = ranking(
+      atual.despesaLinhas, this::especialidade, 10
+    );
 
     rankingDuplo(sheet, 111,
-      "BENEFICIÁRIOS COM MAIORES CUSTOS DO MÊS", ranking(atual.despesaLinhas,
-        this::identificadorBeneficiario, 10),
-      "ESPECIALIDADE COM MAIORES CUSTOS DO MÊS", ranking(atual.despesaLinhas,
-        this::especialidade, 10), atual.sinistro, e);
+      "BENEFICIÁRIOS COM MAIORES CUSTOS DO MÊS", beneficiariosMes,
+      "ESPECIALIDADE COM MAIORES CUSTOS DO MÊS", especialidadesMes,
+      atual.sinistro, situacoes, e);
+
+    Map<String, BigDecimal> atualBeneficiarios = rankingMapa(
+      atual.despesaLinhas, this::identificadorBeneficiario
+    );
+    Map<String, BigDecimal> atualEspecialidades = rankingMapa(
+      atual.despesaLinhas, this::especialidade
+    );
+
+    List<Ranking> beneficiarios12 = atualizarRankingHistorico(
+      historico.beneficiariosAcumuladoAnterior(),
+      historico.beneficiariosMesExcluido(),
+      atualBeneficiarios,
+      10
+    );
+    List<Ranking> especialidades12 = atualizarRankingHistorico(
+      historico.especialidadesAcumuladoAnterior(),
+      historico.especialidadesMesExcluido(),
+      atualEspecialidades,
+      10
+    );
 
     BigDecimal total12 = meses.stream().map(MesDados::sinistro).reduce(ZERO, BigDecimal::add);
     rankingDuplo(sheet, 124,
-      "BENEFICIÁRIOS COM MAIORES CUSTOS ACUMULADO", ranking(todas,
-        this::identificadorBeneficiario, 10),
-      "ESPECIALIDADE COM MAIORES CUSTOS ACUMULADO", ranking(todas,
-        this::especialidade, 10), total12, e);
+      "BENEFICIÁRIOS COM MAIORES CUSTOS ACUMULADO", beneficiarios12,
+      "ESPECIALIDADE COM MAIORES CUSTOS ACUMULADO", especialidades12,
+      total12, situacoes, e);
   }
 
   private void rankingDuplo(
@@ -1017,6 +1046,7 @@ public class ComercialRelatorioFinalService {
     String tituloDireita,
     List<Ranking> direita,
     BigDecimal total,
+    Map<String, String> situacoes,
     Estilos e
   ) {
     titulo(sheet, tituloRow, 0, 4, tituloEsquerda, e.secao);
@@ -1031,7 +1061,7 @@ public class ComercialRelatorioFinalService {
       if (i < esquerda.size()) {
         inteiro(sheet, r, 0, i + 1, e.inteiro);
         texto(sheet, r, 1, esquerda.get(i).chave, e.corpo);
-        texto(sheet, r, 2, situacaoBeneficiario(esquerda.get(i).chave), e.corpo);
+        texto(sheet, r, 2, situacaoBeneficiario(esquerda.get(i).chave, situacoes), e.corpo);
         numero(sheet, r, 3, esquerda.get(i).valor, e.moeda);
         if (total.signum() != 0) numero(sheet, r, 4,
           esquerda.get(i).valor.divide(total, 8, RoundingMode.HALF_UP), e.percentual);
@@ -1209,6 +1239,42 @@ public class ComercialRelatorioFinalService {
       return XDDFDataSourcesFactory.fromStringCellRange(sheet, range);
     }
     return XDDFDataSourcesFactory.fromNumericCellRange(sheet, range);
+  }
+
+  private Map<String, BigDecimal> rankingMapa(
+    List<? extends Map<String, Object>> linhas,
+    java.util.function.Function<Map<String, Object>, String> chave
+  ) {
+    Map<String, BigDecimal> totais = new LinkedHashMap<>();
+    for (Map<String, Object> linha : linhas) {
+      String valor = chave.apply(linha);
+      if (valor == null || valor.isBlank()) valor = "NÃO INFORMADO";
+      totais.merge(valor.trim(), valorDespesa(linha), BigDecimal::add);
+    }
+    return totais;
+  }
+
+  private List<Ranking> atualizarRankingHistorico(
+    Map<String, BigDecimal> acumuladoAnterior,
+    Map<String, BigDecimal> mesExcluido,
+    Map<String, BigDecimal> mesAtual,
+    int limite
+  ) {
+    Set<String> chaves = new LinkedHashSet<>();
+    chaves.addAll(acumuladoAnterior.keySet());
+    chaves.addAll(mesAtual.keySet());
+
+    return chaves.stream()
+      .map(chave -> new Ranking(
+        chave,
+        acumuladoAnterior.getOrDefault(chave, ZERO)
+          .subtract(mesExcluido.getOrDefault(chave, ZERO))
+          .add(mesAtual.getOrDefault(chave, ZERO))
+      ))
+      .filter(item -> item.valor.signum() != 0)
+      .sorted(Comparator.comparing(Ranking::valor).reversed())
+      .limit(limite)
+      .toList();
   }
 
   private List<Ranking> ranking(

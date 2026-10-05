@@ -487,8 +487,7 @@ public class ComercialRelatorioFinalService {
         lerSerie(anterior, "BENEFICIARIOS EM SADT", 30),
         lerSerie(anterior, "PRINCIPAIS UTILIZACOES EM SESSOES MULTI", 10)
       );
-    } catch (org.apache.poi.openxml4j.exceptions.OLE2NotOfficeXmlFileException |
-             org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException ex) {
+    } catch (org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException ex) {
       throw new IllegalArgumentException(
         "O relatório anterior enviado não é um arquivo XLSX válido.", ex
       );

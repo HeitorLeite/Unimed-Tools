@@ -1095,14 +1095,21 @@ public class ComercialRelatorioFinalService {
     String tipo,
     int tituloRow,
     String titulo,
+    Map<String, Map<YearMonth, BigDecimal>> historicoSerie,
+    Map<String, String> situacoes,
     Estilos e
   ) {
     Predicate<Map<String, Object>> filtro = linha -> tipo.equals(classificarTipoGuia(texto(
       linha, "DESCRICAO_TIPO_GUIA", "TIPO_GUIA", "DESCRICAO_GUIA"
     )));
-    List<LinkedHashMap<String, Object>> todas = meses.stream().flatMap(m -> m.despesaLinhas.stream())
-      .filter(filtro).toList();
-    List<Ranking> top = ranking(todas, this::identificadorBeneficiario, 30);
+
+    MesDados atual = meses.getLast();
+    Map<String, BigDecimal> mesAtual = serieAtual(
+      atual.despesaLinhas, filtro, this::identificadorBeneficiario
+    );
+    List<SerieRanking> top = combinarSerieHistorica(
+      historicoSerie, mesAtual, meses, 30
+    );
 
     titulo(sheet, tituloRow, 0, 15, titulo, e.secao);
     texto(sheet, tituloRow + 1, 0, "Ranking", e.cabecalho);
@@ -1115,31 +1122,45 @@ public class ComercialRelatorioFinalService {
 
     for (int i = 0; i < top.size(); i++) {
       int r = tituloRow + 2 + i;
-      Ranking item = top.get(i);
+      SerieRanking item = top.get(i);
       inteiro(sheet, r, 0, i + 1, e.inteiro);
       texto(sheet, r, 1, item.chave, e.corpo);
-      texto(sheet, r, 2, situacaoBeneficiario(item.chave), e.corpo);
+      texto(sheet, r, 2, situacaoBeneficiario(item.chave, situacoes), e.corpo);
       for (int m = 0; m < 12; m++) {
-        BigDecimal valor = somarFiltrado(meses.get(m).despesaLinhas, linha ->
-          filtro.test(linha) && item.chave.equals(identificadorBeneficiario(linha)));
+        BigDecimal valor = item.valores.getOrDefault(meses.get(m).mes, ZERO);
         if (valor.signum() != 0) numero(sheet, r, 3 + m, valor, e.moeda);
       }
-      formula(sheet, r, 15, "SUM(D" + (r + 1) + ":O" + (r + 1) + ")", e.moeda);
+      numero(sheet, r, 15, item.total, e.moeda);
     }
   }
 
-  private void analiseSessoes(org.apache.poi.ss.usermodel.Sheet sheet, List<MesDados> meses, int tituloRow, Estilos e) {
+  private void analiseSessoes(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    int tituloRow,
+    Map<String, Map<YearMonth, BigDecimal>> historicoSerie,
+    Estilos e
+  ) {
     Predicate<Map<String, Object>> filtro = linha ->
-      "Sessões Multi".equals(classificarGrupo(texto(linha, "GRUPO_PRESTADOR", "GRUPO", "TIPO_PRESTADOR")));
-    List<LinkedHashMap<String, Object>> todas = meses.stream().flatMap(m -> m.despesaLinhas.stream())
-      .filter(filtro).toList();
-    List<Ranking> top = ranking(todas, this::descricaoUtilizacao, 10);
+      "Sessões Multi".equals(classificarGrupo(texto(
+        linha, "GRUPO_PRESTADOR", "GRUPO", "TIPO_PRESTADOR"
+      )));
+
+    MesDados atual = meses.getLast();
+    Map<String, BigDecimal> mesAtual = serieAtual(
+      atual.despesaLinhas, filtro, this::descricaoUtilizacao
+    );
+    List<SerieRanking> top = combinarSerieHistorica(
+      historicoSerie, mesAtual, meses, 10
+    );
 
     titulo(sheet, tituloRow, 0, 14,
       "Análise Sintética das principais utilizações em SESSÕES MULTI – Acumulado (12 meses)", e.secao);
     texto(sheet, tituloRow + 1, 0, "Ranking", e.cabecalho);
     texto(sheet, tituloRow + 1, 1, "Tipo de Sessão", e.cabecalho);
-    for (int i = 0; i < 12; i++) data(sheet, tituloRow + 1, 2 + i, meses.get(i).mes.atDay(1), e.cabecalhoMes);
+    for (int i = 0; i < 12; i++) {
+      data(sheet, tituloRow + 1, 2 + i, meses.get(i).mes.atDay(1), e.cabecalhoMes);
+    }
     texto(sheet, tituloRow + 1, 14, "TOTAL", e.cabecalho);
 
     for (int i = 0; i < 10; i++) {
@@ -1149,14 +1170,13 @@ public class ComercialRelatorioFinalService {
         numero(sheet, r, 14, ZERO, e.moeda);
         continue;
       }
-      Ranking item = top.get(i);
+      SerieRanking item = top.get(i);
       texto(sheet, r, 1, item.chave, e.corpo);
       for (int m = 0; m < 12; m++) {
-        BigDecimal valor = somarFiltrado(meses.get(m).despesaLinhas, linha ->
-          filtro.test(linha) && item.chave.equals(descricaoUtilizacao(linha)));
+        BigDecimal valor = item.valores.getOrDefault(meses.get(m).mes, ZERO);
         if (valor.signum() != 0) numero(sheet, r, 2 + m, valor, e.moeda);
       }
-      formula(sheet, r, 14, "SUM(C" + (r + 1) + ":N" + (r + 1) + ")", e.moeda);
+      numero(sheet, r, 14, item.total, e.moeda);
     }
   }
 
@@ -1239,6 +1259,50 @@ public class ComercialRelatorioFinalService {
       return XDDFDataSourcesFactory.fromStringCellRange(sheet, range);
     }
     return XDDFDataSourcesFactory.fromNumericCellRange(sheet, range);
+  }
+
+  private Map<String, BigDecimal> serieAtual(
+    List<LinkedHashMap<String, Object>> linhas,
+    Predicate<Map<String, Object>> filtro,
+    java.util.function.Function<Map<String, Object>, String> chave
+  ) {
+    Map<String, BigDecimal> totais = new LinkedHashMap<>();
+    for (Map<String, Object> linha : linhas) {
+      if (!filtro.test(linha)) continue;
+      String valor = chave.apply(linha);
+      if (valor == null || valor.isBlank()) valor = "NÃO INFORMADO";
+      totais.merge(valor.trim(), valorDespesa(linha), BigDecimal::add);
+    }
+    return totais;
+  }
+
+  private List<SerieRanking> combinarSerieHistorica(
+    Map<String, Map<YearMonth, BigDecimal>> historico,
+    Map<String, BigDecimal> atual,
+    List<MesDados> meses,
+    int limite
+  ) {
+    Set<String> chaves = new LinkedHashSet<>();
+    chaves.addAll(historico.keySet());
+    chaves.addAll(atual.keySet());
+
+    YearMonth mesAtual = meses.getLast().mes;
+    return chaves.stream().map(chave -> {
+      Map<YearMonth, BigDecimal> valores = new LinkedHashMap<>();
+      BigDecimal total = ZERO;
+      for (MesDados mes : meses) {
+        BigDecimal valor = mes.mes.equals(mesAtual)
+          ? atual.getOrDefault(chave, ZERO)
+          : historico.getOrDefault(chave, Map.of()).getOrDefault(mes.mes, ZERO);
+        valores.put(mes.mes, valor);
+        total = total.add(valor);
+      }
+      return new SerieRanking(chave, valores, total);
+    })
+      .filter(item -> item.total.signum() != 0)
+      .sorted(Comparator.comparing(SerieRanking::total).reversed())
+      .limit(limite)
+      .toList();
   }
 
   private Map<String, BigDecimal> rankingMapa(
@@ -1474,6 +1538,11 @@ public class ComercialRelatorioFinalService {
     Map<String, Map<YearMonth, BigDecimal>> sessoes
   ) {}
   private record Ranking(String chave, BigDecimal valor) {}
+  private record SerieRanking(
+    String chave,
+    Map<YearMonth, BigDecimal> valores,
+    BigDecimal total
+  ) {}
   private record Serie(String nome, CellRangeAddress valores) {}
 
   private static void titulo(org.apache.poi.ss.usermodel.Sheet s, int r, int c1, int c2, String valor, CellStyle estilo) {

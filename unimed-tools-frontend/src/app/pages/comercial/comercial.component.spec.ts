@@ -223,6 +223,9 @@ describe('ComercialComponent', () => {
     component.competence = '202608';
     component.referenceDate = '2026-08-31';
     component.situacaoCodigoCarteirinha = 'INATIVOS';
+    component.previousFinalReport = new File(['xlsx'], 'sinistralidade_anterior.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     component.selectedCompanyIds = [component.companies[0].id];
     component.reports.forEach((report) => {
       report.definition = {
@@ -288,6 +291,8 @@ describe('ComercialComponent', () => {
 
     expect(exportarComercialFinal).toHaveBeenCalledTimes(1);
     const request = exportarComercialFinal.mock.calls[0][0];
+    const arquivoAnterior = exportarComercialFinal.mock.calls[0][1];
+    expect(arquivoAnterior.name).toBe('sinistralidade_anterior.xlsx');
     expect(request.competencia).toBe('202608');
     expect(Object.keys(request.filtrosPorApi).sort()).toEqual(
       component.reports.map((report) => report.api).sort(),
@@ -305,6 +310,41 @@ describe('ComercialComponent', () => {
     ].sort();
     // Mesmo com a tela em "Somente inativos", o relatório final usa ativos + inativos.
     expect(codigosFaixaFinal).toEqual([2128, 9128]);
+  });
+
+  it('bloqueia o relatório final sem o XLSX do mês anterior', () => {
+    const exportarComercialFinal = vi.fn();
+    const component = new ComercialComponent(
+      { exportarComercialFinal } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    component.loadingDefinitions = false;
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = {
+        nome: report.api,
+        consultaSQL: '',
+        ordenacao: '',
+        filtros:
+          report.api === '0090-faixa-etaria'
+            ? [{
+                nomeFiltro: 'codigoscarteirinha',
+                tipoDadoFiltro: 'NUMBER',
+                mascaraFiltro: '',
+                conteudoFiltro: '',
+                obrigatorioFiltro: 'S',
+              }]
+            : [],
+      };
+      report.selected = true;
+    });
+
+    expect(component.canGenerateFinal).toBe(false);
+    component.downloadFinal();
+
+    expect(exportarComercialFinal).not.toHaveBeenCalled();
+    expect(component.error).toContain('arquivo XLSX do relatório final do mês anterior');
   });
 
   it('bloqueia o relatório final quando um dos quatro relatórios está desmarcado', () => {

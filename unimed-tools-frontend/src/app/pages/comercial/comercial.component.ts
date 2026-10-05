@@ -49,6 +49,7 @@ export class ComercialComponent implements OnInit {
   competence = this.previousCompetence();
   referenceDate = this.lastDayOfCompetence(this.competence);
   situacaoCodigoCarteirinha: SituacaoCodigoCarteirinha = 'TODOS';
+  previousFinalReport: File | null = null;
   loadingDefinitions = true;
   generating = false;
   downloadingAll = false;
@@ -178,6 +179,7 @@ export class ComercialComponent implements OnInit {
       !this.generating &&
       !this.downloadingAll &&
       !this.generatingFinal &&
+      Boolean(this.previousFinalReport) &&
       this.reports.every((report) => report.selected && Boolean(report.definition)) &&
       Boolean(ageRange && this.ageRangeCardFilter(ageRange))
     );
@@ -260,6 +262,22 @@ export class ComercialComponent implements OnInit {
     if (this.generating || this.downloadingAll || this.generatingFinal) return;
     this.situacaoCodigoCarteirinha = value;
     this.clearPreview();
+  }
+
+  onPreviousFinalReportChange(event: Event): void {
+    if (this.generating || this.downloadingAll || this.generatingFinal) return;
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+
+    if (file && !file.name.toLowerCase().endsWith('.xlsx')) {
+      this.previousFinalReport = null;
+      input.value = '';
+      this.error = 'O relatório anterior precisa ser um arquivo XLSX.';
+      return;
+    }
+
+    this.previousFinalReport = file;
+    this.error = '';
   }
 
   async generatePreview(): Promise<void> {
@@ -405,6 +423,11 @@ export class ComercialComponent implements OnInit {
       this.error = 'Selecione os quatro relatórios para gerar o relatório final.';
       return;
     }
+    if (!this.previousFinalReport) {
+      this.error =
+        'Envie o arquivo XLSX do relatório final do mês anterior para reaproveitar o histórico.';
+      return;
+    }
     if (this.loadingDefinitions || this.reports.some((report) => !report.definition)) {
       this.error =
         'As quatro APIs do Comercial precisam estar disponíveis para gerar o relatório final.';
@@ -431,11 +454,14 @@ export class ComercialComponent implements OnInit {
     const filename = `sinistralidade_${this.safe(company.nome)}_${this.competence}.xlsx`;
 
     this.reportsService
-      .exportarComercialFinal({
-        empresa: company.nome,
-        competencia: this.competence,
-        filtrosPorApi,
-      })
+      .exportarComercialFinal(
+        {
+          empresa: company.nome,
+          competencia: this.competence,
+          filtrosPorApi,
+        },
+        this.previousFinalReport,
+      )
       .pipe(
         finalize(() => {
           this.generatingFinal = false;

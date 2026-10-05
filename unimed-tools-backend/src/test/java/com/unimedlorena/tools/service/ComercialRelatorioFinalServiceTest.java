@@ -5,14 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.unimedlorena.tools.dto.ComercialRelatorioFinalRequest;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +21,7 @@ import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 class ComercialRelatorioFinalServiceTest {
@@ -35,60 +35,54 @@ class ComercialRelatorioFinalServiceTest {
     service = new ComercialRelatorioFinalService(exportacao);
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"202606", "202607", "202608"})
-  void geraXlsxFormatadoComJanelaMovelRankingsEgraficos(String competencia) throws Exception {
+  @Test
+  void usaHistoricoDoXlsxEConsultaSomenteOMesAtual() throws Exception {
     when(exportacao.carregarRegistros(
       eq(ComercialRelatorioFinalService.API_RECEITA), anyMap()
-    )).thenAnswer(invocacao -> {
-      Map<String, Object> filtros = invocacao.getArgument(1);
-      int competenciaFiltro = ((Number) filtros.get("competencia")).intValue();
-      return List.of(
-        linha(
-          "TIPO", "MENSALIDADE",
-          "VALOR_TOTAL", BigDecimal.valueOf(1000 + competenciaFiltro % 100),
-          "REGIAO", "Vale do Paraiba",
-          "CODIGO_BENEFICIARIO", "090.2152.000001.00"
-        ),
-        linha(
-          "TIPO", "MENSALIDADE RETROATIVA",
-          "VALOR_TOTAL", BigDecimal.valueOf(200),
-          "REGIAO", "Vale do Paraiba",
-          "CODIGO_BENEFICIARIO", "090.9152.000002.00"
-        ),
-        linha(
-          "TIPO", "COPARTICIPACAO",
-          "VALOR_TOTAL", BigDecimal.valueOf(100)
-        ),
-        linha(
-          "TIPO", "TAXA ADMINISTRATIVA",
-          "VALOR_TOTAL", BigDecimal.valueOf(9000)
-        )
-      );
-    });
+    )).thenReturn(List.of(
+      linha(
+        "TIPO", "Cobrança normal de mensalidade",
+        "VALOR_TOTAL", BigDecimal.valueOf(600),
+        "REGIAO_BENEF", "Vale do Paraiba",
+        "CODIGO_BENEFICIARIO", "090.2152.000001.00"
+      ),
+      linha(
+        "TIPO", "Mensalidade retroativa",
+        "VALOR_TOTAL", BigDecimal.valueOf(125.98),
+        "REGIAO_BENEF", "Sudeste",
+        "CODIGO_BENEFICIARIO", "090.2152.000002.00"
+      ),
+      linha(
+        "TIPO", "Taxa administrativa",
+        "VALOR_TOTAL", BigDecimal.valueOf(9999),
+        "REGIAO_BENEF", "Sudeste",
+        "CODIGO_BENEFICIARIO", "IGNORAR"
+      )
+    ));
 
     when(exportacao.carregarRegistros(
       eq(ComercialRelatorioFinalService.API_DESPESA), anyMap()
     )).thenReturn(List.of(
       linha(
         "DESCRICAO_TIPO_GUIA", "Consulta",
-        "GRUPO_PRESTADOR", "Recurso Próprio",
+        "GRUPO_PRESTADOR", "RECURSO PROPRIO",
         "CODIGO_BENEFICIARIO", "090.2152.000001.00",
-        "NOME_ESPECIALIDADE", "CLINICA MEDICA",
-        "DESCRICAO_PROCEDIMENTO", "CONSULTA SINTETICA",
-        "REGIAO", "Vale do Paraiba",
-        "VALOR_TOTAL", BigDecimal.valueOf(400),
-        "VALOR_TOTAL_21", BigDecimal.valueOf(420)
+        "NOME_ESPECIALIDADE", "CLINICO",
+        "DESCRICAO_ITEM", "CONSULTA",
+        "REGIAO_BENEF", "Vale do Paraiba",
+        "ATIVO", "S",
+        "VALOR_TOTAL", BigDecimal.valueOf(100),
+        "VALOR_TOTAL_21", BigDecimal.valueOf(121)
       ),
       linha(
         "DESCRICAO_TIPO_GUIA", "Exame",
-        "GRUPO_PRESTADOR", "Sessões Multi",
-        "CODIGO_BENEFICIARIO", "090.9152.000002.00",
+        "GRUPO_PRESTADOR", "SESSOES MULTI",
+        "CODIGO_BENEFICIARIO", "090.2152.000002.00",
         "NOME_ESPECIALIDADE", "PSICOLOGIA",
-        "DESCRICAO_PROCEDIMENTO", "Descrição original do procedimento",
         "DESCRICAO_ITEM", "Sessao de Psicologia/Psicoterapia",
-        "REGIAO", "Vale do Paraiba",
-        "VALOR_TOTAL", BigDecimal.valueOf(600),
+        "REGIAO_BENEF", "Sudeste",
+        "ATIVO", "S",
+        "VALOR_TOTAL", BigDecimal.valueOf(500),
         "VALOR_TOTAL_21", BigDecimal.valueOf(630)
       )
     ));
@@ -96,8 +90,24 @@ class ComercialRelatorioFinalServiceTest {
     when(exportacao.carregarRegistros(
       eq(ComercialRelatorioFinalService.API_BENEFICIARIOS), anyMap()
     )).thenReturn(List.of(
-      linha("CODIGO_BENEFICIARIO", "090.2152.000001.00", "STATUS", "INATIVO"),
-      linha("CODIGO_BENEFICIARIO", "090.9152.000002.00", "STATUS", "ATIVO")
+      linha(
+        "COD_BENEFICIARIO", "090.2152.000001.00",
+        "DATA_CADASTRO", "01/01/2026",
+        "DATA_EXCLUSAO", "",
+        "ATIVO", "S"
+      ),
+      linha(
+        "COD_BENEFICIARIO", "090.2152.000002.00",
+        "DATA_CADASTRO", "01/01/2026",
+        "DATA_EXCLUSAO", "15/08/2026",
+        "ATIVO", "N"
+      ),
+      linha(
+        "COD_BENEFICIARIO", "090.2152.000003.00",
+        "DATA_CADASTRO", "01/09/2026",
+        "DATA_EXCLUSAO", "",
+        "ATIVO", "S"
+      )
     ));
 
     when(exportacao.carregarFaixaEtaria(org.mockito.ArgumentMatchers.anyList()))
@@ -105,90 +115,134 @@ class ComercialRelatorioFinalServiceTest {
         linha("FAIXA_ETARIA", "0 a 18", "DEP", 2, "TIT", 1, "FEM", 2, "MASC", 1, "TOTAL", 3)
       ));
 
-    byte[] arquivo = service.gerar(request(competencia));
-    YearMonth alvo = YearMonth.parse(competencia, DateTimeFormatter.ofPattern("yyyyMM"));
-    String nomeAba = String.format("%02d%04d", alvo.getMonthValue(), alvo.getYear());
+    byte[] arquivo = service.gerar(request(), historicoAnterior());
 
     try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(arquivo))) {
-      var sheet = workbook.getSheet(nomeAba);
+      var sheet = workbook.getSheet("082026");
       assertNotNull(sheet);
-      assertEquals("RELATÓRIO DE SINISTRALIDADE — EMPRESA TESTE", sheet.getRow(0).getCell(0).getStringCellValue());
+      assertNotNull(workbook.getSheet("072026"));
+      assertNotNull(workbook.getSheet("082025"));
+      assertEquals("082026", workbook.getSheetAt(0).getSheetName());
 
-      assertEquals(alvo.minusMonths(11).atDay(1), sheet.getRow(2).getCell(0).getLocalDateTimeCellValue().toLocalDate());
-      assertEquals(alvo.atDay(1), sheet.getRow(13).getCell(0).getLocalDateTimeCellValue().toLocalDate());
-      assertEquals(1d, sheet.getRow(13).getCell(4).getNumericCellValue());
+      // Histórico: julho vem do arquivo anterior; agosto é a única competência nova.
+      assertEquals(1110d, sheet.getRow(12).getCell(1).getNumericCellValue());
+      assertEquals(725.98d, sheet.getRow(13).getCell(1).getNumericCellValue(), 0.001);
+      assertEquals(751d, sheet.getRow(13).getCell(2).getNumericCellValue(), 0.001);
+
+      // Beneficiários são reconstruídos na data da competência:
+      // um ativo, um já excluído e um cadastro futuro ignorado.
       assertEquals(1d, sheet.getRow(18).getCell(1).getNumericCellValue());
       assertEquals(1d, sheet.getRow(18).getCell(2).getNumericCellValue());
 
-      // Receita ignora a taxa administrativa e mantém apenas mensalidades.
-      assertEquals(
-        1200d + Integer.parseInt(competencia.substring(4)),
-        sheet.getRow(13).getCell(1).getNumericCellValue()
-      );
+      // Vale do Paraíba e Sudeste ficam separados.
+      assertEquals(1d, sheet.getRow(89).getCell(1).getNumericCellValue());
+      assertEquals(125.98d, sheet.getRow(89).getCell(5).getNumericCellValue(), 0.001);
+      assertEquals(630d, sheet.getRow(89).getCell(3).getNumericCellValue(), 0.001);
 
-      // Sinistro e rankings usam VALOR_TOTAL_21, nunca VALOR_TOTAL.
-      assertEquals(420d, sheet.getRow(64).getCell(1).getNumericCellValue());
-      assertEquals(630d, sheet.getRow(64).getCell(2).getNumericCellValue());
-      assertEquals("090.9152.000002.00", sheet.getRow(113).getCell(1).getStringCellValue());
+      assertEquals(1d, sheet.getRow(94).getCell(1).getNumericCellValue());
+      assertEquals(600d, sheet.getRow(94).getCell(5).getNumericCellValue(), 0.001);
+      assertEquals(121d, sheet.getRow(94).getCell(3).getNumericCellValue(), 0.001);
+
+      // Sessões Multi não podem migrar para Outros.
+      assertEquals(630d, sheet.getRow(80).getCell(5).getNumericCellValue(), 0.001);
+
+      // Ranking usa a situação proveniente da base do beneficiário.
+      assertEquals("090.2152.000002.00", sheet.getRow(113).getCell(1).getStringCellValue());
       assertEquals("INATIVO", sheet.getRow(113).getCell(2).getStringCellValue());
-      assertEquals(630d, sheet.getRow(113).getCell(3).getNumericCellValue());
-      assertEquals("PSICOLOGIA", sheet.getRow(113).getCell(7).getStringCellValue());
-
-      // A tabela SADT também exibe a situação ao lado do código.
-      assertEquals("090.9152.000002.00", sheet.getRow(176).getCell(1).getStringCellValue());
-      assertEquals("INATIVO", sheet.getRow(176).getCell(2).getStringCellValue());
-
-      // O bloco de Sessões Multi consome a descrição sintetizada do item.
-      assertEquals(
-        "Sessao de Psicologia/Psicoterapia",
-        sheet.getRow(211).getCell(1).getStringCellValue()
-      );
 
       assertEquals(CellType.FORMULA, sheet.getRow(14).getCell(1).getCellType());
       assertEquals(3, sheet.getDrawingPatriarch().getCharts().size());
     }
-  }
 
-  @Test
-  void falhaSeDespesaNaoTrouxerValorTotal21() {
-    when(exportacao.carregarRegistros(
+    verify(exportacao, times(1)).carregarRegistros(
       eq(ComercialRelatorioFinalService.API_RECEITA), anyMap()
-    )).thenReturn(List.of(
-      linha(
-        "TIPO", "MENSALIDADE",
-        "VALOR_TOTAL", 100,
-        "CODIGO_BENEFICIARIO", "090.2152.000001.00"
-      )
-    ));
-    when(exportacao.carregarRegistros(
+    );
+    verify(exportacao, times(1)).carregarRegistros(
       eq(ComercialRelatorioFinalService.API_DESPESA), anyMap()
-    )).thenReturn(List.of(
-      linha(
-        "VALOR_TOTAL", 100,
-        "DESCRICAO_TIPO_GUIA", "Consulta",
-        "CODIGO_BENEFICIARIO", "090.2152.000001.00"
-      )
-    ));
+    );
 
-    assertThrows(IllegalArgumentException.class, () -> service.gerar(request("202608")));
+    ArgumentCaptor<Map<String, Object>> filtros = ArgumentCaptor.forClass(Map.class);
+    verify(exportacao).carregarRegistros(
+      eq(ComercialRelatorioFinalService.API_RECEITA), filtros.capture()
+    );
+    assertEquals(202608, ((Number) filtros.getValue().get("competencia")).intValue());
   }
 
   @Test
-  void rejeitaReceitaEDespesaSemFiltroDeCompetencia() {
-    Map<String, List<Map<String, Object>>> filtros = new LinkedHashMap<>();
-    filtros.put(ComercialRelatorioFinalService.API_BENEFICIARIOS, List.of(Map.of("empresa", 1)));
-    filtros.put(ComercialRelatorioFinalService.API_RECEITA, List.of(Map.of("empresa", 1)));
-    filtros.put(ComercialRelatorioFinalService.API_DESPESA, List.of(Map.of("empresa", 1)));
-    filtros.put(ComercialRelatorioFinalService.API_FAIXA, List.of(Map.of(
-      "empresa", 1, "datareferencia", "31/08/2026"
-    )));
-
-    var request = new ComercialRelatorioFinalRequest("EMPRESA TESTE", "202608", filtros);
-
-    assertThrows(IllegalArgumentException.class, () -> service.gerar(request));
+  void exigeArquivoAnterior() {
+    assertThrows(IllegalArgumentException.class, () -> service.gerar(request()));
+    assertThrows(IllegalArgumentException.class, () -> service.gerar(request(), new byte[0]));
   }
 
-  private ComercialRelatorioFinalRequest request(String competencia) {
+  @Test
+  void rejeitaHistoricoSemAbaDoMesAnterior() throws Exception {
+    try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+      wb.createSheet("062026");
+      wb.write(out);
+      assertThrows(IllegalArgumentException.class, () -> service.gerar(request(), out.toByteArray()));
+    }
+  }
+
+  private byte[] historicoAnterior() throws Exception {
+    try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+      var julho = wb.createSheet("072026");
+      var agosto25 = wb.createSheet("082025");
+
+      LocalDate inicio = LocalDate.of(2025, 8, 1);
+      for (int i = 0; i < 12; i++) {
+        LocalDate mes = inicio.plusMonths(i);
+        int rResumo = 2 + i;
+        julho.createRow(rResumo).createCell(0).setCellValue(mes);
+        julho.getRow(rResumo).createCell(1).setCellValue(1000 + i * 10);
+        julho.getRow(rResumo).createCell(2).setCellValue(800 + i * 10);
+        julho.getRow(rResumo).createCell(3).setCellValue(50);
+        julho.getRow(rResumo).createCell(4).setCellValue(1600 + i);
+
+        int rTipo = 53 + i;
+        julho.createRow(rTipo).createCell(0).setCellValue(mes);
+        julho.getRow(rTipo).createCell(1).setCellValue(100);
+        julho.getRow(rTipo).createCell(2).setCellValue(200);
+        julho.getRow(rTipo).createCell(3).setCellValue(300);
+        julho.getRow(rTipo).createCell(4).setCellValue(200);
+
+        int rGrupo = 69 + i;
+        julho.createRow(rGrupo).createCell(0).setCellValue(mes);
+        for (int c = 1; c <= 7; c++) julho.getRow(rGrupo).createCell(c).setCellValue(100);
+      }
+
+      // Primeira e segunda ocorrências da tabela regional.
+      tabelaRegional(julho, 86, 10, 20);
+      tabelaRegional(julho, 99, 120, 240);
+      tabelaRegional(agosto25, 86, 10, 20);
+
+      wb.write(out);
+      return out.toByteArray();
+    }
+  }
+
+  private void tabelaRegional(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    int headerRow,
+    double sinistroBase,
+    double receitaBase
+  ) {
+    var header = sheet.getRow(headerRow);
+    if (header == null) header = sheet.createRow(headerRow);
+    header.createCell(0).setCellValue("Região");
+
+    String[] regioes = {
+      "Módulo Coração", "Central Nacional", "Sudeste (Fora Vale)", "Centro Oeste",
+      "Nordeste", "Norte", "Sul", "Vale do Paraiba", "Local"
+    };
+    for (int i = 0; i < regioes.length; i++) {
+      var row = sheet.createRow(headerRow + 1 + i);
+      row.createCell(0).setCellValue(regioes[i]);
+      row.createCell(3).setCellValue(sinistroBase + i);
+      row.createCell(5).setCellValue(receitaBase + i);
+    }
+  }
+
+  private ComercialRelatorioFinalRequest request() {
     Map<String, List<Map<String, Object>>> filtros = new LinkedHashMap<>();
     filtros.put(
       ComercialRelatorioFinalService.API_BENEFICIARIOS,
@@ -196,17 +250,17 @@ class ComercialRelatorioFinalServiceTest {
     );
     filtros.put(
       ComercialRelatorioFinalService.API_RECEITA,
-      List.of(Map.of("empresa", 1, "competencia", Integer.valueOf(competencia)))
+      List.of(Map.of("empresa", 1, "competencia", 202608))
     );
     filtros.put(
       ComercialRelatorioFinalService.API_DESPESA,
-      List.of(Map.of("empresa", 1, "competencia", Integer.valueOf(competencia)))
+      List.of(Map.of("empresa", 1, "competencia", 202608))
     );
     filtros.put(
       ComercialRelatorioFinalService.API_FAIXA,
       List.of(Map.of("empresa", 1, "datareferencia", "31/08/2026"))
     );
-    return new ComercialRelatorioFinalRequest("EMPRESA TESTE", competencia, filtros);
+    return new ComercialRelatorioFinalRequest("EMPRESA TESTE", "202608", filtros);
   }
 
   private LinkedHashMap<String, Object> linha(Object... pares) {

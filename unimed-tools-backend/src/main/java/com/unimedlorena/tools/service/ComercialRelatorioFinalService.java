@@ -1,6 +1,7 @@
 package com.unimedlorena.tools.service;
 
 import com.unimedlorena.tools.dto.ComercialRelatorioFinalRequest;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -9,6 +10,7 @@ import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -23,6 +25,9 @@ import java.util.regex.Pattern;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
@@ -84,37 +89,61 @@ public class ComercialRelatorioFinalService {
   }
 
   public byte[] gerar(ComercialRelatorioFinalRequest request) throws IOException {
-    validar(request);
-    YearMonth alvo = YearMonth.parse(request.competencia(), COMPETENCIA);
-    List<YearMonth> meses = new ArrayList<>();
-    for (int i = 11; i >= 0; i--) meses.add(alvo.minusMonths(i));
+    throw new IllegalArgumentException(
+      "Envie o relatório final do mês anterior para gerar a nova competência."
+    );
+  }
 
-    List<MesDados> dados = new ArrayList<>();
-    for (YearMonth mes : meses) {
-      List<LinkedHashMap<String, Object>> receita = carregar(
-        API_RECEITA, filtrosMes(request, API_RECEITA, mes)
+  public byte[] gerar(
+    ComercialRelatorioFinalRequest request,
+    byte[] arquivoAnterior
+  ) throws IOException {
+    validar(request);
+    if (arquivoAnterior == null || arquivoAnterior.length == 0) {
+      throw new IllegalArgumentException(
+        "Envie o relatório final do mês anterior em formato XLSX."
       );
-      List<LinkedHashMap<String, Object>> despesa = carregar(
-        API_DESPESA, filtrosMes(request, API_DESPESA, mes)
-      );
-      dados.add(agregarMes(mes, receita, despesa));
     }
 
-    // Beneficiários é uma fotografia da empresa e não exige competência.
-    // O histórico mensal de vidas já vem das mensalidades da Receita.
+    YearMonth alvo = YearMonth.parse(request.competencia(), COMPETENCIA);
+    HistoricoRelatorio historico = carregarHistorico(arquivoAnterior, alvo);
+
+    // Somente a competência atual volta ao SGU. Os 11 meses anteriores vêm
+    // exclusivamente do XLSX enviado pelo usuário.
+    List<LinkedHashMap<String, Object>> receitaAtual = carregar(
+      API_RECEITA, filtrosMes(request, API_RECEITA, alvo)
+    );
+    List<LinkedHashMap<String, Object>> despesaAtual = carregar(
+      API_DESPESA, filtrosMes(request, API_DESPESA, alvo)
+    );
+    MesDados atual = agregarMes(alvo, receitaAtual, despesaAtual);
+
+    List<MesDados> dados = new ArrayList<>(historico.meses());
+    dados.add(atual);
+    if (dados.size() != 12) {
+      throw new IllegalArgumentException(
+        "O arquivo anterior não contém os 11 meses necessários para completar a janela móvel."
+      );
+    }
+
     List<LinkedHashMap<String, Object>> beneficiarios = carregar(
       API_BENEFICIARIOS, filtrosObrigatorios(request, API_BENEFICIARIOS)
     );
-    ContagemBeneficiarios contagem = contarBeneficiarios(beneficiarios);
-    long ativosAnterior = dados.size() > 1
-      ? dados.get(dados.size() - 2).beneficiariosAtivos
-      : 0;
+    LocalDate referencia = alvo.atEndOfMonth();
+    ContagemBeneficiarios contagem = contarBeneficiarios(beneficiarios, referencia);
+    Map<String, String> situacoes = situacoesBeneficiarios(
+      beneficiarios, despesaAtual, referencia
+    );
+    long ativosAnterior = historico.meses().getLast().beneficiariosAtivos;
 
     List<LinkedHashMap<String, Object>> faixa = exportacao.carregarFaixaEtaria(
       filtrosObrigatorios(request, API_FAIXA)
     );
 
-    return montarWorkbook(request.empresa(), alvo, dados, contagem, ativosAnterior, faixa);
+    return montarWorkbook(
+      request.empresa(), alvo, dados, contagem, ativosAnterior, faixa,
+      historico, situacoes
+    );
   }
 
   private void validar(ComercialRelatorioFinalRequest request) {

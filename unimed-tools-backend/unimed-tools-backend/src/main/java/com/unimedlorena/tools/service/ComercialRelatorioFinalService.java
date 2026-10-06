@@ -1,0 +1,1750 @@
+package com.unimedlorena.tools.service;
+
+import com.unimedlorena.tools.dto.ComercialRelatorioFinalRequest;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.Normalizer;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.DataFormat;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFDrawing;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.stereotype.Service;
+
+/**
+ * Consolida as quatro APIs do Comercial em uma planilha executiva mensal.
+ *
+ * <p>O serviço não persiste linhas do SGU. As bases são consultadas, agregadas em
+ * memória e descartadas após a geração do XLSX. O arquivo de referência usado
+ * para definir o layout não faz parte do repositório e nenhum dado real é
+ * incluído em testes.</p>
+ */
+@Service
+public class ComercialRelatorioFinalService {
+  public static final String API_BENEFICIARIOS = "0090-beneficiario-empresa";
+  public static final String API_RECEITA = "0090-receita-empresa-com-grupo";
+  public static final String API_DESPESA = "0090-despesa-empresas";
+  public static final String API_FAIXA = "0090-faixa-etaria";
+
+  private static final DateTimeFormatter COMPETENCIA = DateTimeFormatter.ofPattern("yyyyMM");
+  private static final Pattern CODIGO_CARTEIRINHA_NO_BENEFICIARIO =
+    Pattern.compile("(?<!\\d)(\\d{4})(?!\\d)");
+  private static final List<String> TIPOS_GUIA = List.of("Consultas", "SADT", "Internações", "PA/PS");
+  private static final List<String> GRUPOS = List.of(
+    "Recurso Próprio", "Médico Cooperado", "Clínica de Imagem", "Intercâmbio",
+    "Sessões Multi", "Home-Care", "Outros"
+  );
+  private static final List<String> REGIOES = List.of(
+    "Módulo Coração", "Central Nacional", "Sudeste (Fora Vale)", "Centro Oeste",
+    "Nordeste", "Norte", "Sul", "Vale do Paraiba", "Local"
+  );
+
+  private final ExportacaoRelatorioService exportacao;
+
+  public ComercialRelatorioFinalService(ExportacaoRelatorioService exportacao) {
+    this.exportacao = exportacao;
+  }
+
+  public byte[] gerar(ComercialRelatorioFinalRequest request) throws IOException {
+    throw new IllegalArgumentException(
+      "Envie o relatório final do mês anterior para gerar a nova competência."
+    );
+  }
+
+  public byte[] gerar(
+    ComercialRelatorioFinalRequest request,
+    byte[] arquivoAnterior
+  ) throws IOException {
+    validar(request);
+    if (arquivoAnterior == null || arquivoAnterior.length == 0) {
+      throw new IllegalArgumentException(
+        "Envie o relatório final do mês anterior em formato XLSX."
+      );
+    }
+
+    YearMonth alvo = YearMonth.parse(request.competencia(), COMPETENCIA);
+    HistoricoRelatorio historico = carregarHistorico(arquivoAnterior, alvo);
+
+    // Somente a competência atual volta ao SGU. Os 11 meses anteriores vêm
+    // exclusivamente do XLSX enviado pelo usuário.
+    List<LinkedHashMap<String, Object>> receitaAtual = carregar(
+      API_RECEITA, filtrosMes(request, API_RECEITA, alvo)
+    );
+    List<LinkedHashMap<String, Object>> despesaAtual = carregar(
+      API_DESPESA, filtrosMes(request, API_DESPESA, alvo)
+    );
+    MesDados atual = agregarMes(alvo, receitaAtual, despesaAtual);
+
+    List<MesDados> dados = new ArrayList<>(historico.meses());
+    dados.add(atual);
+    if (dados.size() != 12) {
+      throw new IllegalArgumentException(
+        "O arquivo anterior não contém os 11 meses necessários para completar a janela móvel."
+      );
+    }
+
+    List<LinkedHashMap<String, Object>> beneficiarios = carregar(
+      API_BENEFICIARIOS, filtrosObrigatorios(request, API_BENEFICIARIOS)
+    );
+    ContagemBeneficiarios contagem = contarBeneficiarios(beneficiarios, alvo.atEndOfMonth());
+    Map<String, String> situacoes = situacoesBeneficiarios(
+      beneficiarios, despesaAtual
+    );
+    long ativosAnterior = historico.meses().getLast().beneficiariosAtivos;
+
+    List<LinkedHashMap<String, Object>> faixa = exportacao.carregarFaixaEtaria(
+      filtrosObrigatorios(request, API_FAIXA)
+    );
+
+    return montarWorkbook(
+      request.empresa(), alvo, dados, contagem, ativosAnterior, faixa,
+      historico, situacoes, arquivoAnterior
+    );
+  }
+
+  private void validar(ComercialRelatorioFinalRequest request) {
+    if (request == null) throw new IllegalArgumentException("Informe os dados do relatório final.");
+    if (request.empresa() == null || request.empresa().isBlank()) {
+      throw new IllegalArgumentException("Informe a empresa do relatório final.");
+    }
+    if (request.competencia() == null || !request.competencia().matches("\\d{6}")) {
+      throw new IllegalArgumentException("Informe a competência no formato AAAAMM.");
+    }
+    try {
+      YearMonth.parse(request.competencia(), COMPETENCIA);
+    } catch (Exception ex) {
+      throw new IllegalArgumentException("A competência informada é inválida.");
+    }
+    for (String api : List.of(API_BENEFICIARIOS, API_RECEITA, API_DESPESA, API_FAIXA)) {
+      filtrosObrigatorios(request, api);
+    }
+  }
+
+  private List<Map<String, Object>> filtrosObrigatorios(
+    ComercialRelatorioFinalRequest request,
+    String api
+  ) {
+    if (request.filtrosPorApi() == null) {
+      throw new IllegalArgumentException("Os filtros do Comercial não foram informados.");
+    }
+    List<Map<String, Object>> filtros = request.filtrosPorApi().get(api);
+    if (filtros == null || filtros.isEmpty()) {
+      throw new IllegalArgumentException("Filtros ausentes para a API " + api + ".");
+    }
+    return filtros;
+  }
+
+  private List<Map<String, Object>> filtrosMes(
+    ComercialRelatorioFinalRequest request,
+    String api,
+    YearMonth mes
+  ) {
+    List<Map<String, Object>> base = filtrosObrigatorios(request, api);
+    List<Map<String, Object>> resultado = new ArrayList<>();
+    boolean encontrouCompetencia = false;
+
+    for (Map<String, Object> original : base) {
+      LinkedHashMap<String, Object> copia = new LinkedHashMap<>();
+      for (Map.Entry<String, Object> entrada : original.entrySet()) {
+        String normalizada = normalizar(entrada.getKey());
+        Object valor = entrada.getValue();
+        if (normalizada.contains("COMPETENCIA") || normalizada.equals("COMPET")) {
+          valor = adaptarTipoCompetencia(valor, mes);
+          encontrouCompetencia = true;
+        }
+        if (normalizada.contains("DATAREFERENCIA") || normalizada.equals("REFERENCIA")) {
+          valor = adaptarDataReferencia(valor, mes.atEndOfMonth());
+        }
+        copia.put(entrada.getKey(), valor);
+      }
+      resultado.add(copia);
+    }
+
+    if (!encontrouCompetencia && !API_FAIXA.equals(api)) {
+      throw new IllegalArgumentException(
+        "A API " + api + " não expõe filtro de competência; não é possível montar os 12 meses."
+      );
+    }
+    return resultado;
+  }
+
+  private Object adaptarTipoCompetencia(Object original, YearMonth mes) {
+    String valor = mes.format(COMPETENCIA);
+    return original instanceof Number ? Integer.valueOf(valor) : valor;
+  }
+
+  private Object adaptarDataReferencia(Object original, LocalDate data) {
+    if (original instanceof Number) return original;
+    String texto = String.valueOf(original == null ? "" : original);
+    if (texto.matches("\\d{2}/\\d{2}/\\d{4}")) {
+      return data.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+    }
+    return data.toString();
+  }
+
+  private List<LinkedHashMap<String, Object>> carregar(
+    String api,
+    List<Map<String, Object>> combinacoes
+  ) {
+    List<LinkedHashMap<String, Object>> linhas = new ArrayList<>();
+    for (Map<String, Object> filtros : new LinkedHashSet<>(combinacoes)) {
+      linhas.addAll(exportacao.carregarRegistros(api, filtros));
+    }
+    return linhas;
+  }
+
+  private MesDados agregarMes(
+    YearMonth mes,
+    List<LinkedHashMap<String, Object>> receitaLinhas,
+    List<LinkedHashMap<String, Object>> despesaLinhas
+  ) {
+    BigDecimal receita = ZERO;
+    BigDecimal copart = ZERO;
+    Map<String, BigDecimal> receitaRegiao = mapaDecimal(REGIOES);
+    Map<String, Set<String>> vidasRegiao = new LinkedHashMap<>();
+    Set<String> vidasAtivas = new LinkedHashSet<>();
+    REGIOES.forEach(r -> vidasRegiao.put(r, new LinkedHashSet<>()));
+
+    for (Map<String, Object> linha : receitaLinhas) {
+      BigDecimal valor = valorReceita(linha);
+      String tipo = texto(linha, "TIPO", "TIPO_RECEITA", "DESCRICAO_TIPO");
+      String tipoNormalizado = normalizar(tipo);
+      boolean mensalidade = tipoNormalizado.contains("MENSALIDADE");
+
+      if (tipoNormalizado.contains("COPART")) copart = copart.add(valor);
+
+      boolean acrescimoRetroativo = tipoNormalizado.equals("ACRESRETROATREF0626")
+        || tipoNormalizado.equals("ACRSRETROATREF0626");
+
+      // O acréscimo retroativo compõe a receita, mas não acrescenta vidas.
+      if (mensalidade || acrescimoRetroativo) {
+        receita = receita.add(valor);
+        String regiao = regiao(linha);
+        receitaRegiao.merge(regiao, valor, BigDecimal::add);
+      }
+      if (mensalidade) {
+        String regiao = regiao(linha);
+        String id = identificadorBeneficiario(linha);
+        if (id.isBlank()) id = "LINHA-" + regiao + "-" + vidasRegiao.get(regiao).size();
+        vidasAtivas.add(id);
+        vidasRegiao.get(regiao).add(id);
+      }
+    }
+
+    BigDecimal sinistro = ZERO;
+    Map<String, BigDecimal> tipoGuia = mapaDecimal(TIPOS_GUIA);
+    Map<String, BigDecimal> grupo = mapaDecimal(GRUPOS);
+    Map<String, BigDecimal> despesaRegiao = mapaDecimal(REGIOES);
+    Map<String, BigDecimal> centralRegiao = mapaDecimal(REGIOES);
+
+    for (Map<String, Object> linha : despesaLinhas) {
+      BigDecimal valor = valorDespesa(linha);
+      sinistro = sinistro.add(valor);
+
+      String guia = classificarTipoGuia(texto(
+        linha, "DESCRICAO_TIPO_GUIA", "TIPO_GUIA", "DESCRICAO_GUIA"
+      ));
+      if (guia != null) tipoGuia.merge(guia, valor, BigDecimal::add);
+
+      String grupoPrestador = classificarGrupo(texto(
+        linha, "GRUPO_PRESTADOR", "GRUPO", "TIPO_PRESTADOR"
+      ));
+      grupo.merge(grupoPrestador, valor, BigDecimal::add);
+      String regiaoDespesa = regiaoDespesa(linha);
+      despesaRegiao.merge(regiaoDespesa, valor, BigDecimal::add);
+      if (regiaoDespesa.equals("Central Nacional")) {
+        centralRegiao.merge(regiao(linha), valor, BigDecimal::add);
+        // O modelo exibe a Central também na região do prestador; a linha
+        // Local é o residual que mantém o total financeiro sem duplicação.
+        String prestador = normalizarRegiaoHistorica(texto(linha, "REGIAO_PREST", "REGIAO_PRESTADOR"));
+        if (prestador != null && !prestador.equals("Central Nacional") && !prestador.equals("Local")) {
+          despesaRegiao.merge(prestador, valor, BigDecimal::add);
+        }
+      }
+    }
+
+    Map<String, Integer> vidas = new LinkedHashMap<>();
+    REGIOES.forEach(r -> vidas.put(r, vidasRegiao.get(r).size()));
+
+    return new MesDados(
+      mes, receita, copart, sinistro, tipoGuia, grupo, receitaRegiao,
+      despesaRegiao, centralRegiao, vidas, vidasAtivas.size(), despesaLinhas
+    );
+  }
+
+  private ContagemBeneficiarios contarBeneficiarios(
+    List<LinkedHashMap<String, Object>> linhas,
+    LocalDate referencia
+  ) {
+    Map<String, Boolean> porBeneficiario = new LinkedHashMap<>();
+    for (Map<String, Object> linha : linhas) {
+      // A situação da carteirinha classifica a população vigente, não todos
+      // os cadastros encerrados que a API mantém no histórico da empresa.
+      String status = normalizar(texto(linha, "ATIVO", "STATUS", "SITUACAO"));
+      LocalDate cadastro = dataBeneficiario(linha, "DATA_CADASTRO", "DT_CADASTRO", "DATA_INCLUSAO", "DT_INCLUSAO", "BNF_DAT_INCL");
+      LocalDate exclusao = dataBeneficiario(linha, "DATA_EXCLUSAO", "DT_EXCLUSAO", "BNF_DAT_EXCL", "DATA_INATIVACAO");
+      if (cadastro != null && cadastro.isAfter(referencia)) continue;
+      if (exclusao != null && !exclusao.isAfter(referencia)) continue;
+      // ATIVO pode refletir alterações posteriores à competência. Só é usado
+      // como fallback quando a origem não informa nenhuma data de vigência.
+      if (cadastro == null && exclusao == null &&
+          Set.of("N", "NAO", "INATIVO", "EXCLUIDO", "CANCELADO").contains(status)) continue;
+      String id = identificadorBeneficiario(linha);
+      porBeneficiario.put(id, ativoPorCodigo(id));
+    }
+    long ativos = porBeneficiario.values().stream().filter(Boolean::booleanValue).count();
+    return new ContagemBeneficiarios(ativos, porBeneficiario.size() - ativos);
+  }
+
+  private LocalDate dataBeneficiario(Map<String, Object> linha, String... aliases) {
+    Object bruto = valor(linha, aliases);
+    if (bruto instanceof LocalDate data) return data;
+    if (bruto instanceof java.sql.Date data) return data.toLocalDate();
+    String texto = bruto == null ? "" : bruto.toString().trim();
+    if (texto.isBlank() || texto.startsWith("01/01/0001") || texto.startsWith("0001-01-01")) return null;
+    for (DateTimeFormatter formato : List.of(DateTimeFormatter.ofPattern("dd/MM/yyyy"), DateTimeFormatter.ISO_LOCAL_DATE)) {
+      try {
+        return LocalDate.parse(texto.substring(0, Math.min(10, texto.length())), formato);
+      } catch (DateTimeParseException ignored) {
+        // Tenta o outro formato usado pela API.
+      }
+    }
+    throw new IllegalArgumentException("A base de beneficiários contém data inválida para a competência.");
+  }
+
+  private Map<String, String> situacoesBeneficiarios(
+    List<LinkedHashMap<String, Object>> beneficiarios,
+    List<LinkedHashMap<String, Object>> despesas
+  ) {
+    Map<String, String> situacoes = new LinkedHashMap<>();
+    for (List<LinkedHashMap<String, Object>> base : List.of(beneficiarios, despesas)) {
+      for (Map<String, Object> linha : base) {
+        String id = identificadorBeneficiario(linha);
+        if (id.isBlank()) continue;
+        situacoes.put(id, ativoPorCodigo(id) ? "ATIVO" : "INATIVO");
+      }
+    }
+    return situacoes;
+  }
+
+  private boolean ativoPorCodigo(String identificador) {
+    Matcher matcher = CODIGO_CARTEIRINHA_NO_BENEFICIARIO.matcher(identificador);
+    if (!matcher.find()) {
+      throw new IllegalArgumentException(
+        "Não foi possível identificar o código de carteirinha para classificar o beneficiário."
+      );
+    }
+    char inicio = matcher.group(1).charAt(0);
+    return inicio != '5' && inicio != '9';
+  }
+
+  private String situacaoBeneficiario(
+    String identificador,
+    Map<String, String> situacoes
+  ) {
+    return situacoes.getOrDefault(identificador, "NÃO INFORMADO");
+  }
+
+  private HistoricoRelatorio carregarHistorico(
+    byte[] arquivoAnterior,
+    YearMonth alvo
+  ) throws IOException {
+    try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(arquivoAnterior))) {
+      YearMonth anteriorMes = alvo.minusMonths(1);
+      Sheet anterior = wb.getSheet(nomeAba(anteriorMes));
+      if (anterior == null) {
+        throw new IllegalArgumentException(
+          "O XLSX enviado não possui a aba " + nomeAba(anteriorMes) +
+          ", correspondente ao mês anterior."
+        );
+      }
+
+      Map<YearMonth, BigDecimal> receitas = new LinkedHashMap<>();
+      Map<YearMonth, BigDecimal> sinistros = new LinkedHashMap<>();
+      Map<YearMonth, BigDecimal> coparts = new LinkedHashMap<>();
+      Map<YearMonth, Long> ativos = new LinkedHashMap<>();
+      int inicioResumo = inicioTabelaHistorica(anterior, "RECEITA");
+      for (int r = inicioResumo; r < inicioResumo + 12; r++) {
+        YearMonth mes = mesCelula(anterior.getRow(r) == null ? null : anterior.getRow(r).getCell(0));
+        if (mes == null) continue;
+        receitas.put(mes, numeroCelula(anterior, r, 1));
+        sinistros.put(mes, numeroCelula(anterior, r, 2));
+        coparts.put(mes, numeroCelula(anterior, r, 3));
+        ativos.put(mes, numeroCelula(anterior, r, 4).longValue());
+      }
+
+      Map<YearMonth, Map<String, BigDecimal>> tipos = lerTabelaMensal(
+        anterior, inicioTabelaHistorica(anterior, "CONSULTAS"), TIPOS_GUIA, 1
+      );
+      Map<YearMonth, Map<String, BigDecimal>> grupos = lerTabelaMensal(
+        anterior, inicioTabelaHistorica(anterior, "RECURSO PROPRIO"), GRUPOS, 1
+      );
+
+      List<MesDados> meses = new ArrayList<>();
+      for (int i = 11; i >= 1; i--) {
+        YearMonth mes = alvo.minusMonths(i);
+        if (!receitas.containsKey(mes) || !sinistros.containsKey(mes) ||
+            !tipos.containsKey(mes) || !grupos.containsKey(mes)) {
+          throw new IllegalArgumentException(
+            "O XLSX anterior não contém os dados históricos de " + mes.format(COMPETENCIA) + "."
+          );
+        }
+        meses.add(new MesDados(
+          mes,
+          receitas.get(mes),
+          coparts.getOrDefault(mes, ZERO),
+          sinistros.get(mes),
+          tipos.get(mes),
+          grupos.get(mes),
+          mapaDecimal(REGIOES),
+          mapaDecimal(REGIOES),
+          mapaDecimal(REGIOES),
+          mapaInteiroZero(REGIOES),
+          ativos.getOrDefault(mes, 0L),
+          List.of()
+        ));
+      }
+
+      YearMonth excluido = alvo.minusMonths(12);
+      Sheet abaExcluida = wb.getSheet(nomeAba(excluido));
+      if (abaExcluida == null) {
+        throw new IllegalArgumentException(
+          "O XLSX anterior não possui a aba " + nomeAba(excluido) +
+          ", necessária para atualizar os acumulados de 12 meses."
+        );
+      }
+
+      return new HistoricoRelatorio(
+        meses,
+        lerRegiao(anterior, 2, false),
+        lerRegiao(anterior, 2, true),
+        lerRegiao(abaExcluida, 1, false),
+        lerRegiao(abaExcluida, 1, true),
+        lerRateioCentral(anterior, 2),
+        lerRateioCentral(abaExcluida, 1),
+        lerRanking(anterior, "BENEFICIARIOS COM MAIORES CUSTOS ACUMULADO", "CODIGO"),
+        lerRanking(anterior, "ESPECIALIDADE COM MAIORES CUSTOS ACUMULADO", "ESPECIALIDADE"),
+        lerRanking(abaExcluida, "BENEFICIARIOS COM MAIORES CUSTOS DO MES", "CODIGO"),
+        lerRanking(abaExcluida, "ESPECIALIDADE COM MAIORES CUSTOS DO MES", "ESPECIALIDADE"),
+        lerSerie(anterior, "BENEFICIARIOS EM PA", 30),
+        lerSerie(anterior, "BENEFICIARIOS EM SADT", 30),
+        lerSerie(anterior, "PRINCIPAIS UTILIZACOES EM SESSOES MULTI", 10)
+      );
+    } catch (org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException ex) {
+      throw new IllegalArgumentException(
+        "O relatório anterior enviado não é um arquivo XLSX válido.", ex
+      );
+    }
+  }
+
+  private int inicioTabelaHistorica(Sheet sheet, String primeiraMedida) {
+    for (int r = 0; r <= sheet.getLastRowNum(); r++) {
+      if (normalizarPalavras(textoCelula(sheet, r, 0)).equals("COMP") &&
+          normalizarPalavras(textoCelula(sheet, r, 1)).equals(primeiraMedida)) return r + 1;
+    }
+    throw new IllegalArgumentException("O XLSX anterior não possui o cabeçalho da tabela histórica de " + primeiraMedida + ".");
+  }
+
+  private Map<YearMonth, Map<String, BigDecimal>> lerTabelaMensal(
+    Sheet sheet,
+    int inicio,
+    List<String> chaves,
+    int primeiraColuna
+  ) {
+    Map<YearMonth, Map<String, BigDecimal>> resultado = new LinkedHashMap<>();
+    for (int r = inicio; r < inicio + 12; r++) {
+      Row row = sheet.getRow(r);
+      YearMonth mes = mesCelula(row == null ? null : row.getCell(0));
+      if (mes == null) continue;
+      Map<String, BigDecimal> valores = mapaDecimal(chaves);
+      for (int i = 0; i < chaves.size(); i++) {
+        valores.put(chaves.get(i), numeroCelula(sheet, r, primeiraColuna + i));
+      }
+      resultado.put(mes, valores);
+    }
+    return resultado;
+  }
+
+  private Map<String, BigDecimal> lerRegiao(
+    Sheet sheet,
+    int ocorrencia,
+    boolean receita
+  ) {
+    int cabecalho = cabecalhoRegional(sheet, ocorrencia);
+    if (cabecalho < 0) {
+      if (cabecalhoRegional(sheet, 1) < 0 || encontrarLinha(sheet, "ACUMULADO REGIONAL INDISPONIVEL", 1) >= 0) return Map.of();
+      throw new IllegalArgumentException(
+        "O XLSX anterior não possui a tabela regional esperada."
+      );
+    }
+    Map<String, BigDecimal> mapa = mapaDecimal(REGIOES);
+    for (int i = 0; i < REGIOES.size(); i++) {
+      int r = cabecalho + 1 + i;
+      String rotulo = textoCelula(sheet, r, 0);
+      String regiao = normalizarRegiaoHistorica(rotulo);
+      if (regiao == null) continue;
+      mapa.put(regiao, numeroCelula(sheet, r, receita ? 5 : 3));
+    }
+    return mapa;
+  }
+
+  private int cabecalhoRegional(Sheet sheet, int ocorrencia) {
+    int encontrados = 0;
+    for (int r = 0; r <= sheet.getLastRowNum(); r++) {
+      if (normalizar(textoCelula(sheet, r, 0)).equals("REGIAO") && ++encontrados == ocorrencia) return r;
+    }
+    return -1;
+  }
+
+  private Map<String, BigDecimal> lerRateioCentral(Sheet sheet, int ocorrencia) {
+    int header = cabecalhoRegional(sheet, ocorrencia);
+    if (header < 0) {
+      if (cabecalhoRegional(sheet, 1) < 0 || encontrarLinha(sheet, "ACUMULADO REGIONAL INDISPONIVEL", 1) >= 0) return Map.of();
+      throw new IllegalArgumentException("O histórico não possui a tabela regional esperada.");
+    }
+    Map<String, BigDecimal> resultado = mapaDecimal(REGIOES);
+    for (int i = 2; i < REGIOES.size() - 1; i++) {
+      String regiao = normalizarRegiaoHistorica(textoCelula(sheet, header + 1 + i, 0));
+      if (regiao != null) resultado.put(regiao, numeroCelula(sheet, header + 1 + i, 8));
+    }
+    return resultado;
+  }
+
+  private String normalizarRegiaoHistorica(String valor) {
+    String n = normalizarPalavras(valor);
+    if (n.contains("MODULO CORACAO")) return "Módulo Coração";
+    if (n.contains("CENTRAL NACIONAL")) return "Central Nacional";
+    if (n.contains("SUDESTE")) return "Sudeste (Fora Vale)";
+    if (n.contains("VALE")) return "Vale do Paraiba";
+    if (n.contains("CENTRO OESTE")) return "Centro Oeste";
+    if (n.contains("NORDESTE")) return "Nordeste";
+    if (n.equals("NORTE")) return "Norte";
+    if (n.equals("SUL")) return "Sul";
+    if (n.equals("LOCAL")) return "Local";
+    return null;
+  }
+
+  private Map<String, BigDecimal> lerRanking(
+    Sheet sheet,
+    String titulo,
+    String cabecalhoChave
+  ) {
+    int linhaTitulo = encontrarLinha(sheet, titulo, 1);
+    if (linhaTitulo < 0) {
+      boolean beneficiario = cabecalhoChave.equals("CODIGO");
+      boolean acumulado = titulo.contains("ACUMULADO");
+      linhaTitulo = encontrarLinha(sheet, beneficiario
+        ? "MAIORES CUSTOS BENEFICIARIOS " + (acumulado ? "ACUMULADO" : "DO MES")
+        : "MAIORES CUSTOS " + (acumulado ? "ESPECIALIDADES ACUMULADO" : "ESPECIALIDADE NO MES"), 1);
+    }
+    if (linhaTitulo < 0) return Map.of();
+    Row header = sheet.getRow(linhaTitulo + 1);
+    if (header == null) return Map.of();
+
+    int colunaChave = -1;
+    int colunaValor = -1;
+    for (int c = 0; c < Math.max(16, header.getLastCellNum()); c++) {
+      String h = normalizar(textoCelula(sheet, linhaTitulo + 1, c));
+      if (colunaChave < 0 && (h.equals(normalizar(cabecalhoChave)) ||
+          cabecalhoChave.equals("CODIGO") && h.equals("CODBENEFICIARIO"))) {
+        colunaChave = c;
+      } else if (colunaChave >= 0 && c > colunaChave && (h.contains("VALOR") || h.equals("SINISTRO"))) {
+        colunaValor = c;
+        break;
+      }
+    }
+    if (colunaChave < 0 || colunaValor < 0) return Map.of();
+
+    Map<String, BigDecimal> resultado = new LinkedHashMap<>();
+    for (int r = linhaTitulo + 2; r < linhaTitulo + 12; r++) {
+      String chave = textoCelula(sheet, r, colunaChave).trim();
+      if (chave.isBlank()) continue;
+      resultado.put(chave, numeroCelula(sheet, r, colunaValor));
+    }
+    return resultado;
+  }
+
+  private Map<String, Map<YearMonth, BigDecimal>> lerSerie(
+    Sheet sheet,
+    String titulo,
+    int limite
+  ) {
+    int linhaTitulo = encontrarLinha(sheet, titulo, 1);
+    if (linhaTitulo < 0) return Map.of();
+    int headerRow = linhaTitulo + 1;
+    Row header = sheet.getRow(headerRow);
+    if (header == null) return Map.of();
+
+    int primeiraCompetencia = -1;
+    List<YearMonth> meses = new ArrayList<>();
+    for (int c = 2; c < Math.max(18, header.getLastCellNum()); c++) {
+      YearMonth mes = mesCelula(header.getCell(c));
+      if (mes != null) {
+        if (primeiraCompetencia < 0) primeiraCompetencia = c;
+        meses.add(mes);
+        if (meses.size() == 12) break;
+      }
+    }
+    if (primeiraCompetencia < 0 || meses.isEmpty()) return Map.of();
+
+    Map<String, Map<YearMonth, BigDecimal>> resultado = new LinkedHashMap<>();
+    for (int r = linhaTitulo + 2; r < linhaTitulo + 2 + limite; r++) {
+      String chave = textoCelula(sheet, r, 1).trim();
+      if (chave.isBlank()) continue;
+      Map<YearMonth, BigDecimal> valores = new LinkedHashMap<>();
+      for (int i = 0; i < meses.size(); i++) {
+        valores.put(meses.get(i), numeroCelula(sheet, r, primeiraCompetencia + i));
+      }
+      resultado.put(chave, valores);
+    }
+    return resultado;
+  }
+
+  private int encontrarLinha(Sheet sheet, String texto, int ocorrencia) {
+    String alvo = normalizar(texto);
+    int encontrada = 0;
+    for (int r = 0; r <= sheet.getLastRowNum(); r++) {
+      Row row = sheet.getRow(r);
+      if (row == null) continue;
+      for (Cell cell : row) {
+        if (normalizar(textoCelula(cell)).contains(alvo)) {
+          encontrada++;
+          if (encontrada == ocorrencia) return r;
+          break;
+        }
+      }
+    }
+    return -1;
+  }
+
+  private YearMonth mesCelula(Cell cell) {
+    if (cell == null) return null;
+    try {
+      if (cell.getCellType() == CellType.NUMERIC) {
+        if (DateUtil.isCellDateFormatted(cell)) {
+          return YearMonth.from(cell.getLocalDateTimeCellValue());
+        }
+        return YearMonth.from(DateUtil.getLocalDateTime(cell.getNumericCellValue()));
+      }
+      if (cell.getCellType() == CellType.FORMULA &&
+          cell.getCachedFormulaResultType() == CellType.NUMERIC) {
+        return YearMonth.from(DateUtil.getLocalDateTime(cell.getNumericCellValue()));
+      }
+      String texto = textoCelula(cell).trim();
+      for (DateTimeFormatter formato : List.of(
+        DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+        DateTimeFormatter.ISO_LOCAL_DATE
+      )) {
+        try {
+          return YearMonth.from(LocalDate.parse(texto, formato));
+        } catch (DateTimeParseException ignored) {
+          // tenta o próximo
+        }
+      }
+    } catch (RuntimeException ignored) {
+      return null;
+    }
+    return null;
+  }
+
+  private BigDecimal numeroCelula(Sheet sheet, int row, int col) {
+    Row linha = sheet.getRow(row);
+    return linha == null ? ZERO : numeroCelula(linha.getCell(col));
+  }
+
+  private BigDecimal numeroCelula(Cell cell) {
+    if (cell == null) return ZERO;
+    if (cell.getCellType() == CellType.ERROR ||
+        (cell.getCellType() == CellType.FORMULA &&
+         cell.getCachedFormulaResultType() == CellType.ERROR)) {
+      throw new IllegalArgumentException(
+        "O histórico contém erro de fórmula em " + cell.getSheet().getSheetName() +
+        "!" + cell.getAddress().formatAsString() + ". Corrija esse valor antes de gerar o relatório."
+      );
+    }
+    if (cell.getCellType() == CellType.NUMERIC ||
+        (cell.getCellType() == CellType.FORMULA &&
+         cell.getCachedFormulaResultType() == CellType.NUMERIC)) {
+      return BigDecimal.valueOf(cell.getNumericCellValue());
+    }
+    return numero(textoCelula(cell));
+  }
+
+  private String textoCelula(Sheet sheet, int row, int col) {
+    Row linha = sheet.getRow(row);
+    return linha == null ? "" : textoCelula(linha.getCell(col));
+  }
+
+  private String textoCelula(Cell cell) {
+    if (cell == null) return "";
+    if (cell.getCellType() == CellType.STRING) return cell.getStringCellValue();
+    if (cell.getCellType() == CellType.NUMERIC) return String.valueOf(cell.getNumericCellValue());
+    if (cell.getCellType() == CellType.FORMULA) {
+      // A busca por títulos percorre também fórmulas de indicadores. Um erro
+      // nesses indicadores não impede ler os valores históricos das bases.
+      return switch (cell.getCachedFormulaResultType()) {
+        case STRING -> cell.getStringCellValue();
+        case NUMERIC -> String.valueOf(cell.getNumericCellValue());
+        default -> "";
+      };
+    }
+    return "";
+  }
+
+  private String nomeAba(YearMonth mes) {
+    return String.format("%02d%04d", mes.getMonthValue(), mes.getYear());
+  }
+
+  private byte[] montarWorkbook(
+    String empresa,
+    YearMonth alvo,
+    List<MesDados> meses,
+    ContagemBeneficiarios atual,
+    long ativosAnterior,
+    List<LinkedHashMap<String, Object>> faixa,
+    HistoricoRelatorio historico,
+    Map<String, String> situacoes,
+    byte[] arquivoAnterior
+  ) throws IOException {
+    // O arquivo anterior vira a base do novo arquivo. Assim as abas históricas,
+    // gráficos, cores e dados já existentes são preservados literalmente.
+    try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(arquivoAnterior))) {
+      String aba = nomeAba(alvo);
+      int indiceExistente = wb.getSheetIndex(aba);
+      boolean abaJaExistia = indiceExistente >= 0;
+
+      org.apache.poi.xssf.usermodel.XSSFSheet sheet;
+
+      if (abaJaExistia) {
+        // Não removemos a aba existente. Arquivos históricos reais possuem
+        // dezenas de chart*.xml; remover uma aba com gráficos cria lacunas na
+        // numeração interna do OOXML e o Apache POI pode tentar reutilizar um
+        // nome ainda existente, provocando PartAlreadyExistsException/HTTP 500.
+        sheet = wb.getSheetAt(indiceExistente);
+        limparConteudoRelatorio(sheet);
+      } else {
+        sheet = wb.createSheet(aba);
+      }
+
+      wb.setSheetOrder(aba, 0);
+      wb.setForceFormulaRecalculation(true);
+      Estilos e = new Estilos(wb);
+
+      int[] larguras = {14,24,14,18,18,18,18,18,18,18,18,16,16,16,16,18};
+      for (int i = 0; i < larguras.length; i++) sheet.setColumnWidth(i, larguras[i] * 256);
+      sheet.setDisplayGridlines(false);
+      sheet.createFreezePane(0, 1);
+      // A aba reutilizada pode estar salva com a rolagem no fim do relatório.
+      for (var view : sheet.getCTWorksheet().getSheetViews().getSheetViewList()) {
+        view.setTopLeftCell("A1");
+      }
+      sheet.setActiveCell(new org.apache.poi.ss.util.CellAddress("A2"));
+      wb.setActiveSheet(0);
+
+      titulo(sheet, 0, 0, 15, "RELATÓRIO DE SINISTRALIDADE — " + empresa, e.titulo);
+      resumoDozeMeses(sheet, meses, atual, e);
+      resumoAtual(sheet, alvo, atual, ativosAnterior, meses.getLast(), e);
+      faixaEtaria(sheet, faixa, e);
+      receitaDozeMeses(sheet, meses, e);
+      porTipoGuia(sheet, meses, e);
+      porGrupoPrestador(sheet, meses, e);
+      regioes(sheet, meses, historico, e);
+      rankings(sheet, meses, historico, situacoes, e);
+      analiseBeneficiarios(sheet, meses, "PA/PS", 139,
+        "Análise Sintética dos 30+ Sinistro de Beneficiários em PA – Acumulado (12 meses)",
+        historico.pa(), situacoes, e);
+      analiseBeneficiarios(sheet, meses, "SADT", 174,
+        "Análise Sintética dos 30+ Sinistro de Beneficiários em SADT – Acumulado (12 meses)",
+        historico.sadt(), situacoes, e);
+      analiseSessoes(sheet, meses, 209, historico.sessoes(), e);
+
+      // Preenche os resultados das fórmulas apenas da nova competência.
+      // As fórmulas devem apresentar os resultados antes de abrir no Excel.
+      var evaluator = wb.getCreationHelper().createFormulaEvaluator();
+      for (Row row : sheet) {
+        for (Cell cell : row) {
+          if (cell.getCellType() == CellType.FORMULA) evaluator.evaluateFormulaCell(cell);
+        }
+      }
+
+      removerGraficos(sheet);
+
+      sheet.setZoom(80);
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      wb.write(out);
+      return out.toByteArray();
+    }
+  }
+
+  private void limparConteudoRelatorio(
+    org.apache.poi.xssf.usermodel.XSSFSheet sheet
+  ) {
+    int ultimaLinha = Math.min(220, sheet.getLastRowNum());
+    for (int r = 0; r <= ultimaLinha; r++) {
+      Row row = sheet.getRow(r);
+      if (row == null) continue;
+      int ultimaColuna = Math.min(15, Math.max(0, row.getLastCellNum() - 1));
+      for (int col = 0; col <= ultimaColuna; col++) {
+        Cell cell = row.getCell(col);
+        if (cell != null) cell.setBlank();
+      }
+    }
+  }
+
+  private void resumoDozeMeses(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    ContagemBeneficiarios atual,
+    Estilos e
+  ) {
+    String[] headers = {"Comp", "Receita", "Sinistro", "Co-part", "Benef. Total", "Variação Vidas", "Sinistralidade"};
+    cabecalho(sheet, 1, headers, e);
+    for (int i = 0; i < 12; i++) {
+      int r = 2 + i;
+      MesDados m = meses.get(i);
+      data(sheet, r, 0, m.mes.atDay(1), e.mes);
+      numero(sheet, r, 1, m.receita, e.moeda);
+      numero(sheet, r, 2, m.sinistro, e.moeda);
+      numero(sheet, r, 3, m.copart, e.moeda);
+      long ativos = i == 11 ? atual.ativos + atual.inativos : m.beneficiariosAtivos;
+      inteiro(sheet, r, 4, ativos, e.inteiro);
+      if (i > 0) {
+        long anteriores = meses.get(i - 1).beneficiariosAtivos;
+        if (anteriores > 0) {
+          numero(sheet, r, 5,
+            BigDecimal.valueOf(ativos)
+              .divide(BigDecimal.valueOf(anteriores), 8, RoundingMode.HALF_UP)
+              .subtract(BigDecimal.ONE),
+            e.percentual);
+        }
+      }
+      formula(sheet, r, 6, "C" + (r + 1) + "/(B" + (r + 1) + "+D" + (r + 1) + ")", e.percentual);
+    }
+    int r = 14;
+    texto(sheet, r, 0, "Acumulado", e.total);
+    formula(sheet, r, 1, "SUM(B3:B14)", e.totalMoeda);
+    formula(sheet, r, 2, "SUM(C3:C14)", e.totalMoeda);
+    formula(sheet, r, 3, "SUM(D3:D14)", e.totalMoeda);
+    formula(sheet, r, 4, "E14", e.totalInteiro);
+    formula(sheet, r, 6, "C15/(B15+D15)", e.totalPercentual);
+    texto(sheet, 15, 0, "Gráfico", e.total);
+    formula(sheet, 15, 1, "B15+D15", e.totalMoeda);
+    formula(sheet, 15, 2, "C15", e.totalMoeda);
+  }
+
+  private void resumoAtual(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    YearMonth alvo,
+    ContagemBeneficiarios atual,
+    long ativosAnterior,
+    MesDados mes,
+    Estilos e
+  ) {
+    String[] headers = {"Comp", "Benef. Ativo", "Benef. Inativo", "Var. Mês Anterior", "Receita", "Sinistro", "Sinistralidade"};
+    cabecalho(sheet, 17, headers, e);
+    data(sheet, 18, 0, alvo.atDay(1), e.mes);
+    inteiro(sheet, 18, 1, atual.ativos, e.inteiro);
+    inteiro(sheet, 18, 2, atual.inativos, e.inteiro);
+    if (ativosAnterior > 0) {
+      numero(sheet, 18, 3,
+        BigDecimal.valueOf(atual.ativos + atual.inativos).divide(BigDecimal.valueOf(ativosAnterior), 8, RoundingMode.HALF_UP)
+          .subtract(BigDecimal.ONE), e.percentual);
+    }
+    numero(sheet, 18, 4, mes.receita.add(mes.copart), e.moeda);
+    numero(sheet, 18, 5, mes.sinistro, e.moeda);
+    formula(sheet, 18, 6, "F19/E19", e.percentual);
+  }
+
+  private void faixaEtaria(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<LinkedHashMap<String, Object>> faixa,
+    Estilos e
+  ) {
+    String[] headers = {"Faixa Etária", "DEP", "TIT", "Fem", "Masc", "Total Geral"};
+    cabecalho(sheet, 21, headers, e);
+    int r = 22;
+    for (Map<String, Object> linha : faixa) {
+      String rotulo = texto(linha, "FAIXA_ETARIA");
+      if (normalizar(rotulo).equals("TOTALGERAL")) continue;
+      texto(sheet, r, 0, rotulo, e.corpo);
+      inteiro(sheet, r, 1, inteiro(linha, "DEP"), e.inteiro);
+      inteiro(sheet, r, 2, inteiro(linha, "TIT"), e.inteiro);
+      inteiro(sheet, r, 3, inteiro(linha, "FEM"), e.inteiro);
+      inteiro(sheet, r, 4, inteiro(linha, "MASC"), e.inteiro);
+      formula(sheet, r, 5, "B" + (r + 1) + "+C" + (r + 1), e.inteiro);
+      r++;
+      if (r >= 32) break;
+    }
+    while (r < 32) {
+      texto(sheet, r, 0, "", e.corpo);
+      for (int c = 1; c <= 5; c++) inteiro(sheet, r, c, 0, e.inteiro);
+      r++;
+    }
+    texto(sheet, 32, 0, "Total Geral", e.total);
+    for (int c = 1; c <= 5; c++) {
+      formula(sheet, 32, c, "SUM(" + coluna(c) + "23:" + coluna(c) + "32)", e.totalInteiro);
+    }
+  }
+
+  private void receitaDozeMeses(org.apache.poi.ss.usermodel.Sheet sheet, List<MesDados> meses, Estilos e) {
+    cabecalho(sheet, 36, new String[]{"Comp", "Receita", "Sinistro", "Sinistralidade", "Sinistralidade Acumulada", "Meta"}, e);
+    for (int i = 0; i < 12; i++) {
+      int r = 37 + i;
+      MesDados m = meses.get(i);
+      data(sheet, r, 0, m.mes.atDay(1), e.mes);
+      numero(sheet, r, 1, m.receita.add(m.copart), e.moeda);
+      numero(sheet, r, 2, m.sinistro, e.moeda);
+      formula(sheet, r, 3, "C" + (r + 1) + "/B" + (r + 1), e.percentual);
+      formula(sheet, r, 4,
+        "SUM(C$38:C" + (r + 1) + ")/SUM(B$38:B" + (r + 1) + ")", e.percentual);
+      numero(sheet, r, 5, new BigDecimal("0.70"), e.percentual);
+    }
+    texto(sheet, 49, 0, "Acumulado", e.total);
+    formula(sheet, 49, 1, "SUM(B38:B49)", e.totalMoeda);
+    formula(sheet, 49, 2, "SUM(C38:C49)", e.totalMoeda);
+    formula(sheet, 49, 4, "C50/B50", e.totalPercentual);
+  }
+
+  private void porTipoGuia(org.apache.poi.ss.usermodel.Sheet sheet, List<MesDados> meses, Estilos e) {
+    cabecalho(sheet, 52, new String[]{"Comp", "Consultas", "SADT", "Internações", "PA/PS", "Total"}, e);
+    for (int i = 0; i < 12; i++) {
+      int r = 53 + i;
+      MesDados m = meses.get(i);
+      data(sheet, r, 0, m.mes.atDay(1), e.mes);
+      for (int c = 0; c < TIPOS_GUIA.size(); c++) {
+        numero(sheet, r, c + 1, m.tipoGuia.get(TIPOS_GUIA.get(c)), e.moeda);
+      }
+      formula(sheet, r, 5, "SUM(B" + (r + 1) + ":E" + (r + 1) + ")", e.moeda);
+    }
+    texto(sheet, 65, 0, "Acumulado", e.total);
+    for (int c = 1; c <= 5; c++) formula(sheet, 65, c,
+      "SUM(" + coluna(c) + "54:" + coluna(c) + "65)", e.totalMoeda);
+    texto(sheet, 66, 0, "% PART", e.total);
+    for (int c = 1; c <= 4; c++) formula(sheet, 66, c,
+      coluna(c) + "66/F66", e.totalPercentual);
+    numero(sheet, 66, 5, BigDecimal.ONE, e.totalPercentual);
+  }
+
+  private void porGrupoPrestador(org.apache.poi.ss.usermodel.Sheet sheet, List<MesDados> meses, Estilos e) {
+    String[] headers = {"Comp", "Recurso Próprio", "Médico Cooperado", "Clínica de Imagem", "Intercâmbio",
+      "Sessões Multi", "Home-Care", "Outros", "Total"};
+    cabecalho(sheet, 68, headers, e);
+    for (int i = 0; i < 12; i++) {
+      int r = 69 + i;
+      MesDados m = meses.get(i);
+      data(sheet, r, 0, m.mes.atDay(1), e.mes);
+      for (int c = 0; c < GRUPOS.size(); c++) {
+        numero(sheet, r, c + 1, m.grupoPrestador.get(GRUPOS.get(c)), e.moeda);
+      }
+      formula(sheet, r, 8, "SUM(B" + (r + 1) + ":H" + (r + 1) + ")", e.moeda);
+    }
+    texto(sheet, 81, 0, "Acumulado", e.total);
+    for (int c = 1; c <= 8; c++) formula(sheet, 81, c,
+      "SUM(" + coluna(c) + "70:" + coluna(c) + "81)", e.totalMoeda);
+    texto(sheet, 82, 0, "% PART", e.total);
+    for (int c = 1; c <= 7; c++) formula(sheet, 82, c,
+      coluna(c) + "82/I82", e.totalPercentual);
+    numero(sheet, 82, 8, BigDecimal.ONE, e.totalPercentual);
+  }
+
+  private void regioes(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    HistoricoRelatorio historico,
+    Estilos e
+  ) {
+    MesDados atual = meses.getLast();
+    if (historico.regiaoSinistro12Anterior().isEmpty() || historico.regiaoSinistroMesExcluido().isEmpty()) {
+      regiaoBloco(sheet, 85, atual.sinistro, "Mês", atual.vidasRegiao, atual.despesaRegiao,
+        atual.receitaRegiao, atual.centralRegiao, atual.grupoPrestador.get("Home-Care"), e);
+      texto(sheet, 98, 0, "Acumulado regional indisponível: o modelo anterior não contém histórico regional.", e.total);
+      return;
+    }
+    Map<String, BigDecimal> sinistro12 = mapaDecimal(REGIOES);
+    Map<String, BigDecimal> receita12 = mapaDecimal(REGIOES);
+    Map<String, BigDecimal> central12 = mapaDecimal(REGIOES);
+
+    for (String regiao : REGIOES) {
+      sinistro12.put(
+        regiao,
+        historico.regiaoSinistro12Anterior().getOrDefault(regiao, ZERO)
+          .subtract(historico.regiaoSinistroMesExcluido().getOrDefault(regiao, ZERO))
+          .add(atual.despesaRegiao.getOrDefault(regiao, ZERO))
+      );
+      receita12.put(
+        regiao,
+        historico.regiaoReceita12Anterior().getOrDefault(regiao, ZERO)
+          .subtract(historico.regiaoReceitaMesExcluido().getOrDefault(regiao, ZERO))
+          .add(atual.receitaRegiao.getOrDefault(regiao, ZERO))
+      );
+      central12.put(regiao, historico.central12Anterior().getOrDefault(regiao, ZERO)
+        .subtract(historico.centralMesExcluido().getOrDefault(regiao, ZERO))
+        .add(atual.centralRegiao.getOrDefault(regiao, ZERO)));
+    }
+
+    regiaoBloco(sheet, 85, atual.sinistro, "Mês", atual.vidasRegiao, atual.despesaRegiao,
+      atual.receitaRegiao, atual.centralRegiao, atual.grupoPrestador.get("Home-Care"), e);
+
+    BigDecimal total12 = meses.stream().map(MesDados::sinistro).reduce(ZERO, BigDecimal::add);
+    BigDecimal homeCare12 = meses.stream()
+      .map(m -> m.grupoPrestador.getOrDefault("Home-Care", ZERO))
+      .reduce(ZERO, BigDecimal::add);
+    regiaoBloco(sheet, 98, total12, "12 meses", atual.vidasRegiao, sinistro12,
+      receita12, central12, homeCare12, e);
+  }
+
+  private void regiaoBloco(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    int inicio,
+    BigDecimal totalSinistro,
+    String periodo,
+    Map<String, Integer> vidas,
+    Map<String, BigDecimal> sinistro,
+    Map<String, BigDecimal> receita,
+    Map<String, BigDecimal> centralRegiao,
+    BigDecimal homeCare,
+    Estilos e
+  ) {
+    texto(sheet, inicio, 0, "Total", e.total);
+    numero(sheet, inicio, 3, totalSinistro, e.totalMoeda);
+    texto(sheet, inicio, 4, periodo, e.total);
+    cabecalho(sheet, inicio + 1, new String[]{"Região", "Nº Vidas", "Percentual", "Sinistro", "Percentual"}, e);
+
+    int totalVidas = vidas.values().stream().mapToInt(Integer::intValue).sum();
+    BigDecimal modulo = sinistro.get("Módulo Coração");
+
+    for (int i = 0; i < REGIOES.size(); i++) {
+      String regiao = REGIOES.get(i);
+      int r = inicio + 2 + i;
+      texto(sheet, r, 0, regiao, e.corpo);
+      Integer qtd = vidas.get(regiao);
+      if (qtd != null && qtd > 0) inteiro(sheet, r, 1, qtd, e.inteiro);
+      if (totalVidas > 0 && qtd != null) numero(sheet, r, 2,
+        BigDecimal.valueOf(qtd).divide(BigDecimal.valueOf(totalVidas), 8, RoundingMode.HALF_UP), e.percentual);
+      numero(sheet, r, 3, sinistro.get(regiao), e.moeda);
+      if (regiao.equals("Local")) {
+        formula(sheet, r, 3, "D" + (inicio + 1) + "-SUM(D" + (inicio + 3) + ":D" + r + ")", e.moeda);
+      }
+      formula(sheet, r, 4, "IF(D" + (inicio + 1) + "=0,0,D" + (r + 1) + "/D" + (inicio + 1) + ")", e.percentual);
+
+      if (i == 1) {
+        cabecalho(sheet, r, 5, new String[]{"Receita", "Home Care", "Módulo Coração",
+          "Central Nacional", "Sinistro por Região (R$)", "Sinistralidade por Região (%)"}, e);
+      }
+      if (i >= 2) {
+        numero(sheet, r, 5, receita.get(regiao), e.moeda);
+        numero(sheet, r, 6, regiao.equals("Vale do Paraiba") || regiao.equals("Local") ? homeCare : ZERO, e.moeda);
+        numero(sheet, r, 7, regiao.equals("Vale do Paraiba") || regiao.equals("Local") ? modulo : ZERO, e.moeda);
+        numero(sheet, r, 8, centralRegiao.getOrDefault(regiao, ZERO), e.moeda);
+        if (regiao.equals("Vale do Paraiba")) {
+          // O modelo guarda rateios históricos arredondados; o residual local
+          // conserva o total da Central em vez de propagar diferenças de centavos.
+          formula(sheet, r, 8, "D" + (inicio + 4) + "-SUM(I" + (inicio + 5) + ":I" + r + ")", e.moeda);
+        }
+        if (regiao.equals("Local")) {
+          // Local contém os custos assistenciais próprios; a última linha J
+          // consolida as regiões, sem somar esses custos ou Home Care duas vezes.
+          for (int c : List.of(6, 7, 8, 9)) formula(sheet, r, c,
+            "SUM(" + coluna(c) + (inicio + 5) + ":" + coluna(c) + r + ")", e.moeda);
+          formula(sheet, r, 10, "IF(F" + (inicio + 12) + "=0,0,J" + (r + 1) + "/F" + (inicio + 12) + ")", e.percentual);
+        } else {
+          String local = regiao.equals("Vale do Paraiba") ? "+D" + (inicio + 11) : "";
+          formula(sheet, r, 9, "D" + (r + 1) + local + "+H" + (r + 1) + "+I" + (r + 1), e.moeda);
+          formula(sheet, r, 10, "IF(F" + (r + 1) + "=0,0,J" + (r + 1) + "/F" + (r + 1) + ")", e.percentual);
+        }
+      }
+    }
+    int totalRow = inicio + 11;
+    inteiro(sheet, totalRow, 1, totalVidas, e.totalInteiro);
+    numero(sheet, totalRow, 2, BigDecimal.ONE, e.totalPercentual);
+    numero(sheet, totalRow, 4, BigDecimal.ONE, e.totalPercentual);
+    formula(sheet, totalRow, 5, "SUM(F" + (inicio + 5) + ":F" + (inicio + 11) + ")", e.totalMoeda);
+  }
+
+  private void rankings(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    HistoricoRelatorio historico,
+    Map<String, String> situacoes,
+    Estilos e
+  ) {
+    MesDados atual = meses.getLast();
+
+    List<Ranking> beneficiariosMes = ranking(
+      atual.despesaLinhas, this::identificadorBeneficiario, 10
+    );
+    List<Ranking> especialidadesMes = ranking(
+      atual.despesaLinhas, this::especialidade, 10
+    );
+
+    rankingDuplo(sheet, 111,
+      "BENEFICIÁRIOS COM MAIORES CUSTOS DO MÊS", beneficiariosMes,
+      "ESPECIALIDADE COM MAIORES CUSTOS DO MÊS", especialidadesMes,
+      atual.sinistro, situacoes, e);
+
+    Map<String, BigDecimal> atualBeneficiarios = rankingMapa(
+      atual.despesaLinhas, this::identificadorBeneficiario
+    );
+    Map<String, BigDecimal> atualEspecialidades = rankingMapa(
+      atual.despesaLinhas, this::especialidade
+    );
+
+    List<Ranking> beneficiarios12 = atualizarRankingHistorico(
+      historico.beneficiariosAcumuladoAnterior(),
+      historico.beneficiariosMesExcluido(),
+      atualBeneficiarios,
+      10
+    );
+    List<Ranking> especialidades12 = atualizarRankingHistorico(
+      historico.especialidadesAcumuladoAnterior(),
+      historico.especialidadesMesExcluido(),
+      atualEspecialidades,
+      10
+    );
+
+    BigDecimal total12 = meses.stream().map(MesDados::sinistro).reduce(ZERO, BigDecimal::add);
+    rankingDuplo(sheet, 124,
+      "BENEFICIÁRIOS COM MAIORES CUSTOS ACUMULADO", beneficiarios12,
+      "ESPECIALIDADE COM MAIORES CUSTOS ACUMULADO", especialidades12,
+      total12, situacoes, e);
+  }
+
+  private void rankingDuplo(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    int tituloRow,
+    String tituloEsquerda,
+    List<Ranking> esquerda,
+    String tituloDireita,
+    List<Ranking> direita,
+    BigDecimal total,
+    Map<String, String> situacoes,
+    Estilos e
+  ) {
+    titulo(sheet, tituloRow, 0, 4, tituloEsquerda, e.secao);
+    titulo(sheet, tituloRow, 6, 9, tituloDireita, e.secao);
+    cabecalho(sheet, tituloRow + 1,
+      new String[]{"Ranking", "Código", "Situação", "Valor", "% geral"}, e);
+    cabecalho(sheet, tituloRow + 1, 6,
+      new String[]{"Ranking", "Especialidade", "Valor", "% geral"}, e);
+
+    for (int i = 0; i < 10; i++) {
+      int r = tituloRow + 2 + i;
+      if (i < esquerda.size()) {
+        inteiro(sheet, r, 0, i + 1, e.inteiro);
+        texto(sheet, r, 1, esquerda.get(i).chave, e.corpo);
+        texto(sheet, r, 2, situacaoBeneficiario(esquerda.get(i).chave, situacoes), e.corpo);
+        numero(sheet, r, 3, esquerda.get(i).valor, e.moeda);
+        if (total.signum() != 0) numero(sheet, r, 4,
+          esquerda.get(i).valor.divide(total, 8, RoundingMode.HALF_UP), e.percentual);
+      }
+      if (i < direita.size()) {
+        inteiro(sheet, r, 6, i + 1, e.inteiro);
+        texto(sheet, r, 7, direita.get(i).chave, e.corpo);
+        numero(sheet, r, 8, direita.get(i).valor, e.moeda);
+        if (total.signum() != 0) numero(sheet, r, 9,
+          direita.get(i).valor.divide(total, 8, RoundingMode.HALF_UP), e.percentual);
+      }
+    }
+
+    int subtotal = tituloRow + 12;
+    texto(sheet, subtotal, 0, "Sub Total", e.total);
+    formula(sheet, subtotal, 3,
+      "SUM(D" + (tituloRow + 3) + ":D" + (tituloRow + 12) + ")", e.totalMoeda);
+    if (total.signum() != 0) formula(sheet, subtotal, 4,
+      "D" + (subtotal + 1) + "/" + total.toPlainString(), e.totalPercentual);
+
+    texto(sheet, subtotal, 6, "Sub Total", e.total);
+    formula(sheet, subtotal, 8,
+      "SUM(I" + (tituloRow + 3) + ":I" + (tituloRow + 12) + ")", e.totalMoeda);
+    if (total.signum() != 0) formula(sheet, subtotal, 9,
+      "I" + (subtotal + 1) + "/" + total.toPlainString(), e.totalPercentual);
+  }
+
+  private void analiseBeneficiarios(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    String tipo,
+    int tituloRow,
+    String titulo,
+    Map<String, Map<YearMonth, BigDecimal>> historicoSerie,
+    Map<String, String> situacoes,
+    Estilos e
+  ) {
+    Predicate<Map<String, Object>> filtro = linha -> tipo.equals(classificarTipoGuia(texto(
+      linha, "DESCRICAO_TIPO_GUIA", "TIPO_GUIA", "DESCRICAO_GUIA"
+    )));
+
+    MesDados atual = meses.getLast();
+    Map<String, BigDecimal> mesAtual = serieAtual(
+      atual.despesaLinhas, filtro, this::identificadorBeneficiario
+    );
+    List<SerieRanking> top = combinarSerieHistorica(
+      historicoSerie, mesAtual, meses, 30
+    );
+
+    titulo(sheet, tituloRow, 0, 15, titulo, e.secao);
+    texto(sheet, tituloRow + 1, 0, "Ranking", e.cabecalho);
+    texto(sheet, tituloRow + 1, 1, "Código", e.cabecalho);
+    texto(sheet, tituloRow + 1, 2, "Situação", e.cabecalho);
+    for (int i = 0; i < 12; i++) {
+      data(sheet, tituloRow + 1, 3 + i, meses.get(i).mes.atDay(1), e.cabecalhoMes);
+    }
+    texto(sheet, tituloRow + 1, 15, "TOTAL", e.cabecalho);
+
+    for (int i = 0; i < top.size(); i++) {
+      int r = tituloRow + 2 + i;
+      SerieRanking item = top.get(i);
+      inteiro(sheet, r, 0, i + 1, e.inteiro);
+      texto(sheet, r, 1, item.chave, e.corpo);
+      texto(sheet, r, 2, situacaoBeneficiario(item.chave, situacoes), e.corpo);
+      for (int m = 0; m < 12; m++) {
+        BigDecimal valor = item.valores.getOrDefault(meses.get(m).mes, ZERO);
+        if (valor.signum() != 0) numero(sheet, r, 3 + m, valor, e.moeda);
+      }
+      numero(sheet, r, 15, item.total, e.moeda);
+    }
+  }
+
+  private void analiseSessoes(
+    org.apache.poi.ss.usermodel.Sheet sheet,
+    List<MesDados> meses,
+    int tituloRow,
+    Map<String, Map<YearMonth, BigDecimal>> historicoSerie,
+    Estilos e
+  ) {
+    Predicate<Map<String, Object>> filtro = linha ->
+      "Sessões Multi".equals(classificarGrupo(texto(
+        linha, "GRUPO_PRESTADOR", "GRUPO", "TIPO_PRESTADOR"
+      )));
+
+    MesDados atual = meses.getLast();
+    Map<String, BigDecimal> mesAtual = serieAtual(
+      atual.despesaLinhas, filtro, this::descricaoUtilizacao
+    );
+    List<SerieRanking> top = combinarSerieHistorica(
+      historicoSerie, mesAtual, meses, 10
+    );
+
+    titulo(sheet, tituloRow, 0, 14,
+      "Análise Sintética das principais utilizações em SESSÕES MULTI – Acumulado (12 meses)", e.secao);
+    texto(sheet, tituloRow + 1, 0, "Ranking", e.cabecalho);
+    texto(sheet, tituloRow + 1, 1, "Tipo de Sessão", e.cabecalho);
+    for (int i = 0; i < 12; i++) {
+      data(sheet, tituloRow + 1, 2 + i, meses.get(i).mes.atDay(1), e.cabecalhoMes);
+    }
+    texto(sheet, tituloRow + 1, 14, "TOTAL", e.cabecalho);
+
+    for (int i = 0; i < 10; i++) {
+      int r = tituloRow + 2 + i;
+      inteiro(sheet, r, 0, i + 1, e.inteiro);
+      if (i >= top.size()) {
+        numero(sheet, r, 14, ZERO, e.moeda);
+        continue;
+      }
+      SerieRanking item = top.get(i);
+      texto(sheet, r, 1, item.chave, e.corpo);
+      for (int m = 0; m < 12; m++) {
+        BigDecimal valor = item.valores.getOrDefault(meses.get(m).mes, ZERO);
+        if (valor.signum() != 0) numero(sheet, r, 2 + m, valor, e.moeda);
+      }
+      numero(sheet, r, 14, item.total, e.moeda);
+    }
+  }
+
+  private void removerGraficos(org.apache.poi.xssf.usermodel.XSSFSheet sheet) {
+    XSSFDrawing desenho = sheet.getDrawingPatriarch();
+    if (desenho == null) return;
+    // Remove somente âncoras de gráficos; imagens e outros desenhos permanecem.
+    try (var cursor = desenho.getCTDrawing().newCursor()) {
+      cursor.selectPath("declare namespace c='http://schemas.openxmlformats.org/drawingml/2006/chart'; .//c:chart");
+      while (cursor.toNextSelection()) {
+        try (var ancora = cursor.newCursor()) {
+          for (int i = 0; i < 4; i++) ancora.toParent();
+          ancora.removeXml();
+        }
+      }
+    }
+    for (var chart : desenho.getCharts()) {
+      desenho.getPackagePart().removeRelationship(desenho.getRelationId(chart));
+    }
+  }
+
+  private Map<String, BigDecimal> serieAtual(
+    List<LinkedHashMap<String, Object>> linhas,
+    Predicate<Map<String, Object>> filtro,
+    java.util.function.Function<Map<String, Object>, String> chave
+  ) {
+    Map<String, BigDecimal> totais = new LinkedHashMap<>();
+    for (Map<String, Object> linha : linhas) {
+      if (!filtro.test(linha)) continue;
+      String valor = chave.apply(linha);
+      if (valor == null || valor.isBlank()) valor = "NÃO INFORMADO";
+      totais.merge(valor.trim(), valorDespesa(linha), BigDecimal::add);
+    }
+    return totais;
+  }
+
+  private List<SerieRanking> combinarSerieHistorica(
+    Map<String, Map<YearMonth, BigDecimal>> historico,
+    Map<String, BigDecimal> atual,
+    List<MesDados> meses,
+    int limite
+  ) {
+    Set<String> chaves = new LinkedHashSet<>();
+    chaves.addAll(historico.keySet());
+    chaves.addAll(atual.keySet());
+
+    YearMonth mesAtual = meses.getLast().mes;
+    return chaves.stream().map(chave -> {
+      Map<YearMonth, BigDecimal> valores = new LinkedHashMap<>();
+      BigDecimal total = ZERO;
+      for (MesDados mes : meses) {
+        BigDecimal valor = mes.mes.equals(mesAtual)
+          ? atual.getOrDefault(chave, ZERO)
+          : historico.getOrDefault(chave, Map.of()).getOrDefault(mes.mes, ZERO);
+        valores.put(mes.mes, valor);
+        total = total.add(valor);
+      }
+      return new SerieRanking(chave, valores, total);
+    })
+      .filter(item -> item.total.signum() != 0)
+      .sorted(Comparator.comparing(SerieRanking::total).reversed())
+      .limit(limite)
+      .toList();
+  }
+
+  private Map<String, BigDecimal> rankingMapa(
+    List<? extends Map<String, Object>> linhas,
+    java.util.function.Function<Map<String, Object>, String> chave
+  ) {
+    Map<String, BigDecimal> totais = new LinkedHashMap<>();
+    for (Map<String, Object> linha : linhas) {
+      String valor = chave.apply(linha);
+      if (valor == null || valor.isBlank()) valor = "NÃO INFORMADO";
+      totais.merge(valor.trim(), valorDespesa(linha), BigDecimal::add);
+    }
+    return totais;
+  }
+
+  private List<Ranking> atualizarRankingHistorico(
+    Map<String, BigDecimal> acumuladoAnterior,
+    Map<String, BigDecimal> mesExcluido,
+    Map<String, BigDecimal> mesAtual,
+    int limite
+  ) {
+    Set<String> chaves = new LinkedHashSet<>();
+    chaves.addAll(acumuladoAnterior.keySet());
+    chaves.addAll(mesAtual.keySet());
+
+    return chaves.stream()
+      .map(chave -> new Ranking(
+        chave,
+        acumuladoAnterior.getOrDefault(chave, ZERO)
+          .subtract(mesExcluido.getOrDefault(chave, ZERO))
+          .add(mesAtual.getOrDefault(chave, ZERO))
+      ))
+      .filter(item -> item.valor.signum() != 0)
+      .sorted(Comparator.comparing(Ranking::valor).reversed())
+      .limit(limite)
+      .toList();
+  }
+
+  private List<Ranking> ranking(
+    List<? extends Map<String, Object>> linhas,
+    java.util.function.Function<Map<String, Object>, String> chave,
+    int limite
+  ) {
+    Map<String, BigDecimal> totais = new LinkedHashMap<>();
+    for (Map<String, Object> linha : linhas) {
+      String valor = chave.apply(linha);
+      if (valor == null || valor.isBlank()) valor = "NÃO INFORMADO";
+      totais.merge(valor.trim(), valorDespesa(linha), BigDecimal::add);
+    }
+    return totais.entrySet().stream()
+      .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
+      .limit(limite)
+      .map(e -> new Ranking(e.getKey(), e.getValue()))
+      .toList();
+  }
+
+  private BigDecimal somarFiltrado(
+    List<LinkedHashMap<String, Object>> linhas,
+    Predicate<Map<String, Object>> filtro
+  ) {
+    return linhas.stream().filter(filtro).map(this::valorDespesa).reduce(ZERO, BigDecimal::add);
+  }
+
+  private String classificarTipoGuia(String valor) {
+    String n = " " + normalizarPalavras(valor) + " ";
+    if (n.contains(" PRONTO ATENDIMENTO ") || n.contains(" PRONTO SOCORRO ") ||
+        n.contains(" PA PS ") || n.contains(" PA ") || n.contains(" PS ")) return "PA/PS";
+    if (n.contains(" INTERN")) return "Internações";
+    if (n.contains(" CONSULT")) return "Consultas";
+    if (n.contains(" EXAME ") || n.contains(" SADT ")) return "SADT";
+    return null;
+  }
+
+  private String classificarGrupo(String valor) {
+    String n = normalizarPalavras(valor);
+    if (n.contains("RECURSO PROPRIO")) return "Recurso Próprio";
+    if (n.contains("MEDICO COOPERADO")) return "Médico Cooperado";
+    if (n.contains("SESSOES MULTI") || (n.contains("SESS") && n.contains("MULTI"))) {
+      return "Sessões Multi";
+    }
+    if (n.contains("CLINICA DE IMAGEM") || n.contains("IMAGEM")) return "Clínica de Imagem";
+    if (n.contains("INTERCAMBIO")) return "Intercâmbio";
+    if (n.contains("HOME CARE") || n.contains("HOMECARE")) return "Home-Care";
+    return "Outros";
+  }
+
+  private String regiao(Map<String, Object> linha) {
+    String explicit = texto(
+      linha, "REGIAO_BENEF", "REGIAO_BENEFICIARIO", "REGIAO", "REGIAO_ATENDIMENTO"
+    );
+    String n = normalizarPalavras(explicit);
+    if (n.contains("MODULO CORACAO")) return "Módulo Coração";
+    if (n.contains("CENTRAL NACIONAL")) return "Central Nacional";
+    if (n.contains("SUDESTE")) return "Sudeste (Fora Vale)";
+    if (n.contains("VALE")) return "Vale do Paraiba";
+    if (n.contains("CENTRO OESTE")) return "Centro Oeste";
+    if (n.contains("NORDESTE")) return "Nordeste";
+    if (n.contains("NORTE")) return "Norte";
+    if (n.contains("SUL") && !n.contains("SUDESTE")) return "Sul";
+    if (!n.isBlank()) return "Local";
+
+    String uf = normalizar(texto(linha, "UF", "ESTADO", "UF_BENEFICIARIO", "UF_ATENDIMENTO"));
+    if (Set.of("SP","RJ","MG","ES").contains(uf)) return "Sudeste (Fora Vale)";
+    if (Set.of("DF","GO","MT","MS").contains(uf)) return "Centro Oeste";
+    if (Set.of("PR","SC","RS").contains(uf)) return "Sul";
+    if (Set.of("AC","AP","AM","PA","RO","RR","TO").contains(uf)) return "Norte";
+    if (Set.of("AL","BA","CE","MA","PB","PE","PI","RN","SE").contains(uf)) return "Nordeste";
+    return "Local";
+  }
+
+  private String regiaoDespesa(Map<String, Object> linha) {
+    String prestador = normalizarPalavras(texto(linha, "NOME_PRESTADOR", "NOME_PREST"));
+    if (prestador.contains("CENTRAL NACIONAL")) return "Central Nacional";
+    if (prestador.contains("MODULO CORACAO")) return "Módulo Coração";
+    String regiaoPrestador = texto(linha, "REGIAO_PREST", "REGIAO_PRESTADOR");
+    if (!regiaoPrestador.isBlank()) {
+      String regiao = normalizarRegiaoHistorica(regiaoPrestador);
+      if (regiao == null) throw new IllegalArgumentException("A base de despesas contém região de prestador não reconhecida.");
+      return regiao;
+    }
+    // Intercâmbio sem região do prestador usa a região informada do beneficiário.
+    return regiao(linha);
+  }
+
+  private String identificadorBeneficiario(Map<String, Object> linha) {
+    return texto(linha, "CODIGO_BENEFICIARIO", "COD_BENEFICIARIO", "BENEFICIARIO",
+      "CODIGO_CARTAO", "CARTEIRINHA", "CARTEIRA", "MATRICULA", "CODIGO");
+  }
+
+  private String especialidade(Map<String, Object> linha) {
+    return texto(linha, "NOME_ESPECIALIDADE", "ESPECIALIDADE", "ESPECIALIDADE_MEDICA");
+  }
+
+  private String descricaoUtilizacao(Map<String, Object> linha) {
+    return texto(linha, "DESCRICAO_ITEM", "DESC_ITEM", "DESCRICAO_PROCEDIMENTO",
+      "DESC_PROCEDIMENTO", "PROCEDIMENTO", "NOME_PROCEDIMENTO", "TIPO_SESSAO");
+  }
+
+  private BigDecimal valorReceita(Map<String, Object> linha) {
+    Object valor = valor(linha, "VALOR_TOTAL", "TOTAL", "VALOR", "RECEITA",
+      "VALOR_EVENTO", "VALOR_RECEBER");
+    return numero(valor);
+  }
+
+  private BigDecimal valorDespesa(Map<String, Object> linha) {
+    Object valor = valor(linha, "VALOR_TOTAL_21");
+    if (valor == null || String.valueOf(valor).isBlank()) {
+      throw new IllegalArgumentException(
+        "A API de despesas não retornou VALOR_TOTAL_21. " +
+        "O relatório final não pode usar VALOR_TOTAL como substituto."
+      );
+    }
+    return numero(valor);
+  }
+
+  private long inteiro(Map<String, Object> linha, String... aliases) {
+    return numero(valor(linha, aliases)).setScale(0, RoundingMode.HALF_UP).longValue();
+  }
+
+  private Object valor(Map<String, Object> linha, String... aliases) {
+    for (String alias : aliases) {
+      for (Map.Entry<String, Object> e : linha.entrySet()) {
+        if (normalizar(e.getKey()).equals(normalizar(alias))) return e.getValue();
+      }
+    }
+    return null;
+  }
+
+  private String texto(Map<String, Object> linha, String... aliases) {
+    Object valor = valor(linha, aliases);
+    return valor == null ? "" : String.valueOf(valor).trim();
+  }
+
+  private BigDecimal numero(Object valor) {
+    if (valor == null) return ZERO;
+    if (valor instanceof BigDecimal n) return n;
+    if (valor instanceof Number n) return new BigDecimal(n.toString());
+    String s = String.valueOf(valor).trim().replace("R$", "").replace(" ", "");
+    if (s.isBlank()) return ZERO;
+    if (s.matches("[-+]?\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?")) s = s.replace(".", "").replace(',', '.');
+    else if (s.matches("[-+]?\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?")) s = s.replace(",", "");
+    else s = s.replace(',', '.');
+    try {
+      return new BigDecimal(s);
+    } catch (NumberFormatException ex) {
+      return ZERO;
+    }
+  }
+
+  private Map<String, BigDecimal> mapaDecimal(List<String> chaves) {
+    Map<String, BigDecimal> mapa = new LinkedHashMap<>();
+    chaves.forEach(c -> mapa.put(c, ZERO));
+    return mapa;
+  }
+
+  private Map<String, Integer> mapaInteiroZero(List<String> chaves) {
+    Map<String, Integer> mapa = new LinkedHashMap<>();
+    chaves.forEach(c -> mapa.put(c, 0));
+    return mapa;
+  }
+
+  private String normalizar(String valor) {
+    return Normalizer.normalize(valor == null ? "" : valor, Normalizer.Form.NFD)
+      .replaceAll("\\p{M}", "")
+      .toUpperCase(Locale.ROOT)
+      .replaceAll("[^A-Z0-9]", "");
+  }
+
+  private String normalizarPalavras(String valor) {
+    return Normalizer.normalize(valor == null ? "" : valor, Normalizer.Form.NFD)
+      .replaceAll("\\p{M}", "")
+      .toUpperCase(Locale.ROOT)
+      .replaceAll("[^A-Z0-9]+", " ")
+      .trim();
+  }
+
+  private static final BigDecimal ZERO = BigDecimal.ZERO;
+
+  private record MesDados(
+    YearMonth mes,
+    BigDecimal receita,
+    BigDecimal copart,
+    BigDecimal sinistro,
+    Map<String, BigDecimal> tipoGuia,
+    Map<String, BigDecimal> grupoPrestador,
+    Map<String, BigDecimal> receitaRegiao,
+    Map<String, BigDecimal> despesaRegiao,
+    Map<String, BigDecimal> centralRegiao,
+    Map<String, Integer> vidasRegiao,
+    long beneficiariosAtivos,
+    List<LinkedHashMap<String, Object>> despesaLinhas
+  ) {}
+
+  private record ContagemBeneficiarios(long ativos, long inativos) {}
+  private record HistoricoRelatorio(
+    List<MesDados> meses,
+    Map<String, BigDecimal> regiaoSinistro12Anterior,
+    Map<String, BigDecimal> regiaoReceita12Anterior,
+    Map<String, BigDecimal> regiaoSinistroMesExcluido,
+    Map<String, BigDecimal> regiaoReceitaMesExcluido,
+    Map<String, BigDecimal> central12Anterior,
+    Map<String, BigDecimal> centralMesExcluido,
+    Map<String, BigDecimal> beneficiariosAcumuladoAnterior,
+    Map<String, BigDecimal> especialidadesAcumuladoAnterior,
+    Map<String, BigDecimal> beneficiariosMesExcluido,
+    Map<String, BigDecimal> especialidadesMesExcluido,
+    Map<String, Map<YearMonth, BigDecimal>> pa,
+    Map<String, Map<YearMonth, BigDecimal>> sadt,
+    Map<String, Map<YearMonth, BigDecimal>> sessoes
+  ) {}
+  private record Ranking(String chave, BigDecimal valor) {}
+  private record SerieRanking(
+    String chave,
+    Map<YearMonth, BigDecimal> valores,
+    BigDecimal total
+  ) {}
+
+  private static void titulo(org.apache.poi.ss.usermodel.Sheet s, int r, int c1, int c2, String valor, CellStyle estilo) {
+    Cell cell = celula(s, r, c1);
+    cell.setCellValue(valor);
+    cell.setCellStyle(estilo);
+    if (c2 > c1) {
+      CellRangeAddress nova = new CellRangeAddress(r, r, c1, c2);
+      boolean conflita = s.getMergedRegions().stream().anyMatch(atual ->
+        atual.getFirstRow() <= nova.getLastRow() &&
+        atual.getLastRow() >= nova.getFirstRow() &&
+        atual.getFirstColumn() <= nova.getLastColumn() &&
+        atual.getLastColumn() >= nova.getFirstColumn()
+      );
+      if (!conflita) s.addMergedRegion(nova);
+    }
+  }
+
+  private static void cabecalho(org.apache.poi.ss.usermodel.Sheet s, int r, String[] valores, Estilos e) {
+    cabecalho(s, r, 0, valores, e);
+  }
+
+  private static void cabecalho(org.apache.poi.ss.usermodel.Sheet s, int r, int inicio, String[] valores, Estilos e) {
+    for (int i = 0; i < valores.length; i++) texto(s, r, inicio + i, valores[i], e.cabecalho);
+  }
+
+  private static void texto(org.apache.poi.ss.usermodel.Sheet s, int r, int c, String valor, CellStyle estilo) {
+    Cell cell = celula(s, r, c);
+    cell.setCellValue(valor == null ? "" : valor);
+    cell.setCellStyle(estilo);
+  }
+
+  private static void numero(org.apache.poi.ss.usermodel.Sheet s, int r, int c, BigDecimal valor, CellStyle estilo) {
+    Cell cell = celula(s, r, c);
+    cell.setCellValue(valor == null ? 0d : valor.doubleValue());
+    cell.setCellStyle(estilo);
+  }
+
+  private static void inteiro(org.apache.poi.ss.usermodel.Sheet s, int r, int c, long valor, CellStyle estilo) {
+    Cell cell = celula(s, r, c);
+    cell.setCellValue(valor);
+    cell.setCellStyle(estilo);
+  }
+
+  private static void data(org.apache.poi.ss.usermodel.Sheet s, int r, int c, LocalDate valor, CellStyle estilo) {
+    Cell cell = celula(s, r, c);
+    cell.setCellValue(valor);
+    cell.setCellStyle(estilo);
+  }
+
+  private static void formula(org.apache.poi.ss.usermodel.Sheet s, int r, int c, String formula, CellStyle estilo) {
+    Cell cell = celula(s, r, c);
+    cell.setCellFormula(formula);
+    cell.setCellStyle(estilo);
+  }
+
+  private static Row linha(org.apache.poi.ss.usermodel.Sheet s, int r) {
+    Row row = s.getRow(r);
+    return row == null ? s.createRow(r) : row;
+  }
+
+  private static Cell celula(org.apache.poi.ss.usermodel.Sheet s, int r, int c) {
+    Row row = linha(s, r);
+    Cell cell = row.getCell(c);
+    return cell == null ? row.createCell(c) : cell;
+  }
+
+  private static String coluna(int zeroBased) {
+    int n = zeroBased + 1;
+    StringBuilder sb = new StringBuilder();
+    while (n > 0) {
+      int rem = (n - 1) % 26;
+      sb.insert(0, (char) ('A' + rem));
+      n = (n - 1) / 26;
+    }
+    return sb.toString();
+  }
+
+  private static boolean cellTemValor(org.apache.poi.ss.usermodel.Sheet s, int r, int c) {
+    Row row = s.getRow(r);
+    return row != null && row.getCell(c) != null;
+  }
+
+  private static final class Estilos {
+    final CellStyle titulo;
+    final CellStyle secao;
+    final CellStyle cabecalho;
+    final CellStyle cabecalhoMes;
+    final CellStyle corpo;
+    final CellStyle moeda;
+    final CellStyle inteiro;
+    final CellStyle percentual;
+    final CellStyle mes;
+    final CellStyle total;
+    final CellStyle totalMoeda;
+    final CellStyle totalInteiro;
+    final CellStyle totalPercentual;
+
+    Estilos(XSSFWorkbook wb) {
+      DataFormat df = wb.createDataFormat();
+      Font branca = wb.createFont(); branca.setBold(true); branca.setColor(IndexedColors.WHITE.getIndex());
+      Font tituloFont = wb.createFont(); tituloFont.setBold(true); tituloFont.setFontHeightInPoints((short) 14);
+      Font bold = wb.createFont(); bold.setBold(true);
+
+      titulo = base(wb, IndexedColors.DARK_TEAL, branca, HorizontalAlignment.LEFT);
+      titulo.setFont(tituloFont); tituloFont.setColor(IndexedColors.WHITE.getIndex());
+      secao = base(wb, IndexedColors.DARK_TEAL, branca, HorizontalAlignment.LEFT);
+      cabecalho = base(wb, IndexedColors.DARK_TEAL, branca, HorizontalAlignment.CENTER);
+      cabecalhoMes = base(wb, IndexedColors.DARK_TEAL, branca, HorizontalAlignment.CENTER);
+      cabecalhoMes.setDataFormat(df.getFormat("mmm-yy"));
+      corpo = base(wb, IndexedColors.WHITE, null, HorizontalAlignment.LEFT);
+      moeda = base(wb, IndexedColors.WHITE, null, HorizontalAlignment.RIGHT);
+      moeda.setDataFormat(df.getFormat("#,##0"));
+      inteiro = base(wb, IndexedColors.WHITE, null, HorizontalAlignment.RIGHT);
+      inteiro.setDataFormat(df.getFormat("#,##0"));
+      percentual = base(wb, IndexedColors.WHITE, null, HorizontalAlignment.RIGHT);
+      percentual.setDataFormat(df.getFormat("0%"));
+      mes = base(wb, IndexedColors.WHITE, null, HorizontalAlignment.CENTER);
+      mes.setDataFormat(df.getFormat("mmm-yy"));
+
+      total = base(wb, IndexedColors.LIGHT_GREEN, bold, HorizontalAlignment.LEFT);
+      totalMoeda = base(wb, IndexedColors.LIGHT_GREEN, bold, HorizontalAlignment.RIGHT);
+      totalMoeda.setDataFormat(df.getFormat("#,##0"));
+      totalInteiro = base(wb, IndexedColors.LIGHT_GREEN, bold, HorizontalAlignment.RIGHT);
+      totalInteiro.setDataFormat(df.getFormat("#,##0"));
+      totalPercentual = base(wb, IndexedColors.LIGHT_GREEN, bold, HorizontalAlignment.RIGHT);
+      totalPercentual.setDataFormat(df.getFormat("0%"));
+    }
+
+    private static CellStyle base(
+      XSSFWorkbook wb,
+      IndexedColors fill,
+      Font font,
+      HorizontalAlignment alignment
+    ) {
+      CellStyle style = wb.createCellStyle();
+      style.setFillForegroundColor(fill.getIndex());
+      style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+      if (font != null) style.setFont(font);
+      style.setAlignment(alignment);
+      style.setVerticalAlignment(VerticalAlignment.CENTER);
+      style.setBorderBottom(BorderStyle.THIN);
+      style.setBorderTop(BorderStyle.THIN);
+      style.setBorderLeft(BorderStyle.THIN);
+      style.setBorderRight(BorderStyle.THIN);
+      style.setBottomBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+      style.setTopBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+      style.setLeftBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+      style.setRightBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+      return style;
+    }
+  }
+}

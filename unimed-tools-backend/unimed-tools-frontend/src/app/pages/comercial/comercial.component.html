@@ -1,0 +1,352 @@
+<section class="workspace">
+  <header class="page-heading">
+    <div>
+      <span class="eyebrow">Empresas e contratos</span>
+      <h1>Comercial</h1>
+      <p>
+        Selecione uma ou várias empresas, confira uma amostra da primeira e gere os arquivos
+        completos. A faixa etária reúne todas as empresas escolhidas em uma única tabela; os demais
+        relatórios são separados por empresa.
+      </p>
+      <app-tool-help [content]="help" />
+    </div>
+
+    <div class="batch-action">
+      <label class="export-format"
+        >Formato do arquivo
+        <select [(ngModel)]="formatoSelecionado" aria-label="Formato do arquivo">
+          <option value="csv">CSV</option>
+          <option value="txt">TXT</option>
+          <option value="xlsx">XLSX</option>
+        </select>
+      </label>
+
+      <button
+        class="btn btn-primary batch-download"
+        type="button"
+        [disabled]="
+          !selectedCompanies.length ||
+          !selectedReports.length ||
+          !previewsGenerated ||
+          generating ||
+          downloadingAll ||
+          loadingDefinitions
+        "
+        [attr.aria-busy]="downloadingAll"
+        (click)="downloadAll()"
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        {{ downloadingAll ? 'Preparando ZIP…' : 'Baixar todos os relatórios' }}
+        <span class="batch-count">{{ selectedCompanies.length }}</span>
+      </button>
+      <button
+        class="btn final-report-download"
+        type="button"
+        [disabled]="!canGenerateFinal"
+        [attr.aria-busy]="generatingFinal"
+        (click)="downloadFinal()"
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M6 3h9l3 3v15H6V3Zm3 6h6M9 13h6M9 17h4"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        {{ generatingFinal ? 'Montando relatório final…' : 'Gerar relatório final (XLSX)' }}
+      </button>
+      <small class="final-report-hint">
+        Relatório executivo completo · 1 empresa · 4 relatórios · XLSX anterior enviado
+      </small>
+
+      <small>
+        {{ selectedCompanies.length || 0 }} empresa(s) · {{ selectedReports.length }} relatório(s)
+      </small>
+    </div>
+  </header>
+
+  <div class="workflow">
+    <aside class="setup-panel">
+      <div class="step">
+        <span>1</span>
+        <div>
+          <strong>Empresas</strong>
+          <small>Você pode selecionar quantas precisar.</small>
+        </div>
+      </div>
+
+      <label class="company-search">
+        <span>Buscar empresa</span>
+        <input
+          type="search"
+          [(ngModel)]="companySearch"
+          [disabled]="generating || downloadingAll || generatingFinal"
+          placeholder="Ex.: Canção Nova"
+        />
+      </label>
+
+      <div class="company-toolbar">
+        <button
+          type="button"
+          [disabled]="generating || downloadingAll || generatingFinal || !filteredCompanies.length"
+          (click)="selectVisibleCompanies()"
+        >
+          Selecionar exibidas
+        </button>
+        <button
+          type="button"
+          [disabled]="generating || downloadingAll || generatingFinal || !selectedCompanies.length"
+          (click)="clearCompanies()"
+        >
+          Limpar
+        </button>
+      </div>
+
+      <div class="company-list" *ngIf="filteredCompanies.length; else noCompanies">
+        <label
+          class="company-option"
+          *ngFor="let company of filteredCompanies"
+          [class.selected]="isCompanySelected(company.id)"
+        >
+          <input
+            type="checkbox"
+            [checked]="isCompanySelected(company.id)"
+            [disabled]="generating || downloadingAll || generatingFinal"
+            (change)="toggleCompany(company.id)"
+          />
+          <span>
+            <strong>{{ company.nome }}</strong>
+            <small>{{ company.codigos.length }} contrato(s)</small>
+          </span>
+        </label>
+      </div>
+
+      <ng-template #noCompanies>
+        <div class="company-empty">Nenhuma empresa encontrada para esta busca.</div>
+      </ng-template>
+
+      <div class="selected-companies" *ngIf="selectedCompanies.length">
+        <span class="selected-label">Selecionadas</span>
+        <div class="selected-chips">
+          <button
+            type="button"
+            *ngFor="let company of selectedCompanies"
+            [disabled]="generating || downloadingAll || generatingFinal"
+            (click)="removeCompany(company.id)"
+            [attr.aria-label]="'Remover ' + company.nome"
+          >
+            {{ company.nome }} <b>×</b>
+          </button>
+        </div>
+      </div>
+
+      <div class="step period-step">
+        <span>2</span>
+        <div>
+          <strong>Período</strong>
+          <small>Defina competência e referência.</small>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="commercial-competence">Competência</label>
+        <input
+          id="commercial-competence"
+          type="text"
+          maxlength="6"
+          inputmode="numeric"
+          [ngModel]="competence"
+          (ngModelChange)="onCompetenceChange($event)"
+          [disabled]="generating || downloadingAll || generatingFinal"
+          placeholder="AAAAMM"
+        />
+      </div>
+
+      <div class="field">
+        <label for="commercial-reference">Data de referência da faixa etária</label>
+        <input
+          id="commercial-reference"
+          type="date"
+          [ngModel]="referenceDate"
+          (ngModelChange)="onReferenceDateChange($event)"
+          [disabled]="!ageRangeSelected || generating || downloadingAll || generatingFinal"
+        />
+      </div>
+
+      <div class="field">
+        <label for="commercial-card-status">Códigos da faixa etária</label>
+        <select
+          id="commercial-card-status"
+          [ngModel]="situacaoCodigoCarteirinha"
+          (ngModelChange)="onSituacaoCodigoCarteirinhaChange($event)"
+          [disabled]="!ageRangeSelected || generating || downloadingAll || generatingFinal"
+        >
+          <option value="TODOS">Todos os códigos</option>
+          <option value="ATIVOS">Somente códigos ativos</option>
+          <option value="INATIVOS">Somente códigos inativos</option>
+        </select>
+        <small>
+          Afeta somente a faixa etária. Códigos de quatro posições iniciados por 5 ou 9 são
+          inativos.
+        </small>
+      </div>
+
+      <div class="field">
+        <label for="commercial-previous-final">Relatório final do mês anterior</label>
+        <input
+          id="commercial-previous-final"
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          [disabled]="generating || downloadingAll || generatingFinal"
+          (change)="onPreviousFinalReportChange($event)"
+        />
+        <small *ngIf="previousFinalReport; else previousFinalHint">
+          Arquivo selecionado: {{ previousFinalReport.name }}
+        </small>
+        <ng-template #previousFinalHint>
+          <small>
+            Obrigatório para o relatório final. Os meses anteriores serão copiados deste XLSX e
+            somente a competência atual será consultada novamente.
+          </small>
+        </ng-template>
+      </div>
+
+      <div class="step reports-step">
+        <span>3</span>
+        <div>
+          <strong>Relatórios</strong>
+          <small>Escolha os arquivos que deseja gerar.</small>
+        </div>
+      </div>
+
+      <div class="report-options">
+        <label
+          *ngFor="let report of reports"
+          [class.unavailable]="!report.definition && !loadingDefinitions"
+        >
+          <input
+            type="checkbox"
+            [checked]="report.selected"
+            [disabled]="
+              !report.definition ||
+              loadingDefinitions ||
+              generating ||
+              downloadingAll ||
+              generatingFinal
+            "
+            (change)="toggleReport(report)"
+          />
+          <span>
+            <strong>{{ report.nome }}</strong>
+            <small>{{ report.error || report.descricao }}</small>
+          </span>
+        </label>
+      </div>
+
+      <p class="error" role="alert" *ngIf="error">{{ error }}</p>
+      <p class="loading-copy" role="status" *ngIf="loadingDefinitions">
+        Carregando relatórios disponíveis…
+      </p>
+
+      <button
+        class="primary"
+        type="button"
+        [disabled]="
+          generating ||
+          loadingDefinitions ||
+          downloadingAll ||
+          !selectedCompanies.length ||
+          !selectedReports.length
+        "
+        (click)="generatePreview()"
+      >
+        {{ generating ? 'Gerando prévias…' : 'Gerar prévia' }}
+      </button>
+    </aside>
+
+    <main class="results">
+      <div class="results-intro">
+        <div>
+          <span>4</span>
+          <div>
+            <strong>Conferência</strong>
+            <small
+              >Faixa etária: consolidado completo. Demais relatórios: amostra da primeira
+              empresa.</small
+            >
+          </div>
+        </div>
+
+        <div class="preview-company" *ngIf="previewCompany as company">
+          <span>Prévia</span>
+          <strong>{{ company.nome }}</strong>
+        </div>
+      </div>
+
+      <div class="preview-notice" *ngIf="selectedCompanies.length > 1">
+        <strong>Prévia resumida</strong>
+        <p>
+          Na faixa etária, a tabela soma todas as empresas selecionadas. Nos demais relatórios, a
+          tela mostra somente
+          <b>{{ previewCompany?.nome }}</b
+          >. Os arquivos baixados incluem os dados de todas as
+          {{ selectedCompanies.length }} empresas selecionadas.
+        </p>
+      </div>
+
+      <article class="report-result" *ngFor="let report of selectedReports">
+        <header>
+          <div>
+            <small>{{ report.api }}</small>
+            <h2>{{ report.nome }}</h2>
+          </div>
+          <button type="button" [disabled]="!canDownloadReport(report)" (click)="download(report)">
+            {{
+              report.downloading
+                ? 'Preparando…'
+                : isAgeRange(report)
+                  ? 'Baixar consolidado ' + formatoSelecionado.toUpperCase()
+                  : selectedCompanies.length > 1
+                    ? 'Baixar todas as empresas'
+                    : 'Baixar ' + formatoSelecionado.toUpperCase()
+            }}
+          </button>
+        </header>
+
+        <div class="loading" *ngIf="report.loading">Consultando o SGU…</div>
+        <p class="error result-error" *ngIf="report.error && report.definition">
+          {{ report.error }}
+        </p>
+
+        <app-report-preview
+          *ngIf="!report.loading && report.previewed"
+          [title]="'Prévia de ' + report.nome"
+          [records]="report.records"
+          [columns]="report.columns"
+        />
+
+        <div class="not-previewed" *ngIf="!report.loading && !report.previewed">
+          Gere a prévia para conferir uma amostra antes do download.
+        </div>
+      </article>
+
+      <div class="start-state" *ngIf="!hasPreview">
+        <strong>Selecione as empresas e gere uma prévia.</strong>
+        <span>
+          A faixa etária consolida todas as empresas. Os demais relatórios usam a primeira como
+          amostra.
+        </span>
+      </div>
+    </main>
+  </div>
+</section>

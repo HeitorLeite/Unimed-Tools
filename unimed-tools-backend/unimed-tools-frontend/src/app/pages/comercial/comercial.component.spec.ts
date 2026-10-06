@@ -1,0 +1,385 @@
+import { ChangeDetectorRef } from '@angular/core';
+import { RelatorioService } from '../../shared/services/relatorio.service';
+import { ComercialComponent } from './comercial.component';
+import { of } from 'rxjs';
+
+describe('ComercialComponent', () => {
+  function createComponent(): ComercialComponent {
+    return new ComercialComponent(
+      {} as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('envia todos os códigos de uma empresa com filtro NUMBER e formata a referência', async () => {
+    const executar = vi.fn().mockReturnValue(of({ content: [] }));
+    const component = new ComercialComponent(
+      { executar } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.selectedCompanyIds = ['yakult', 'yakult'];
+    component.referenceDate = '2026-08-31';
+    const report = component.reports.find((item) => component.isAgeRange(item))!;
+    component.reports.forEach((item) => (item.selected = item === report));
+    report.definition = {
+      nome: report.api,
+      consultaSQL: '',
+      ordenacao: '',
+      filtros: [
+        {
+          nomeFiltro: 'empresas',
+          tipoDadoFiltro: 'NUMBER',
+          mascaraFiltro: '',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+        {
+          nomeFiltro: 'datareferencia',
+          tipoDadoFiltro: 'DATE',
+          mascaraFiltro: 'DD/MM/YYYY',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+        {
+          nomeFiltro: 'codigoscarteirinha',
+          tipoDadoFiltro: 'NUMBER',
+          mascaraFiltro: '',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+      ],
+    };
+    await component.generatePreview();
+    expect(executar).toHaveBeenCalledWith(report.api, {
+      combinacoesFiltros: [
+        { empresas: 2232751, datareferencia: '31/08/2026', codigoscarteirinha: 2128 },
+        { empresas: 2232751, datareferencia: '31/08/2026', codigoscarteirinha: 9128 },
+        { empresas: 2234452, datareferencia: '31/08/2026', codigoscarteirinha: 2128 },
+        { empresas: 2234452, datareferencia: '31/08/2026', codigoscarteirinha: 9128 },
+      ],
+      page: 1,
+      size: 20,
+    });
+  });
+
+  it.each([
+    ['ATIVOS', [2152, 2154, 2156, 2158, 2160, 2162]],
+    ['INATIVOS', [9152]],
+    ['TODOS', [2152, 2154, 2156, 2158, 2160, 2162, 9152]],
+  ] as const)(
+    'envia a Canção Nova com a situação %s em combinações numéricas separadas',
+    async (situacao, codigos) => {
+      const executar = vi.fn().mockReturnValue(of({ content: [] }));
+      const component = new ComercialComponent(
+        { executar } as unknown as RelatorioService,
+        { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+      );
+      component.selectedCompanyIds = ['cancao-nova'];
+      component.situacaoCodigoCarteirinha = situacao;
+      const report = component.reports.find((item) => component.isAgeRange(item))!;
+      component.reports.forEach((item) => (item.selected = item === report));
+      report.definition = {
+        nome: report.api,
+        consultaSQL: '',
+        ordenacao: '',
+        filtros: [
+          {
+            nomeFiltro: 'empresas',
+            tipoDadoFiltro: 'VARCHAR',
+            mascaraFiltro: '',
+            conteudoFiltro: '',
+            obrigatorioFiltro: 'S',
+          },
+          {
+            nomeFiltro: 'codigoscarteirinha',
+            tipoDadoFiltro: 'NUMBER',
+            mascaraFiltro: '',
+            conteudoFiltro: '',
+            obrigatorioFiltro: 'S',
+          },
+        ],
+      };
+
+      await component.generatePreview();
+
+      const filtros = executar.mock.calls[0][1].combinacoesFiltros as Array<
+        Record<string, unknown>
+      >;
+      expect(filtros.map((filtro) => filtro['codigoscarteirinha'])).toEqual(codigos);
+      expect(filtros.every((filtro) => typeof filtro['codigoscarteirinha'] === 'number')).toBe(
+        true,
+      );
+    },
+  );
+
+  it('envia o código ativo 422 da Órica como número', async () => {
+    const executar = vi.fn().mockReturnValue(of({ content: [] }));
+    const component = new ComercialComponent(
+      { executar } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.selectedCompanyIds = ['orica'];
+    component.situacaoCodigoCarteirinha = 'ATIVOS';
+    const report = component.reports.find((item) => component.isAgeRange(item))!;
+    component.reports.forEach((item) => (item.selected = item === report));
+    report.definition = {
+      nome: report.api,
+      consultaSQL: '',
+      ordenacao: '',
+      filtros: [
+        {
+          nomeFiltro: 'empresas',
+          tipoDadoFiltro: 'VARCHAR',
+          mascaraFiltro: '',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+        {
+          nomeFiltro: 'codigoscarteirinha',
+          tipoDadoFiltro: 'NUMBER',
+          mascaraFiltro: '',
+          conteudoFiltro: '',
+          obrigatorioFiltro: 'S',
+        },
+      ],
+    };
+
+    await component.generatePreview();
+
+    expect(executar.mock.calls[0][1].combinacoesFiltros).toEqual([
+      { empresas: '2010038,2011533,2011372', codigoscarteirinha: 422 },
+    ]);
+  });
+
+  it('interrompe a faixa etária quando a definição do SGU não possui o filtro de carteirinha', async () => {
+    const executar = vi.fn();
+    const component = new ComercialComponent(
+      { executar } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.selectedCompanyIds = ['yakult'];
+    const report = component.reports.find((item) => component.isAgeRange(item))!;
+    component.reports.forEach((item) => (item.selected = item === report));
+    report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [] };
+
+    await component.generatePreview();
+
+    expect(executar).not.toHaveBeenCalled();
+    expect(report.error).toContain('filtro codigoscarteirinha');
+  });
+
+  it.each([
+    [new Date(2026, 8, 15, 12), '202608', '2026-08-31'],
+    [new Date(2026, 0, 15, 12), '202512', '2025-12-31'],
+  ])('sugere o mês anterior e o último dia dessa competência', (today, competence, reference) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(today);
+
+    const component = createComponent();
+
+    expect(component.competence).toBe(competence);
+    expect(component.referenceDate).toBe(reference);
+  });
+
+  it('recalcula a referência e invalida as prévias quando a competência muda', () => {
+    const component = createComponent();
+    component.reports.forEach((report) => (report.previewed = true));
+
+    component.onCompetenceChange('202402');
+
+    expect(component.referenceDate).toBe('2024-02-29');
+    expect(component.reports.every((report) => !report.previewed)).toBe(true);
+  });
+
+  it('mantém o download bloqueado enquanto as prévias não forem geradas', () => {
+    const exportarLote = vi.fn();
+    const component = new ComercialComponent(
+      { exportarLote } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [] };
+    });
+
+    component.downloadAll();
+
+    expect(component.previewsGenerated).toBe(false);
+    expect(exportarLote).not.toHaveBeenCalled();
+  });
+
+  it('gera o relatório final sem exigir prévias e envia as quatro APIs', () => {
+    const exportarComercialFinal = vi.fn().mockReturnValue(of({ type: 0 }));
+    const component = new ComercialComponent(
+      { exportarComercialFinal } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    component.loadingDefinitions = false;
+    component.competence = '202608';
+    component.referenceDate = '2026-08-31';
+    component.situacaoCodigoCarteirinha = 'INATIVOS';
+    component.previousFinalReport = new File(['xlsx'], 'sinistralidade_anterior.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = {
+        nome: report.api,
+        consultaSQL: '',
+        ordenacao: '',
+        filtros:
+          report.api === '0090-faixa-etaria'
+            ? [
+                {
+                  nomeFiltro: 'empresa',
+                  tipoDadoFiltro: 'NUMBER',
+                  mascaraFiltro: '',
+                  conteudoFiltro: '',
+                  obrigatorioFiltro: 'S',
+                },
+                {
+                  nomeFiltro: 'datareferencia',
+                  tipoDadoFiltro: 'DATE',
+                  mascaraFiltro: 'DD/MM/YYYY',
+                  conteudoFiltro: '',
+                  obrigatorioFiltro: 'S',
+                },
+                {
+                  nomeFiltro: 'codigoscarteirinha',
+                  tipoDadoFiltro: 'NUMBER',
+                  mascaraFiltro: '',
+                  conteudoFiltro: '',
+                  obrigatorioFiltro: 'S',
+                },
+              ]
+            : report.api === '0090-beneficiario-empresa'
+              ? [
+                  {
+                    nomeFiltro: 'empresa',
+                    tipoDadoFiltro: 'NUMBER',
+                    mascaraFiltro: '',
+                    conteudoFiltro: '',
+                    obrigatorioFiltro: 'S',
+                  },
+                ]
+              : [
+                  {
+                    nomeFiltro: 'empresa',
+                    tipoDadoFiltro: 'NUMBER',
+                    mascaraFiltro: '',
+                    conteudoFiltro: '',
+                    obrigatorioFiltro: 'S',
+                  },
+                  {
+                    nomeFiltro: 'competencia',
+                    tipoDadoFiltro: 'NUMBER',
+                    mascaraFiltro: '',
+                    conteudoFiltro: '',
+                    obrigatorioFiltro: 'S',
+                  },
+                ],
+      };
+      report.previewed = false;
+    });
+
+    component.downloadFinal();
+
+    expect(exportarComercialFinal).toHaveBeenCalledTimes(1);
+    const request = exportarComercialFinal.mock.calls[0][0];
+    const arquivoAnterior = exportarComercialFinal.mock.calls[0][1];
+    expect(arquivoAnterior.name).toBe('sinistralidade_anterior.xlsx');
+    expect(request.competencia).toBe('202608');
+    expect(Object.keys(request.filtrosPorApi).sort()).toEqual(
+      component.reports.map((report) => report.api).sort(),
+    );
+    expect(request.filtrosPorApi['0090-beneficiario-empresa'][0].competencia).toBeUndefined();
+    expect(request.filtrosPorApi['0090-receita-empresa-com-grupo'][0].competencia).toBe(202608);
+    expect(request.filtrosPorApi['0090-faixa-etaria'][0].datareferencia).toBe('31/08/2026');
+
+    const codigosFaixaFinal = [
+      ...new Set(
+        request.filtrosPorApi['0090-faixa-etaria'].map(
+          (filtro: Record<string, unknown>) => filtro['codigoscarteirinha'],
+        ),
+      ),
+    ].sort();
+    // Mesmo com a tela em "Somente inativos", o relatório final usa ativos + inativos.
+    expect(codigosFaixaFinal).toEqual([2128, 9128]);
+  });
+
+  it('bloqueia o relatório final sem o XLSX do mês anterior', () => {
+    const exportarComercialFinal = vi.fn();
+    const component = new ComercialComponent(
+      { exportarComercialFinal } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    component.loadingDefinitions = false;
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = {
+        nome: report.api,
+        consultaSQL: '',
+        ordenacao: '',
+        filtros:
+          report.api === '0090-faixa-etaria'
+            ? [{
+                nomeFiltro: 'codigoscarteirinha',
+                tipoDadoFiltro: 'NUMBER',
+                mascaraFiltro: '',
+                conteudoFiltro: '',
+                obrigatorioFiltro: 'S',
+              }]
+            : [],
+      };
+      report.selected = true;
+    });
+
+    expect(component.canGenerateFinal).toBe(false);
+    component.downloadFinal();
+
+    expect(exportarComercialFinal).not.toHaveBeenCalled();
+    expect(component.error).toContain('arquivo XLSX do relatório final do mês anterior');
+  });
+
+  it('bloqueia o relatório final quando um dos quatro relatórios está desmarcado', () => {
+    const exportarComercialFinal = vi.fn();
+    const component = new ComercialComponent(
+      { exportarComercialFinal } as unknown as RelatorioService,
+      { markForCheck: vi.fn() } as unknown as ChangeDetectorRef,
+    );
+
+    component.loadingDefinitions = false;
+    component.selectedCompanyIds = [component.companies[0].id];
+    component.reports.forEach((report) => {
+      report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [] };
+      report.selected = true;
+    });
+    component.reports[0].selected = false;
+
+    expect(component.canGenerateFinal).toBe(false);
+
+    component.downloadFinal();
+
+    expect(exportarComercialFinal).not.toHaveBeenCalled();
+    expect(component.error).toBe('Selecione os quatro relatórios para gerar o relatório final.');
+  });
+
+  it('libera o download individual apenas após a prévia do relatório', () => {
+    const component = createComponent();
+    const report = component.reports[0];
+    component.selectedCompanyIds = [component.companies[0].id];
+    report.definition = { nome: report.api, consultaSQL: '', ordenacao: '', filtros: [] };
+
+    expect(component.canDownloadReport(report)).toBe(false);
+
+    report.previewed = true;
+
+    expect(component.canDownloadReport(report)).toBe(true);
+  });
+});

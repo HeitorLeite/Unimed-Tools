@@ -280,6 +280,32 @@ class ComercialRelatorioFinalServiceTest {
   }
 
   @Test
+  void abreCompetenciaNoInicioMesmoComRolagemSalvaNoModelo() throws Exception {
+    byte[] modelo;
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(historicoAnterior()));
+         var out = new ByteArrayOutputStream()) {
+      var sheet = wb.getSheet("082026");
+      sheet.showInPane(207, 0);
+      sheet.getCTWorksheet().getSheetViews().getSheetViewArray(0).setTopLeftCell("A208");
+      sheet.setActiveCell(new org.apache.poi.ss.util.CellAddress("A208"));
+      wb.setActiveSheet(wb.getSheetIndex("072026"));
+      wb.getSheet("072026").showInPane(99, 0);
+      wb.getSheet("072026").getCTWorksheet().getSheetViews().getSheetViewArray(0).setTopLeftCell("A100");
+      wb.write(out);
+      modelo = out.toByteArray();
+    }
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(service.gerar(request(), modelo)))) {
+      var sheet = wb.getSheet("082026");
+      assertEquals(0, sheet.getTopRow());
+      assertEquals("A1", sheet.getCTWorksheet().getSheetViews().getSheetViewArray(0).getTopLeftCell());
+      assertEquals("A2", sheet.getActiveCell().formatAsString());
+      assertEquals(wb.getSheetIndex("082026"), wb.getActiveSheetIndex());
+      assertEquals(1, sheet.getPaneInformation().getHorizontalSplitPosition());
+      assertEquals("A100", wb.getSheet("072026").getCTWorksheet().getSheetViews().getSheetViewArray(0).getTopLeftCell());
+    }
+  }
+
+  @Test
   void atualizaFaixasECachesDoGraficoLegadoSemDeslocarDuasVezes() throws Exception {
     byte[] legado;
     try (var wb = new XSSFWorkbook(new ByteArrayInputStream(historicoAnterior()));

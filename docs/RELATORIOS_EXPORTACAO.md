@@ -238,6 +238,8 @@ a tabela inicial continua discriminando as duas parcelas. Linhas sem tipo não s
 reclassificadas por suposição. Centavos das fontes são preservados.
 
 **Atual:** fórmulas da nova aba são calculadas antes da gravação e dos gráficos.
+A competência gerada é a aba ativa e abre no início, com a primeira linha
+congelada, independentemente da posição de rolagem salva no modelo anterior.
 Gráficos existentes conservam objetos e estilos; faixas legadas deslocam uma
 linha para acompanhar o título e recebem caches atualizados. A regeneração de
 uma aba já produzida não aplica novamente esse deslocamento. Meta de 70% e a

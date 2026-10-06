@@ -1378,6 +1378,86 @@ public class ComercialRelatorioFinalService {
       .toList();
   }
 
+  private Map<String, BigDecimal> serieAtual(
+    List<LinkedHashMap<String, Object>> linhas,
+    Predicate<Map<String, Object>> filtro,
+    java.util.function.Function<Map<String, Object>, String> chave
+  ) {
+    Map<String, BigDecimal> totais = new LinkedHashMap<>();
+    for (Map<String, Object> linha : linhas) {
+      if (!filtro.test(linha)) continue;
+      String valor = chave.apply(linha);
+      if (valor == null || valor.isBlank()) valor = "NÃO INFORMADO";
+      totais.merge(valor.trim(), valorDespesa(linha), BigDecimal::add);
+    }
+    return totais;
+  }
+
+  private List<SerieRanking> combinarSerieHistorica(
+    Map<String, Map<YearMonth, BigDecimal>> historico,
+    Map<String, BigDecimal> atual,
+    List<MesDados> meses,
+    int limite
+  ) {
+    Set<String> chaves = new LinkedHashSet<>();
+    chaves.addAll(historico.keySet());
+    chaves.addAll(atual.keySet());
+
+    YearMonth mesAtual = meses.getLast().mes;
+    return chaves.stream().map(chave -> {
+      Map<YearMonth, BigDecimal> valores = new LinkedHashMap<>();
+      BigDecimal total = ZERO;
+      for (MesDados mes : meses) {
+        BigDecimal valor = mes.mes.equals(mesAtual)
+          ? atual.getOrDefault(chave, ZERO)
+          : historico.getOrDefault(chave, Map.of()).getOrDefault(mes.mes, ZERO);
+        valores.put(mes.mes, valor);
+        total = total.add(valor);
+      }
+      return new SerieRanking(chave, valores, total);
+    })
+      .filter(item -> item.total.signum() != 0)
+      .sorted(Comparator.comparing(SerieRanking::total).reversed())
+      .limit(limite)
+      .toList();
+  }
+
+  private Map<String, BigDecimal> rankingMapa(
+    List<? extends Map<String, Object>> linhas,
+    java.util.function.Function<Map<String, Object>, String> chave
+  ) {
+    Map<String, BigDecimal> totais = new LinkedHashMap<>();
+    for (Map<String, Object> linha : linhas) {
+      String valor = chave.apply(linha);
+      if (valor == null || valor.isBlank()) valor = "NÃO INFORMADO";
+      totais.merge(valor.trim(), valorDespesa(linha), BigDecimal::add);
+    }
+    return totais;
+  }
+
+  private List<Ranking> atualizarRankingHistorico(
+    Map<String, BigDecimal> acumuladoAnterior,
+    Map<String, BigDecimal> mesExcluido,
+    Map<String, BigDecimal> mesAtual,
+    int limite
+  ) {
+    Set<String> chaves = new LinkedHashSet<>();
+    chaves.addAll(acumuladoAnterior.keySet());
+    chaves.addAll(mesAtual.keySet());
+
+    return chaves.stream()
+      .map(chave -> new Ranking(
+        chave,
+        acumuladoAnterior.getOrDefault(chave, ZERO)
+          .subtract(mesExcluido.getOrDefault(chave, ZERO))
+          .add(mesAtual.getOrDefault(chave, ZERO))
+      ))
+      .filter(item -> item.valor.signum() != 0)
+      .sorted(Comparator.comparing(Ranking::valor).reversed())
+      .limit(limite)
+      .toList();
+  }
+
   private List<Ranking> ranking(
     List<? extends Map<String, Object>> linhas,
     java.util.function.Function<Map<String, Object>, String> chave,

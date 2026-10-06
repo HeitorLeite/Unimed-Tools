@@ -757,6 +757,12 @@ public class ComercialRelatorioFinalService {
       for (int i = 0; i < larguras.length; i++) sheet.setColumnWidth(i, larguras[i] * 256);
       sheet.setDisplayGridlines(false);
       sheet.createFreezePane(0, 1);
+      // A aba reutilizada pode estar salva com a rolagem no fim do relatório.
+      for (var view : sheet.getCTWorksheet().getSheetViews().getSheetViewList()) {
+        view.setTopLeftCell("A1");
+      }
+      sheet.setActiveCell(new org.apache.poi.ss.util.CellAddress("A2"));
+      wb.setActiveSheet(0);
 
       titulo(sheet, 0, 0, 15, "RELATÓRIO DE SINISTRALIDADE — " + empresa, e.titulo);
       resumoDozeMeses(sheet, meses, atual, e);

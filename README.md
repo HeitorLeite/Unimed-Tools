@@ -288,7 +288,23 @@ característica do XAMPP, mas esse endereço não é tratado como ambiente de te
 
 A atualização da pasta do repositório continua sendo manual. Assim, editar ou
 atualizar arquivos localmente afeta primeiro o ambiente de teste; a rede só muda
-quando o atalho de publicação de produção é executado explicitamente.
+quando o atalho de publicação é executado ou na entrada do Windows, se o usuário
+configurar a inicialização automática descrita abaixo.
+
+### Inicialização com o Windows
+
+Execute `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+"scripts\configurar-inicio-windows.ps1"` na pasta da aplicação para registrar
+o inicializador na pasta Inicializar do usuário atual. Ao entrar no Windows,
+ele executa a publicação (com testes e compilação) e depois abre o watch mode,
+evitando builds simultâneos durante a inicialização. As duas janelas permanecem
+abertas. Os arquivos locais são publicados; não há atualização pelo GitHub.
+Para desativar, execute o mesmo comando com `-Remover`.
+
+A publicação encerra somente o Apache instalado em `C:\xampp`, sem chamar
+o `apache_stop.bat` nem exigir fechar uma janela do XAMPP. Depois de encerrar
+o backend, aguarda até 20 segundos pela liberação da porta 8080. Se outro
+aplicativo continuar ocupando a porta, a publicação informa o conflito.
 
 ## Desenvolvimento
 

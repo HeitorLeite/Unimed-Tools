@@ -129,8 +129,8 @@ class ComercialRelatorioFinalServiceTest {
       assertEquals(725.98d, sheet.getRow(13).getCell(1).getNumericCellValue(), 0.001);
       assertEquals(751d, sheet.getRow(13).getCell(2).getNumericCellValue(), 0.001);
 
-      // A situação vem do código, independentemente das datas e do campo ATIVO.
-      assertEquals(3d, sheet.getRow(18).getCell(1).getNumericCellValue());
+      // A população vigente exclui cadastros encerrados e futuros.
+      assertEquals(1d, sheet.getRow(18).getCell(1).getNumericCellValue());
       assertEquals(0d, sheet.getRow(18).getCell(2).getNumericCellValue());
 
       // Vale do Paraíba e Sudeste ficam separados.
@@ -220,21 +220,100 @@ class ComercialRelatorioFinalServiceTest {
   }
 
   @Test
-  void classificaPeloCodigoComZerosEIgnoraDatasEStatus() throws Exception {
+  void classificaPeloCodigoSomenteAPopulacaoVigente() throws Exception {
     when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_DESPESA), anyMap()))
       .thenReturn(List.of(linha("cod_beneficiario", "090.9152.000002.00", "ativo", "S",
         "valor_total_21", "10,25", "descricao_tipo_guia", "CONSULTA")));
     when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_BENEFICIARIOS), anyMap()))
       .thenReturn(List.of(
-        linha("cod_beneficiario", "090.0045.000001.00", "ativo", "N", "data_exclusao", "01/01/2020"),
-        linha("cod_beneficiario", "090.0045.000001.00", "ativo", "N"),
+        linha("cod_beneficiario", "090.0045.000001.00", "ativo", "S", "data_cadastro", "01/01/2026"),
+        linha("cod_beneficiario", "090.0045.000001.00", "ativo", "S"),
+        linha("cod_beneficiario", "090.0045.000002.00", "ativo", "N", "data_exclusao", "01/01/2020"),
         linha("cod_beneficiario", "090.5045.000001.00", "ativo", "S"),
         linha("cod_beneficiario", "090.9152.000001.00", "ativo", "S", "data_cadastro", "01/01/2027")
       ));
     try (var wb = new XSSFWorkbook(new ByteArrayInputStream(service.gerar(request(), historicoAnterior())))) {
       assertEquals(1, wb.getSheet("082026").getRow(18).getCell(1).getNumericCellValue());
-      assertEquals(2, wb.getSheet("082026").getRow(18).getCell(2).getNumericCellValue());
+      assertEquals(1, wb.getSheet("082026").getRow(18).getCell(2).getNumericCellValue());
+      assertEquals(2, wb.getSheet("082026").getRow(13).getCell(4).getNumericCellValue());
       assertEquals("INATIVO", wb.getSheet("082026").getRow(113).getCell(2).getStringCellValue());
+    }
+  }
+
+  @Test
+  void distribuiDespesaPorPrestadorERateiaCentralSemDuplicarLocalOuHomeCare() throws Exception {
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_DESPESA), anyMap()))
+      .thenReturn(List.of(
+        linha("regiao_prest", "LOCAL", "regiao_benef", "Sudeste", "valor_total_21", "100,25"),
+        linha("regiao_prest", "Sudeste", "regiao_benef", "Sudeste", "nome_prestador", "CENTRAL NACIONAL TESTE", "valor_total_21", "25,50"),
+        linha("regiao_prest", "Sudeste", "regiao_benef", "Vale do Paraiba", "valor_total_21", "10,10"),
+        linha("regiao_prest", "", "regiao_benef", "Vale do Paraiba", "valor_total_21", "5,15"),
+        linha("regiao_prest", "LOCAL", "regiao_benef", "Vale do Paraiba", "grupo_prestador", "HOME CARE", "valor_total_21", "7,05")
+      ));
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(service.gerar(request(), historicoAnterior())))) {
+      var sheet = wb.getSheet("082026");
+      var eval = wb.getCreationHelper().createFormulaEvaluator();
+      assertEquals(25.50, sheet.getRow(88).getCell(3).getNumericCellValue(), 0.001);
+      assertEquals(35.60, sheet.getRow(89).getCell(3).getNumericCellValue(), 0.001);
+      assertEquals(81.80, sheet.getRow(95).getCell(3).getNumericCellValue(), 0.001);
+      assertEquals(25.50, sheet.getRow(89).getCell(8).getNumericCellValue(), 0.001);
+      assertEquals(61.10, eval.evaluate(sheet.getRow(89).getCell(9)).getNumberValue(), 0.001);
+      assertEquals(86.95, eval.evaluate(sheet.getRow(94).getCell(9)).getNumberValue(), 0.001);
+      assertEquals(148.05, eval.evaluate(sheet.getRow(95).getCell(9)).getNumberValue(), 0.001);
+      // O segundo cabeçalho é Região na coluna A, não o subtítulo Sinistro por Região.
+      assertEquals(145.60, sheet.getRow(102).getCell(3).getNumericCellValue(), 0.001);
+    }
+  }
+
+  @Test
+  void mantemReceitaComCopartConsistenteNosIndicadores() throws Exception {
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_RECEITA), anyMap()))
+      .thenReturn(List.of(linha("TIPO", "Mensalidade", "VALOR_TOTAL", "100,00"),
+        linha("TIPO", "Coparticipação", "VALOR_TOTAL", "20,00")));
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(service.gerar(request(), historicoAnterior())))) {
+      var sheet = wb.getSheet("082026");
+      assertEquals(100, sheet.getRow(13).getCell(1).getNumericCellValue());
+      assertEquals(20, sheet.getRow(13).getCell(3).getNumericCellValue());
+      assertEquals(120, sheet.getRow(18).getCell(4).getNumericCellValue());
+      assertEquals(120, sheet.getRow(48).getCell(1).getNumericCellValue());
+    }
+  }
+
+  @Test
+  void atualizaFaixasECachesDoGraficoLegadoSemDeslocarDuasVezes() throws Exception {
+    byte[] legado;
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(historicoAnterior()));
+         var out = new ByteArrayOutputStream()) {
+      var sheet = wb.getSheet("082026");
+      sheet.createRow(0).createCell(0).setCellValue("Comp");
+      sheet.createRow(12).createCell(0).setCellValue("ago-26");
+      sheet.getRow(12).createCell(1).setCellValue(9999);
+      var chart = sheet.getDrawingPatriarch().getCharts().getFirst();
+      var cat = chart.createCategoryAxis(org.apache.poi.xddf.usermodel.chart.AxisPosition.BOTTOM);
+      var val = chart.createValueAxis(org.apache.poi.xddf.usermodel.chart.AxisPosition.LEFT);
+      var data = chart.createData(org.apache.poi.xddf.usermodel.chart.ChartTypes.BAR, cat, val);
+      data.addSeries(
+        org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory.fromStringCellRange(sheet, new org.apache.poi.ss.util.CellRangeAddress(12,12,0,0)),
+        org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory.fromNumericCellRange(sheet, new org.apache.poi.ss.util.CellRangeAddress(12,12,1,1)));
+      data.addSeries(
+        org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory.fromStringCellRange(sheet, new org.apache.poi.ss.util.CellRangeAddress(12,12,0,0)),
+        org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory.fromNumericCellRange(sheet, new org.apache.poi.ss.util.CellRangeAddress(12,12,1,1)));
+      chart.plot(data);
+      // O gráfico de acumulado do modelo possui série sem categorias explícitas.
+      chart.getCTChart().getPlotArea().getBarChartArray(0).getSerArray(1).unsetCat();
+      wb.write(out);
+      legado = out.toByteArray();
+    }
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_RECEITA), anyMap()))
+      .thenReturn(List.of(linha("TIPO", "Mensalidade", "VALOR_TOTAL", "100,00")));
+    for (int i = 0; i < 2; i++) {
+      legado = service.gerar(request(), legado);
+      try (var wb = new XSSFWorkbook(new ByteArrayInputStream(legado))) {
+        var serie = wb.getSheet("082026").getDrawingPatriarch().getCharts().getFirst().getChartSeries().getFirst().getSeries().getFirst();
+        assertEquals("'082026'!$B$14", serie.getValuesData().getDataRangeReference());
+        assertEquals(100d, serie.getValuesData().getPointAt(0).doubleValue());
+        assertEquals(CellType.NUMERIC, wb.getSheet("082026").getRow(15).getCell(1).getCachedFormulaResultType());
+      }
     }
   }
 
@@ -243,6 +322,23 @@ class ComercialRelatorioFinalServiceTest {
     when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_BENEFICIARIOS), anyMap()))
       .thenReturn(List.of(linha("cod_beneficiario", "")));
     assertThrows(IllegalArgumentException.class, () -> service.gerar(request(), historicoAnterior()));
+  }
+
+  @Test
+  void reconstroiCompetenciaAntesDeClassificarCarteirinhaSemUsarStatusAtual() throws Exception {
+    when(exportacao.carregarRegistros(eq(ComercialRelatorioFinalService.API_BENEFICIARIOS), anyMap()))
+      .thenReturn(List.of(
+        linha("cod_beneficiario", "090.2152.000001.00", "ativo", "N", "data_cadastro", "01/01/2026", "data_exclusao", "01/09/2026"),
+        linha("cod_beneficiario", "090.9152.000001.00", "ativo", "N", "data_cadastro", "01/01/2026", "data_exclusao", "01/09/2026"),
+        linha("cod_beneficiario", "090.2152.000002.00", "ativo", "S", "data_cadastro", "01/09/2026"),
+        linha("cod_beneficiario", "090.2152.000003.00", "ativo", "S", "data_cadastro", "01/01/2026", "data_exclusao", "31/08/2026"),
+        linha("cod_beneficiario", "090.2152.000004.00", "ativo", "S", "data_cadastro", "31/08/2026")
+      ));
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(service.gerar(request(), historicoAnterior())))) {
+      assertEquals(2, wb.getSheet("082026").getRow(18).getCell(1).getNumericCellValue());
+      assertEquals(1, wb.getSheet("082026").getRow(18).getCell(2).getNumericCellValue());
+      assertEquals(3, wb.getSheet("082026").getRow(13).getCell(4).getNumericCellValue());
+    }
   }
 
   @Test
@@ -293,6 +389,7 @@ class ComercialRelatorioFinalServiceTest {
       tabelaRegional(julho, 86, 10, 20);
       tabelaRegional(julho, 99, 120, 240);
       tabelaRegional(agosto25, 86, 10, 20);
+      julho.getRow(88).createCell(9).setCellValue("Sinistro por Região (R$)");
 
       // Indicador sem receita, como nas abas do modelo legado. A busca por
       // títulos deve atravessar a fórmula com erro sem tentar lê-la como número.

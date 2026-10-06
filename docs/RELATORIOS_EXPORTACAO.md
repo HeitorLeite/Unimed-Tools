@@ -208,18 +208,52 @@ beneficiário. Vidas por região são contadas por identificador único nas
 mensalidades, incluindo mensalidades repetidas sem multiplicar a quantidade de
 vidas. A soma financeira mantém todas as linhas legítimas.
 
-**Atual:** por definição funcional, o resumo de ativos/inativos e a situação nos
-rankings usam o código de carteirinha de quatro posições: iniciado por 5 ou 9 é
-inativo, os demais são ativos. A contagem deduplica por identificador e considera
-todos os beneficiários da base enviada, independentemente de cadastro/exclusão
-ou do campo ATIVO. Identificador sem código classificável impede a geração, sem
-exibir o dado pessoal na mensagem. Vidas nas mensalidades são uma população
-diferente, usada nas tabelas regionais. Histórico anterior permanece preservado.
+**Atual:** a população de beneficiários do resumo é reconstruída no último dia
+da competência: cadastro futuro e exclusão na data de referência ou antes dela
+ficam fora. O campo ATIVO atual só serve de fallback quando não há datas de
+vigência, pois pode refletir mudanças posteriores ao período. Depois da seleção,
+a carteirinha de quatro posições classifica iniciados por 5/9 como inativos e os
+demais como ativos, com deduplicação por identificador. Rankings mantêm a situação
+pelo código, inclusive para beneficiários que tiveram custos e não estão mais
+vigentes. A coluna de vidas no mês atual contém ativos + inativos; as contagens
+históricas permanecem como fornecidas pelo modelo anterior, sem reconstituir
+populações históricas não disponíveis. Isso deve ser considerado ao interpretar
+variações de vidas em modelos que usavam outro critério no histórico.
 
-**Pendente:** a faixa etária exige sua própria consulta; os CSVs de beneficiários,
-receita e despesas, isoladamente, não comprovam suas contagens DEP/TIT.
-Conferência offline dos CSVs comprova a consolidação, mas não valida o acesso ao
-SGU nem a publicação da alteração no ambiente em uso.
+**Atual:** despesas regionais usam REGIAO_PREST/REGIAO_PRESTADOR; na ausência,
+usam a região do beneficiário. Prestadores Central Nacional e Módulo Coração são
+separados; o rateio da Central usa a região do beneficiário. Conforme o modelo,
+Central também aparece na região do prestador, compensada no residual Local.
+Receita e vidas nas
+mensalidades continuam por região do beneficiário. O cabeçalho regional é
+identificado por Região na coluna A, sem confundir Sinistro por Região com outra
+tabela; Sudeste (Fora Vale) não é classificado como Vale do Paraíba.
+
+O consolidado regional inclui os custos locais no Vale e os rateios da Central e
+Módulo. Home Care permanece discriminado, mas não é somado novamente ao custo já
+incluído na despesa. Local e o rateio local da Central são residuais em relação
+aos totais históricos, evitando propagar diferenças de arredondamento do modelo.
+Receita nos indicadores e gráficos é mensalidade + coparticipação classificada;
+a tabela inicial continua discriminando as duas parcelas. Linhas sem tipo não são
+reclassificadas por suposição. Centavos das fontes são preservados.
+
+**Atual:** fórmulas da nova aba são calculadas antes da gravação e dos gráficos.
+Gráficos existentes conservam objetos e estilos; faixas legadas deslocam uma
+linha para acompanhar o título e recebem caches atualizados. A regeneração de
+uma aba já produzida não aplica novamente esse deslocamento. Meta de 70% e a
+linha de apoio do gráfico acumulado são preservadas no layout. Abas anteriores
+não são recalculadas nem recebem alterações nesses gráficos.
+
+**Validação:** testes sintéticos cobrem vigência, classificação, duplicidade,
+região de prestador, rateio, consolidação, coparticipação e atualização de gráficos
+com ou sem categorias, inclusive em duas gerações consecutivas.
+
+**Pendente:** a consulta de faixa etária ao SGU permanece independente. Uma
+conferência offline pode comparar as faixas do modelo com idade na referência,
+sexo e sufixo da carteirinha dos CSVs, mas não comprova os filtros enviados nem a
+resposta do SGU na instalação. Rankings acumulados a partir de tabelas truncadas
+do histórico não comprovam os custos individuais completos dos doze meses.
+Não são inseridos dados reais em testes ou documentação.
 
 SGU não fornece um snapshot transacional compartilhado entre chamadas: a
 ordenação estabiliza dados que não mudam durante a exportação. Alterações

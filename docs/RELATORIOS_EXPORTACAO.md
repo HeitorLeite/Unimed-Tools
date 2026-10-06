@@ -238,6 +238,12 @@ a tabela inicial continua discriminando as duas parcelas. Linhas sem tipo não s
 reclassificadas por suposição. Centavos das fontes são preservados.
 
 **Atual:** fórmulas da nova aba são calculadas antes da gravação e dos gráficos.
+As tabelas históricas de receita, tipo de guia e grupo de prestador são localizadas
+pelos cabeçalhos, permitindo modelos com linhas diferentes, como o da Yakult.
+Modelos sem tabelas regionais permitem gerar o mês atual; o acumulado regional
+é indicado como indisponível, sem presumir valores históricos. Rankings também
+aceitam os títulos MAIORES CUSTOS BENEFICIARIOS/ESPECIALIDADES e as colunas
+Cód. Beneficiário e Sinistro desses modelos.
 A competência gerada é a aba ativa e abre no início, com a primeira linha
 congelada, independentemente da posição de rolagem salva no modelo anterior.
 Gráficos existentes conservam objetos e estilos; faixas legadas deslocam uma

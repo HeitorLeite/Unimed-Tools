@@ -20,5 +20,5 @@ if not "%UNIMED_EXIT_CODE%"=="0" (
 ) else (
   echo Publicacao de producao concluida.
 )
-pause
+if /I not "%~1"=="/automatico" pause
 exit /b %UNIMED_EXIT_CODE%

@@ -104,27 +104,45 @@ function Wait-LocalPort([int]$port, [int]$seconds, [string]$serviceName) {
 
 function Stop-XamppService(
   [string]$processName,
-  [string]$stopScript,
   [string]$serviceName
 ) {
-  $running = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+  $apacheExe = Join-Path $xamppDir 'apache\bin\httpd.exe'
+  $running = @(Get-Process -Name $processName -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -eq $apacheExe })
   if (-not $running.Count) { return }
 
   Write-Host "Encerrando $serviceName anterior..." -ForegroundColor Yellow
-  $scriptPath = Join-Path $xamppDir $stopScript
-  if (Test-Path -LiteralPath $scriptPath -PathType Leaf) {
-    Start-Process -FilePath $env:ComSpec -ArgumentList @('/c', ('"' + $scriptPath + '"')) -WorkingDirectory $xamppDir -WindowStyle Hidden -Wait | Out-Null
+  # apache_stop.bat pode abrir outra janela e conter um caminho de instalacao
+  # invalido. O comando nativo recebe um prazo e nunca exige fechar um CMD.
+  $stopper = Start-Process -FilePath $apacheExe -ArgumentList @('-k', 'shutdown') `
+    -WorkingDirectory $xamppDir -WindowStyle Hidden -PassThru
+  if (-not $stopper.WaitForExit(5000)) {
+    $stopper.Kill()
+    $stopper.WaitForExit(5000) | Out-Null
   }
 
   $deadline = [DateTime]::UtcNow.AddSeconds(20)
   do {
-    $stillRunning = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+    $stillRunning = @(Get-Process -Name $processName -ErrorAction SilentlyContinue |
+      Where-Object { $_.Path -eq $apacheExe })
     if (-not $stillRunning.Count) { return }
     Start-Sleep -Milliseconds 400
   } while ([DateTime]::UtcNow -lt $deadline)
 
-  Write-Host "$serviceName nao encerrou pelo script; finalizando os processos restantes..." -ForegroundColor DarkYellow
-  Get-Process -Name $processName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction Stop
+  Write-Host "$serviceName nao encerrou no prazo; finalizando os processos restantes..." -ForegroundColor DarkYellow
+  foreach ($process in $stillRunning) {
+    Stop-Process -Id $process.Id -Force -ErrorAction Stop
+    Wait-Process -Id $process.Id -Timeout 15 -ErrorAction SilentlyContinue
+  }
+}
+
+function Wait-PortReleased([int]$port, [int]$seconds) {
+  $deadline = [DateTime]::UtcNow.AddSeconds($seconds)
+  do {
+    if (-not (Test-LocalPort $port)) { return }
+    Start-Sleep -Milliseconds 400
+  } while ([DateTime]::UtcNow -lt $deadline)
+  throw "A porta $port continua ocupada. Nenhum processo de outro aplicativo foi encerrado."
 }
 function Start-XamppService(
   [string]$processName,
@@ -143,17 +161,24 @@ function Start-XamppService(
     throw "Nao foi encontrado o iniciador do $serviceName em '$scriptPath'."
   }
 
-  Start-Process `
-    -FilePath $env:ComSpec `
-    -ArgumentList @('/c', "`"$scriptPath`"") `
-    -WorkingDirectory $xamppDir `
-    -WindowStyle Hidden | Out-Null
+  if ($processName -eq 'httpd') {
+    Start-Process -FilePath (Join-Path $xamppDir 'apache\bin\httpd.exe') `
+      -WorkingDirectory $xamppDir -WindowStyle Hidden `
+      -RedirectStandardOutput (Join-Path $runtimeDir 'apache.log') `
+      -RedirectStandardError (Join-Path $runtimeDir 'apache-error.log') | Out-Null
+  } else {
+    Start-Process `
+      -FilePath $env:ComSpec `
+      -ArgumentList @('/c', "`"$scriptPath`"") `
+      -WorkingDirectory $xamppDir `
+      -WindowStyle Hidden | Out-Null
+  }
   Wait-LocalPort $port 30 $serviceName
 }
 
 function Stop-UnimedBackend {
   $targetDirectory = (Join-Path $backendDir 'target') + '\'
-  $processes = Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
+  $processes = Get-CimInstance Win32_Process -Filter "Name = 'java.exe' OR Name = 'javaw.exe'" |
     Where-Object {
       if ($_.CommandLine -match '(?:^|\s)-jar\s+(?:"([^"]+)"|(\S+))') {
         $jarPath = if ($Matches[1]) { $Matches[1] } else { $Matches[2] }
@@ -318,18 +343,21 @@ try {
 
   # Localhost e 192.168.3.242 usam o mesmo frontend estatico servido pelo Apache.
   # Reiniciar o Apache e substituir a pasta inteira evita bundles antigos no XAMPP.
-  Stop-XamppService 'httpd' 'apache_stop.bat' 'Apache'
+  Stop-XamppService 'httpd' 'Apache'
+  Wait-PortReleased 80 20
 
   Stop-UnimedBackend
-  if (Test-LocalPort 8080) {
-    throw 'A porta 8080 esta ocupada por outro processo. Libere a porta antes de iniciar.'
-  }
+  Wait-PortReleased 8080 20
 
   # O Windows bloqueia o JAR em execucao. A copia fora de target permite
   # compilar a proxima versao antes de encerrar o backend atual.
   Copy-Item -LiteralPath $backendJar.FullName -Destination $backendRuntimeJar -Force
 
   if (Test-Path -LiteralPath $frontendDestination -PathType Container) {
+    $resolvedDestination = [IO.Path]::GetFullPath($frontendDestination)
+    if ($resolvedDestination -ne [IO.Path]::GetFullPath((Join-Path $xamppDir 'htdocs\unimed-tools'))) {
+      throw 'Destino da publicacao fora da pasta esperada do XAMPP.'
+    }
     Remove-Item -LiteralPath $frontendDestination -Recurse -Force
   }
   New-Item -ItemType Directory -Path $frontendDestination -Force | Out-Null

@@ -400,7 +400,8 @@ public class ComercialRelatorioFinalService {
       Map<YearMonth, BigDecimal> sinistros = new LinkedHashMap<>();
       Map<YearMonth, BigDecimal> coparts = new LinkedHashMap<>();
       Map<YearMonth, Long> ativos = new LinkedHashMap<>();
-      for (int r = 2; r <= 13; r++) {
+      int inicioResumo = inicioTabelaHistorica(anterior, "RECEITA");
+      for (int r = inicioResumo; r < inicioResumo + 12; r++) {
         YearMonth mes = mesCelula(anterior.getRow(r) == null ? null : anterior.getRow(r).getCell(0));
         if (mes == null) continue;
         receitas.put(mes, numeroCelula(anterior, r, 1));
@@ -410,10 +411,10 @@ public class ComercialRelatorioFinalService {
       }
 
       Map<YearMonth, Map<String, BigDecimal>> tipos = lerTabelaMensal(
-        anterior, 53, 64, TIPOS_GUIA, 1
+        anterior, inicioTabelaHistorica(anterior, "CONSULTAS"), TIPOS_GUIA, 1
       );
       Map<YearMonth, Map<String, BigDecimal>> grupos = lerTabelaMensal(
-        anterior, 69, 80, GRUPOS, 1
+        anterior, inicioTabelaHistorica(anterior, "RECURSO PROPRIO"), GRUPOS, 1
       );
 
       List<MesDados> meses = new ArrayList<>();
@@ -473,15 +474,22 @@ public class ComercialRelatorioFinalService {
     }
   }
 
+  private int inicioTabelaHistorica(Sheet sheet, String primeiraMedida) {
+    for (int r = 0; r <= sheet.getLastRowNum(); r++) {
+      if (normalizarPalavras(textoCelula(sheet, r, 0)).equals("COMP") &&
+          normalizarPalavras(textoCelula(sheet, r, 1)).equals(primeiraMedida)) return r + 1;
+    }
+    throw new IllegalArgumentException("O XLSX anterior não possui o cabeçalho da tabela histórica de " + primeiraMedida + ".");
+  }
+
   private Map<YearMonth, Map<String, BigDecimal>> lerTabelaMensal(
     Sheet sheet,
     int inicio,
-    int fim,
     List<String> chaves,
     int primeiraColuna
   ) {
     Map<YearMonth, Map<String, BigDecimal>> resultado = new LinkedHashMap<>();
-    for (int r = inicio; r <= fim; r++) {
+    for (int r = inicio; r < inicio + 12; r++) {
       Row row = sheet.getRow(r);
       YearMonth mes = mesCelula(row == null ? null : row.getCell(0));
       if (mes == null) continue;
@@ -501,6 +509,7 @@ public class ComercialRelatorioFinalService {
   ) {
     int cabecalho = cabecalhoRegional(sheet, ocorrencia);
     if (cabecalho < 0) {
+      if (cabecalhoRegional(sheet, 1) < 0 || encontrarLinha(sheet, "ACUMULADO REGIONAL INDISPONIVEL", 1) >= 0) return Map.of();
       throw new IllegalArgumentException(
         "O XLSX anterior não possui a tabela regional esperada."
       );
@@ -526,7 +535,10 @@ public class ComercialRelatorioFinalService {
 
   private Map<String, BigDecimal> lerRateioCentral(Sheet sheet, int ocorrencia) {
     int header = cabecalhoRegional(sheet, ocorrencia);
-    if (header < 0) throw new IllegalArgumentException("O histórico não possui a tabela regional esperada.");
+    if (header < 0) {
+      if (cabecalhoRegional(sheet, 1) < 0 || encontrarLinha(sheet, "ACUMULADO REGIONAL INDISPONIVEL", 1) >= 0) return Map.of();
+      throw new IllegalArgumentException("O histórico não possui a tabela regional esperada.");
+    }
     Map<String, BigDecimal> resultado = mapaDecimal(REGIOES);
     for (int i = 2; i < REGIOES.size() - 1; i++) {
       String regiao = normalizarRegiaoHistorica(textoCelula(sheet, header + 1 + i, 0));
@@ -555,6 +567,13 @@ public class ComercialRelatorioFinalService {
     String cabecalhoChave
   ) {
     int linhaTitulo = encontrarLinha(sheet, titulo, 1);
+    if (linhaTitulo < 0) {
+      boolean beneficiario = cabecalhoChave.equals("CODIGO");
+      boolean acumulado = titulo.contains("ACUMULADO");
+      linhaTitulo = encontrarLinha(sheet, beneficiario
+        ? "MAIORES CUSTOS BENEFICIARIOS " + (acumulado ? "ACUMULADO" : "DO MES")
+        : "MAIORES CUSTOS " + (acumulado ? "ESPECIALIDADES ACUMULADO" : "ESPECIALIDADE NO MES"), 1);
+    }
     if (linhaTitulo < 0) return Map.of();
     Row header = sheet.getRow(linhaTitulo + 1);
     if (header == null) return Map.of();
@@ -563,9 +582,10 @@ public class ComercialRelatorioFinalService {
     int colunaValor = -1;
     for (int c = 0; c < Math.max(16, header.getLastCellNum()); c++) {
       String h = normalizar(textoCelula(sheet, linhaTitulo + 1, c));
-      if (colunaChave < 0 && h.equals(normalizar(cabecalhoChave))) {
+      if (colunaChave < 0 && (h.equals(normalizar(cabecalhoChave)) ||
+          cabecalhoChave.equals("CODIGO") && h.equals("CODBENEFICIARIO"))) {
         colunaChave = c;
-      } else if (colunaChave >= 0 && c > colunaChave && h.contains("VALOR")) {
+      } else if (colunaChave >= 0 && c > colunaChave && (h.contains("VALOR") || h.equals("SINISTRO"))) {
         colunaValor = c;
         break;
       }
@@ -984,6 +1004,12 @@ public class ComercialRelatorioFinalService {
     Estilos e
   ) {
     MesDados atual = meses.getLast();
+    if (historico.regiaoSinistro12Anterior().isEmpty() || historico.regiaoSinistroMesExcluido().isEmpty()) {
+      regiaoBloco(sheet, 85, atual.sinistro, "Mês", atual.vidasRegiao, atual.despesaRegiao,
+        atual.receitaRegiao, atual.centralRegiao, atual.grupoPrestador.get("Home-Care"), e);
+      texto(sheet, 98, 0, "Acumulado regional indisponível: o modelo anterior não contém histórico regional.", e.total);
+      return;
+    }
     Map<String, BigDecimal> sinistro12 = mapaDecimal(REGIOES);
     Map<String, BigDecimal> receita12 = mapaDecimal(REGIOES);
     Map<String, BigDecimal> central12 = mapaDecimal(REGIOES);

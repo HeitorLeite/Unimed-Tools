@@ -376,6 +376,42 @@ class ComercialRelatorioFinalServiceTest {
     }
   }
 
+  @Test
+  void leHistoricoComTabelasEmLinhasDiferentesComoModeloYakult() throws Exception {
+    byte[] modelo;
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(historicoAnterior()));
+         var out = new ByteArrayOutputStream()) {
+      var sheet = wb.getSheet("072026");
+      sheet.shiftRows(68, 80, -2);
+      sheet.shiftRows(52, 64, -2);
+      sheet.shiftRows(1, 13, -1);
+      for (int r = 86; r <= 108; r++) {
+        if (sheet.getRow(r) != null) sheet.removeRow(sheet.getRow(r));
+      }
+      var excluida = wb.getSheet("082025");
+      for (int r = 86; r <= 95; r++) {
+        if (excluida.getRow(r) != null) excluida.removeRow(excluida.getRow(r));
+      }
+      sheet.createRow(110).createCell(0).setCellValue("MAIORES CUSTOS BENEFICIARIOS ACUMULADO");
+      sheet.createRow(111).createCell(1).setCellValue("Cód. Beneficiário");
+      sheet.getRow(111).createCell(2).setCellValue("Sinistro");
+      sheet.createRow(112).createCell(1).setCellValue("090.2128.000001.00");
+      sheet.getRow(112).createCell(2).setCellValue(123.45);
+      wb.write(out);
+      modelo = out.toByteArray();
+    }
+    try (var wb = new XSSFWorkbook(new ByteArrayInputStream(service.gerar(request(), modelo)))) {
+      var sheet = wb.getSheet("082026");
+      assertEquals(1010d, sheet.getRow(2).getCell(1).getNumericCellValue());
+      assertEquals(810d, sheet.getRow(2).getCell(2).getNumericCellValue());
+      assertEquals(100d, sheet.getRow(53).getCell(1).getNumericCellValue());
+      assertEquals(100d, sheet.getRow(69).getCell(1).getNumericCellValue());
+      assertEquals(1110d, sheet.getRow(12).getCell(1).getNumericCellValue());
+      assertEquals(true, sheet.getRow(98).getCell(0).getStringCellValue().contains("indisponível"));
+      assertEquals("090.2128.000001.00", sheet.getRow(126).getCell(1).getStringCellValue());
+    }
+  }
+
   private byte[] historicoAnterior() throws Exception {
     try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
       // Reproduz o arquivo real: a competência que será recalculada já existe
@@ -390,6 +426,11 @@ class ComercialRelatorioFinalServiceTest {
       var agosto25 = wb.createSheet("082025");
 
       LocalDate inicio = LocalDate.of(2025, 8, 1);
+      for (var cabecalho : java.util.Map.of(1, "Receita", 52, "Consultas", 68, "Recurso Próprio").entrySet()) {
+        var row = julho.createRow(cabecalho.getKey());
+        row.createCell(0).setCellValue("Comp");
+        row.createCell(1).setCellValue(cabecalho.getValue());
+      }
       for (int i = 0; i < 12; i++) {
         LocalDate mes = inicio.plusMonths(i);
         int rResumo = 2 + i;
